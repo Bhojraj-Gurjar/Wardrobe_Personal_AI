@@ -1,0 +1,151 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+enum BodyType {
+  SLIM
+  ATHLETIC
+  AVERAGE
+  CURVY
+  PLUS_SIZE
+}
+
+enum SkinTone {
+  FAIR
+  LIGHT
+  MEDIUM
+  OLIVE
+  TAN
+  BROWN
+  DARK
+}
+
+model User {
+  id            String      @id @default(uuid())
+  email         String      @unique
+  mobile        String?     @unique
+  password_hash String      @map("password_hash")
+  status        UserStatus  @default(ACTIVE)
+  created_at    DateTime    @default(now()) @map("created_at")
+  updated_at    DateTime    @updatedAt @map("updated_at")
+  profile       UserProfile?
+  wishlist      Wishlist[]
+  orders        Order[]
+  fashion_dna   FashionDna?
+
+  @@map("users")
+}
+
+model UserProfile {
+  id         String    @id @default(uuid())
+  user_id    String    @unique @map("user_id")
+  gender     Gender?
+  age        Int?
+  height     Float?
+  weight     Float?
+  body_type  BodyType? @map("body_type")
+  skin_tone  SkinTone? @map("skin_tone")
+  user       User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  created_at DateTime  @default(now()) @map("created_at")
+  updated_at DateTime  @updatedAt @map("updated_at")
+
+  @@map("user_profiles")
+}
+
+model Product {
+  id           String         @id @default(uuid())
+  sku          String         @unique
+  name         String
+  description  String?
+  category_id  String         @map("category_id")
+  brand_id     String         @map("brand_id")
+  price        Float
+  created_at   DateTime       @default(now()) @map("created_at")
+  updated_at   DateTime       @updatedAt @map("updated_at")
+  images       ProductImage[]
+  wishlist     Wishlist[]
+
+  @@index([category_id])
+  @@index([brand_id])
+  @@index([price])
+  @@map("products")
+}
+
+model ProductImage {
+  id         String   @id @default(uuid())
+  product_id String   @map("product_id")
+  url        String
+  sort_order Int      @default(0) @map("sort_order")
+  is_primary Boolean  @default(false) @map("is_primary")
+  created_at DateTime @default(now()) @map("created_at")
+  product    Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
+
+  @@index([product_id])
+  @@map("product_images")
+}
+
+model Wishlist {
+  id         String   @id @default(uuid())
+  user_id    String   @map("user_id")
+  product_id String   @map("product_id")
+  created_at DateTime @default(now()) @map("created_at")
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  product    Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, product_id])
+  @@index([user_id])
+  @@map("wishlist")
+}
+
+enum OrderStatus {
+  CREATED
+  CONFIRMED
+  PACKED
+  SHIPPED
+  DELIVERED
+}
+
+model Order {
+  id           String      @id @default(uuid())
+  user_id      String      @map("user_id")
+  total_amount Float       @map("total_amount")
+  status       OrderStatus @default(CREATED)
+  created_at   DateTime    @default(now()) @map("created_at")
+  updated_at   DateTime    @updatedAt @map("updated_at")
+  user         User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([status])
+  @@map("orders")
+}
+
+model FashionDna {
+  id              String   @id @default(uuid())
+  user_id         String   @unique @map("user_id")
+  style_score     Float    @map("style_score")
+  color_affinity  Json     @map("color_affinity")
+  brand_affinity  Json     @map("brand_affinity")
+  lifestyle_score Float    @map("lifestyle_score")
+  created_at      DateTime @default(now()) @map("created_at")
+  updated_at      DateTime @updatedAt @map("updated_at")
+  user            User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("fashion_dna")
+}

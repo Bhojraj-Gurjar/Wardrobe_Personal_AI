@@ -1,0 +1,1 @@
+{"version":3,"sources":["../../../src/common/constants/index.js"],"sourcesContent":["export const APP_NAME = 'Wardrobe AI';\nexport const API_PREFIX = 'api/v1';\n"],"names":["API_PREFIX","APP_NAME"],"mappings":";;;;;;;;;;;QACaA;eAAAA;;QADAC;eAAAA;;;AAAN,MAAMA,WAAW;AACjB,MAAMD,aAAa"}

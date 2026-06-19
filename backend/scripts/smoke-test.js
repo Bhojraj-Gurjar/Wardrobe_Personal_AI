@@ -1,0 +1,116 @@
+/**
+ * Smoke-test major API flows. Run while server is up: node scripts/smoke-test.js
+ */
+const BASE = process.env.API_BASE || 'http://localhost:3000/api/v1';
+
+async function request(method, path, { body, token } = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const response = await fetch(`${BASE}${path}`, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  const json = await response.json().catch(() => ({}));
+  return { status: response.status, json };
+}
+
+async function run() {
+  const results = [];
+  const log = (name, ok, detail = '') => {
+    results.push({ name, ok, detail });
+    console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${detail ? ` — ${detail}` : ''}`);
+  };
+
+  const health = await request('GET', '/health');
+  log('GET /health', health.status === 200 && health.json.success);
+
+  const email = `smoke_${Date.now()}@example.com`;
+  const mobile = `+9198${String(Date.now()).slice(-8)}`;
+  const register = await request('POST', '/auth/register', {
+    body: {
+      email,
+      password: 'SecurePass123!',
+      mobile,
+    },
+  });
+  const token = register.json?.data?.accessToken;
+  log(
+    'POST /auth/register',
+    register.status === 201 && Boolean(token),
+    register.json?.message?.[0] || register.json?.data?.user?.email,
+  );
+
+  const login = await request('POST', '/auth/login', {
+    body: { email, password: 'SecurePass123!' },
+  });
+  log('POST /auth/login', login.status === 200 && login.json.success);
+
+  const profile = await request('GET', '/users/profile', { token });
+  log('GET /users/profile', profile.status === 200);
+
+  const updateProfile = await request('PUT', '/users/profile', {
+    token,
+    body: { gender: 'FEMALE', age: 28, body_type: 'AVERAGE', skin_tone: 'MEDIUM' },
+  });
+  log(
+    'PUT /users/profile',
+    updateProfile.status === 200,
+    updateProfile.status !== 200 ? JSON.stringify(updateProfile.json) : '',
+  );
+
+  const createProduct = await request('POST', '/products', {
+    body: {
+      sku: `SKU-${Date.now()}`,
+      name: 'Smoke Test Jacket',
+      description: 'Test product',
+      category_id: 'cat-demo',
+      brand_id: 'brand-demo',
+      price: 99.99,
+    },
+  });
+  const productId = createProduct.json?.data?.id;
+  log('POST /products', createProduct.status === 201 && Boolean(productId));
+
+  const listProducts = await request('GET', '/products?page=1&limit=5');
+  log('GET /products', listProducts.status === 200);
+
+  const wishlist = await request('POST', '/wishlist', {
+    token,
+    body: { product_id: productId },
+  });
+  log('POST /wishlist', wishlist.status === 201);
+
+  const getWishlist = await request('GET', '/wishlist', { token });
+  log('GET /wishlist', getWishlist.status === 200);
+
+  const order = await request('POST', '/orders', {
+    token,
+    body: { total_amount: 99.99 },
+  });
+  const orderId = order.json?.data?.id;
+  log('POST /orders', order.status === 201 && Boolean(orderId));
+
+  const listOrders = await request('GET', '/orders', { token });
+  log('GET /orders', listOrders.status === 200);
+
+  const fashionDna = await request('POST', '/fashion-dna/generate', { token });
+  log('POST /fashion-dna/generate', fashionDna.status === 201 || fashionDna.status === 200);
+
+  const getFashionDna = await request('GET', '/fashion-dna', { token });
+  log('GET /fashion-dna', getFashionDna.status === 200);
+
+  const recommendations = await request('GET', '/recommendations?limit=5', { token });
+  log('GET /recommendations', recommendations.status === 200);
+
+  const failed = results.filter((item) => !item.ok);
+  console.log(`\n${results.length - failed.length}/${results.length} passed`);
+  process.exit(failed.length ? 1 : 0);
+}
+
+run().catch((error) => {
+  console.error('Smoke test crashed:', error.message);
+  process.exit(1);
+});

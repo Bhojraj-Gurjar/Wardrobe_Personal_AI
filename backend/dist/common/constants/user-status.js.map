@@ -1,0 +1,1 @@
+{"version":3,"sources":["../../../src/common/constants/user-status.js"],"sourcesContent":["export const USER_STATUS = {\n  ACTIVE: 'ACTIVE',\n  INACTIVE: 'INACTIVE',\n  SUSPENDED: 'SUSPENDED',\n};\n"],"names":["USER_STATUS","ACTIVE","INACTIVE","SUSPENDED"],"mappings":";;;;+BAAaA;;;eAAAA;;;AAAN,MAAMA,cAAc;IACzBC,QAAQ;IACRC,UAAU;IACVC,WAAW;AACb"}

@@ -1,0 +1,1 @@
+{"version":3,"sources":["../../src/guards/roles.guard.js"],"sourcesContent":["import { Injectable, CanActivate } from '@nestjs/common';\n\nexport @Injectable()\nclass RolesGuard {\n  canActivate() {\n    return true;\n  }\n}\n"],"names":["RolesGuard","canActivate"],"mappings":";;;;+BAGMA;;;eAAAA;;;wBAHkC;;;;;;;AAGxC,IAAA,AAAMA,aAAN,MAAMA;IACJC,cAAc;QACZ,OAAO;IACT;AACF"}

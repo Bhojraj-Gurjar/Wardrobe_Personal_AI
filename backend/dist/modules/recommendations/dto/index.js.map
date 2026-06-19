@@ -1,0 +1,1 @@
+{"version":3,"sources":["../../../../src/modules/recommendations/dto/index.js"],"sourcesContent":["export { QueryRecommendationsDto } from './query-recommendations.dto';\n"],"names":["QueryRecommendationsDto"],"mappings":";;;;+BAASA;;;eAAAA,gDAAuB;;;yCAAQ"}

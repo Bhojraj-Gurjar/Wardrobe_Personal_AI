@@ -1,0 +1,5 @@
+export {
+  DEFAULT_FACE_VECTOR_SIZE,
+  DEFAULT_SIMILARITY_THRESHOLD,
+  FACE_COLLECTION,
+} from './face.constants';
