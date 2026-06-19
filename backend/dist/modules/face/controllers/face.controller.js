@@ -40,6 +40,9 @@ let FaceController = class FaceController {
     login(dto) {
         return this.faceService.login(dto);
     }
+    verify(user, dto) {
+        return this.faceService.verify(user.userId, dto);
+    }
 };
 _ts_decorate([
     (0, _common.Post)('register'),
@@ -87,6 +90,31 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", void 0)
 ], FaceController.prototype, "login", null);
+_ts_decorate([
+    (0, _common.Post)('verify'),
+    (0, _common.HttpCode)(200),
+    (0, _common.UseGuards)(_jwtauthguard.JwtAuthGuard),
+    (0, _swagger.ApiBearerAuth)(),
+    (0, _swagger.ApiOperation)({
+        summary: 'Verify face matches authenticated user'
+    }),
+    (0, _swagger.ApiResponse)({
+        status: 200,
+        description: 'Face verified successfully'
+    }),
+    (0, _swagger.ApiResponse)({
+        status: 401,
+        description: 'Face verification failed'
+    }),
+    _ts_param(0, (0, _currentuserdecorator.CurrentUser)()),
+    _ts_param(1, (0, _common.Body)(faceEmbeddingPipe)),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        void 0,
+        void 0
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], FaceController.prototype, "verify", null);
 FaceController = _ts_decorate([
     (0, _swagger.ApiTags)('face'),
     (0, _common.Controller)('face'),

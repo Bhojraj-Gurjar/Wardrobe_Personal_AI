@@ -46,4 +46,15 @@ class FaceController {
   login(@Body(faceEmbeddingPipe) dto) {
     return this.faceService.login(dto);
   }
+
+  @Post('verify')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Verify face matches authenticated user' })
+  @ApiResponse({ status: 200, description: 'Face verified successfully' })
+  @ApiResponse({ status: 401, description: 'Face verification failed' })
+  verify(@CurrentUser() user, @Body(faceEmbeddingPipe) dto) {
+    return this.faceService.verify(user.userId, dto);
+  }
 }

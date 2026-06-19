@@ -69,6 +69,33 @@ class FaceService {
     return this.buildAuthResponse(user, bestMatch.score);
   }
 
+  async verify(userId, dto) {
+    this.ensureQdrantConfigured();
+    this.validateEmbedding(dto.embedding);
+
+    const matches = await this.faceRepository.searchFaceVector(dto.embedding);
+
+    if (!matches.length) {
+      throw new UnauthorizedException('Face verification failed');
+    }
+
+    const bestMatch = matches[0];
+    const matchUserId = bestMatch.payload?.user_id || bestMatch.id;
+
+    if (String(matchUserId) !== String(userId)) {
+      throw new UnauthorizedException('Face verification failed');
+    }
+
+    if (bestMatch.score < this.similarityThreshold) {
+      throw new UnauthorizedException('Face verification failed');
+    }
+
+    return {
+      message: 'Face verified successfully',
+      similarity_score: Number(bestMatch.score.toFixed(4)),
+    };
+  }
+
   ensureQdrantConfigured() {
     if (!this.configService.get('qdrant.url')) {
       throw new ServiceUnavailableException(
