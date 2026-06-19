@@ -33,12 +33,16 @@ CREATE TABLE "users" (
 CREATE TABLE "user_profiles" (
     "id" TEXT NOT NULL,
     "user_id" TEXT NOT NULL,
+    "name" TEXT,
     "gender" "Gender",
     "age" INTEGER,
     "height" DOUBLE PRECISION,
     "weight" DOUBLE PRECISION,
+    "country" TEXT,
+    "language" TEXT,
     "body_type" "BodyType",
     "skin_tone" "SkinTone",
+    "preferences" JSONB,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 

@@ -54,17 +54,21 @@ model User {
 }
 
 model UserProfile {
-  id         String    @id @default(uuid())
-  user_id    String    @unique @map("user_id")
-  gender     Gender?
-  age        Int?
-  height     Float?
-  weight     Float?
-  body_type  BodyType? @map("body_type")
-  skin_tone  SkinTone? @map("skin_tone")
-  user       User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  created_at DateTime  @default(now()) @map("created_at")
-  updated_at DateTime  @updatedAt @map("updated_at")
+  id          String    @id @default(uuid())
+  user_id     String    @unique @map("user_id")
+  name        String?
+  gender      Gender?
+  age         Int?
+  height      Float?
+  weight      Float?
+  country     String?
+  language    String?
+  body_type   BodyType? @map("body_type")
+  skin_tone   SkinTone? @map("skin_tone")
+  preferences Json?
+  user        User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  created_at  DateTime  @default(now()) @map("created_at")
+  updated_at  DateTime  @updatedAt @map("updated_at")
 
   @@map("user_profiles")
 }

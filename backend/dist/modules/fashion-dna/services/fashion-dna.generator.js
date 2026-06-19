@@ -62,6 +62,14 @@ function calculateStyleScore(profile) {
     return clampScore(score);
 }
 function calculateColorAffinity(profile) {
+    const favoriteColors = profile?.preferences?.favorite_colors;
+    if (Array.isArray(favoriteColors) && favoriteColors.length) {
+        const weight = Number((1 / favoriteColors.length).toFixed(2));
+        return favoriteColors.reduce((affinity, color)=>{
+            affinity[String(color).toLowerCase()] = weight;
+            return affinity;
+        }, {});
+    }
     if (profile?.skin_tone && _dnaconstants.SKIN_TONE_COLOR_MAP[profile.skin_tone]) {
         return {
             ..._dnaconstants.SKIN_TONE_COLOR_MAP[profile.skin_tone]
@@ -71,7 +79,15 @@ function calculateColorAffinity(profile) {
         ..._dnaconstants.DEFAULT_COLOR_AFFINITY
     };
 }
-function calculateBrandAffinity(wishlistItems) {
+function calculateBrandAffinity(wishlistItems, profile) {
+    const favoriteBrands = profile?.preferences?.favorite_brands;
+    if (Array.isArray(favoriteBrands) && favoriteBrands.length) {
+        const weight = Number((1 / favoriteBrands.length).toFixed(2));
+        return favoriteBrands.reduce((affinity, brand)=>{
+            affinity[String(brand).toLowerCase()] = weight;
+            return affinity;
+        }, {});
+    }
     if (!wishlistItems.length) {
         return {
             undiscovered: 0.5
@@ -108,7 +124,7 @@ function buildFashionDnaPayload(profile, wishlistItems) {
     return {
         style_score: calculateStyleScore(profile),
         color_affinity: calculateColorAffinity(profile),
-        brand_affinity: calculateBrandAffinity(wishlistItems),
+        brand_affinity: calculateBrandAffinity(wishlistItems, profile),
         lifestyle_score: calculateLifestyleScore(profile)
     };
 }
