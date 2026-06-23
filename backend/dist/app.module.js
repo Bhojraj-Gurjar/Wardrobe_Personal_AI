@@ -11,6 +11,7 @@ Object.defineProperty(exports, "AppModule", {
 const _common = require("@nestjs/common");
 const _configmodule = require("./config/config.module");
 const _databasemodule = require("./database/database.module");
+const _storagemodule = require("./storage/storage.module");
 const _winstonconfig = require("./common/logger/winston.config");
 const _appcontroller = require("./app.controller");
 const _appservice = require("./app.service");
@@ -21,8 +22,16 @@ const _recommendationsmodule = require("./modules/recommendations/recommendation
 const _fashiondnamodule = require("./modules/fashion-dna/fashion-dna.module");
 const _wishlistmodule = require("./modules/wishlist/wishlist.module");
 const _ordersmodule = require("./modules/orders/orders.module");
+const _useractivitymodule = require("./modules/user-activity/user-activity.module");
 const _adminmodule = require("./modules/admin/admin.module");
 const _facemodule = require("./modules/face/face.module");
+const _faceanalysismodule = require("./modules/face-analysis/face-analysis.module");
+const _bodyanalysismodule = require("./modules/body-analysis/body-analysis.module");
+const _digitalavatarmodule = require("./modules/digital-avatar/digital-avatar.module");
+const _userpipelinemodule = require("./modules/user-pipeline/user-pipeline.module");
+const _pipelineeventmodule = require("./modules/user-pipeline/pipeline-event.module");
+const _userartifactsmodule = require("./modules/user-artifacts/user-artifacts.module");
+const _aimodule = require("./modules/ai/ai.module");
 const _requestidmiddleware = require("./middleware/request-id.middleware");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -41,6 +50,7 @@ AppModule = _ts_decorate([
             _configmodule.ConfigModule,
             _winstonconfig.LoggerModule,
             _databasemodule.DatabaseModule,
+            _storagemodule.StorageModule,
             _authmodule.AuthModule,
             _usersmodule.UsersModule,
             _productsmodule.ProductsModule,
@@ -48,8 +58,16 @@ AppModule = _ts_decorate([
             _fashiondnamodule.FashionDnaModule,
             _wishlistmodule.WishlistModule,
             _ordersmodule.OrdersModule,
+            _useractivitymodule.UserActivityModule,
             _adminmodule.AdminModule,
-            _facemodule.FaceModule
+            _aimodule.AiModule,
+            _facemodule.FaceModule,
+            _faceanalysismodule.FaceAnalysisModule,
+            _bodyanalysismodule.BodyAnalysisModule,
+            _digitalavatarmodule.DigitalAvatarModule,
+            _pipelineeventmodule.PipelineEventModule,
+            _userpipelinemodule.UserPipelineModule,
+            _userartifactsmodule.UserArtifactsModule
         ],
         controllers: [
             _appcontroller.AppController

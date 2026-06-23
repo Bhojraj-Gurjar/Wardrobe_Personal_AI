@@ -21,7 +21,10 @@
     "prisma:generate": "prisma generate",
     "prisma:db:push": "prisma db push",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "seed:categories": "node scripts/seed-product-categories.js",
+    "seed:catalog": "node scripts/seed-product-catalog.js",
+    "seed:products": "node scripts/seed-product-categories.js && node scripts/seed-product-catalog.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

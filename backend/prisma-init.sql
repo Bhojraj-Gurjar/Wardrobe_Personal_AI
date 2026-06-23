@@ -102,10 +102,15 @@ CREATE TABLE "orders" (
 CREATE TABLE "fashion_dna" (
     "id" TEXT NOT NULL,
     "user_id" TEXT NOT NULL,
-    "style_score" DOUBLE PRECISION NOT NULL,
+    "style_type" TEXT NOT NULL,
     "color_affinity" JSONB NOT NULL,
+    "budget_range" TEXT NOT NULL,
     "brand_affinity" JSONB NOT NULL,
-    "lifestyle_score" DOUBLE PRECISION NOT NULL,
+    "fashion_confidence_score" DOUBLE PRECISION NOT NULL,
+    "face_traits" JSONB NOT NULL,
+    "body_traits" JSONB NOT NULL,
+    "preference_traits" JSONB NOT NULL,
+    "activity_traits" JSONB NOT NULL DEFAULT '{}',
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -168,3 +173,31 @@ ALTER TABLE "orders" ADD CONSTRAINT "orders_user_id_fkey" FOREIGN KEY ("user_id"
 
 -- AddForeignKey
 ALTER TABLE "fashion_dna" ADD CONSTRAINT "fashion_dna_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- CreateTable
+CREATE TABLE "product_views" (
+    "id" TEXT NOT NULL,
+    "user_id" TEXT NOT NULL,
+    "product_id" TEXT NOT NULL,
+    "viewed_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "product_views_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "search_history" (
+    "id" TEXT NOT NULL,
+    "user_id" TEXT NOT NULL,
+    "query" TEXT NOT NULL,
+    "searched_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "search_history_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE INDEX "product_views_user_id_viewed_at_idx" ON "product_views"("user_id", "viewed_at");
+CREATE INDEX "product_views_product_id_idx" ON "product_views"("product_id");
+CREATE INDEX "search_history_user_id_searched_at_idx" ON "search_history"("user_id", "searched_at");
+
+-- AddForeignKey
+ALTER TABLE "product_views" ADD CONSTRAINT "product_views_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "product_views" ADD CONSTRAINT "product_views_product_id_fkey" FOREIGN KEY ("product_id") REFERENCES "products"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "search_history" ADD CONSTRAINT "search_history_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;

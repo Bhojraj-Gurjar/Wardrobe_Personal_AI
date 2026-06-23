@@ -15,6 +15,8 @@ const _bcryptjs = /*#__PURE__*/ _interop_require_wildcard(require("bcryptjs"));
 const _crypto = require("crypto");
 const _authrepository = require("../repositories/auth.repository");
 const _redisservice = require("../../../database/redis.service");
+const _userpipelineservice = require("../../user-pipeline/user-pipeline.service");
+const _userartifactsservice = require("../../user-artifacts/user-artifacts.service");
 const _userstatus = require("../../../common/constants/user-status");
 const _parseduration = require("../../../common/utils/parse-duration");
 function _getRequireWildcardCache(nodeInterop) {
@@ -75,11 +77,14 @@ function _ts_param(paramIndex, decorator) {
 const BCRYPT_ROUNDS = 12;
 const REFRESH_TOKEN_PREFIX = 'auth:refresh:';
 let AuthService = class AuthService {
-    constructor(authRepository, jwtService, configService, redisService){
+    constructor(authRepository, jwtService, configService, redisService, userPipelineService, userArtifactsService){
         this.authRepository = authRepository;
         this.jwtService = jwtService;
         this.configService = configService;
         this.redisService = redisService;
+        this.userPipelineService = userPipelineService;
+        this.userArtifactsService = userArtifactsService;
+        this.logger = new _common.Logger(AuthService.name);
         this.refreshTtlSeconds = (0, _parseduration.parseDurationToSeconds)(this.configService.get('jwt.refreshExpiresIn'));
     }
     async register(dto) {
@@ -90,7 +95,10 @@ let AuthService = class AuthService {
             mobile: dto.mobile,
             passwordHash
         });
-        return this.buildAuthResponse(user);
+        this.userPipelineService.onUserCreated(user.id);
+        const response = await this.buildAuthResponse(user);
+        this.scheduleArtifactEnsure(user.id);
+        return response;
     }
     async login(dto) {
         const user = dto.email ? await this.authRepository.findByEmail(dto.email) : await this.authRepository.findByMobile(dto.mobile);
@@ -102,7 +110,9 @@ let AuthService = class AuthService {
         if (!isPasswordValid) {
             throw new _common.UnauthorizedException('Invalid credentials');
         }
-        return this.buildAuthResponse(user);
+        const response = await this.buildAuthResponse(user);
+        this.scheduleArtifactEnsure(user.id);
+        return response;
     }
     async refresh(dto) {
         const userId = await this.getUserIdFromRefreshToken(dto.refreshToken);
@@ -116,7 +126,9 @@ let AuthService = class AuthService {
         }
         await this.ensureActiveUser(user);
         await this.revokeRefreshToken(dto.refreshToken);
-        return this.buildAuthResponse(user);
+        const response = await this.buildAuthResponse(user);
+        this.scheduleArtifactEnsure(user.id);
+        return response;
     }
     async logout(dto) {
         await this.revokeRefreshToken(dto.refreshToken);
@@ -182,6 +194,13 @@ let AuthService = class AuthService {
     revokeRefreshToken(refreshToken) {
         return this.redisService.del(`${REFRESH_TOKEN_PREFIX}${refreshToken}`);
     }
+    scheduleArtifactEnsure(userId) {
+        setImmediate(()=>{
+            this.userArtifactsService.ensureAllUserArtifacts(userId).catch((error)=>{
+                this.logger.warn(`Artifact ensure failed for user ${userId}: ${error.message}`);
+            });
+        });
+    }
 };
 AuthService = _ts_decorate([
     (0, _common.Injectable)(),
@@ -189,8 +208,12 @@ AuthService = _ts_decorate([
     _ts_param(1, (0, _common.Inject)(_jwt.JwtService)),
     _ts_param(2, (0, _common.Inject)(_config.ConfigService)),
     _ts_param(3, (0, _common.Inject)(_redisservice.RedisService)),
+    _ts_param(4, (0, _common.Inject)((0, _common.forwardRef)(()=>_userpipelineservice.UserPipelineService))),
+    _ts_param(5, (0, _common.Inject)(_userartifactsservice.UserArtifactsService)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        void 0,
+        void 0,
         void 0,
         void 0,
         void 0,

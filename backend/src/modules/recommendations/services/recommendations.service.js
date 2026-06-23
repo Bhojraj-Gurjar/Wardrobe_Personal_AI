@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { QdrantService } from '../../../database/qdrant.service';
+import { AiService } from '../../ai/services/ai.service';
 import { RecommendationsRepository } from '../repositories/recommendations.repository';
 import { EmbeddingProviderFactory } from '../providers/embedding.provider';
 import {
@@ -8,13 +9,15 @@ import {
   scoreProduct,
 } from './user-context.builder';
 import { RECOMMENDATION_SOURCES } from '../validators/recommendation.constants';
+import { formatCatalogProduct } from '../../products/utils/product-catalog.mapper';
 
 export @Injectable()
 class RecommendationsService {
-  constructor(@Inject(RecommendationsRepository) recommendationsRepository, @Inject(QdrantService) qdrantService, @Inject(EmbeddingProviderFactory) embeddingProviderFactory) {
+  constructor(@Inject(RecommendationsRepository) recommendationsRepository, @Inject(QdrantService) qdrantService, @Inject(EmbeddingProviderFactory) embeddingProviderFactory, @Inject(AiService) aiService) {
     this.recommendationsRepository = recommendationsRepository;
     this.qdrantService = qdrantService;
     this.embeddingProviderFactory = embeddingProviderFactory;
+    this.aiService = aiService;
     this.logger = new Logger(RecommendationsService.name);
   }
 
@@ -24,7 +27,7 @@ class RecommendationsService {
     const signals = buildUserSignals(rawSignals);
     const factors = buildFactorsSummary(signals);
 
-    const vectorResults = await this.searchWithQdrant(signals, query.limit);
+    const vectorResults = await this.searchWithQdrant(signals, query.limit, userId);
 
     if (vectorResults.length) {
       return this.buildResponse(
@@ -45,14 +48,29 @@ class RecommendationsService {
     );
   }
 
-  async searchWithQdrant(signals, limit) {
+  async searchWithQdrant(signals, limit, userId) {
     if (!this.qdrantService.isConfigured()) {
       return [];
     }
 
     try {
       const provider = this.embeddingProviderFactory.getHeuristicProvider();
-      const vector = provider.embedUserSignals(signals);
+      let vector = provider.embedUserSignals(signals);
+
+      if (this.aiService.isConfigured()) {
+        try {
+          const aiResult = await this.aiService.generateRecommendations({
+            profile: signals.profile || signals,
+            user_id: userId,
+          });
+          vector = aiResult.vector;
+        } catch (error) {
+          this.logger.warn(
+            `AI recommendation vector fallback: ${error.message}`,
+          );
+        }
+      }
+
       const matches = await this.qdrantService.searchSimilar(vector, limit);
 
       if (!matches.length) {
@@ -129,21 +147,7 @@ class RecommendationsService {
   }
 
   formatProduct(product) {
-    return {
-      id: product.id,
-      sku: product.sku,
-      name: product.name,
-      description: product.description,
-      category_id: product.category_id,
-      brand_id: product.brand_id,
-      price: product.price,
-      images: (product.images || []).map((image) => ({
-        id: image.id,
-        url: image.url,
-        sort_order: image.sort_order,
-        is_primary: image.is_primary,
-      })),
-    };
+    return formatCatalogProduct(product);
   }
 
   async indexProductForVectorSearch(product) {
@@ -151,9 +155,13 @@ class RecommendationsService {
     const vector = provider.embedProduct(product);
 
     return this.qdrantService.upsertProductVector(product.id, vector, {
-      brand_id: product.brand_id,
-      category_id: product.category_id,
+      product_id: product.id,
       sku: product.sku,
+      brand: product.brand ?? product.brand_id,
+      brand_id: product.brand_id ?? product.brand,
+      category: product.category ?? product.category_id,
+      category_id: product.category_id ?? product.category,
+      subcategory: product.subcategory,
     });
   }
 }

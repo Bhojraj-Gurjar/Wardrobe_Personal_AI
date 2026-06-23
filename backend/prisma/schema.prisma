@@ -37,6 +37,21 @@ enum SkinTone {
   DARK
 }
 
+enum ProductCategoryGroupCode {
+  MEN
+  WOMEN
+  ACCESSORIES
+  FOOTWEAR
+}
+
+enum AvatarCategory {
+  TOP
+  JACKET
+  BOTTOM
+  FOOTWEAR
+  ACCESSORY
+}
+
 model User {
   id            String      @id @default(uuid())
   email         String      @unique
@@ -49,8 +64,87 @@ model User {
   wishlist      Wishlist[]
   orders        Order[]
   fashion_dna   FashionDna?
+  fashion_dna_history FashionDnaHistory[]
+  face_registration FaceRegistration?
+  face_analysis   FaceAnalysis?
+  body_analysis   BodyAnalysis?
+  digital_avatars DigitalAvatar[]
+  product_views ProductView[]
+  search_history SearchHistory[]
 
   @@map("users")
+}
+
+model FaceRegistration {
+  id                 String   @id @default(uuid())
+  user_id            String   @unique @map("user_id")
+  face_embedding_id  String   @map("face_embedding_id")
+  face_image_url     String?  @map("face_image_url") @db.VarChar(2048)
+  is_face_registered Boolean  @default(true) @map("is_face_registered")
+  liveness_score     Float?   @map("liveness_score")
+  blink_detected     Boolean  @default(false) @map("blink_detected")
+  smile_detected     Boolean  @default(false) @map("smile_detected")
+  registered_at      DateTime @default(now()) @map("registered_at")
+  updated_at         DateTime @updatedAt @map("updated_at")
+  user               User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("face_registrations")
+}
+
+model FaceAnalysis {
+  id              String   @id @default(uuid())
+  user_id         String   @unique @map("user_id")
+  face_shape      String?  @map("face_shape")
+  skin_tone       String?  @map("skin_tone")
+  hair_length     String?  @map("hair_length")
+  hair_color      String?  @map("hair_color")
+  hair_style      String?  @map("hair_style")
+  beard_type      String?  @map("beard_type")
+  raw_ai_response Json?    @map("raw_ai_response")
+  created_at      DateTime @default(now()) @map("created_at")
+  updated_at      DateTime @updatedAt @map("updated_at")
+  user            User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("face_analysis")
+}
+
+model BodyAnalysis {
+  id              String   @id @default(uuid())
+  user_id         String   @unique @map("user_id")
+  body_image_url  String?  @map("body_image_url") @db.VarChar(2048)
+  body_type       String?  @map("body_type")
+  body_shape      String?  @map("body_shape")
+  height          Float?
+  shoulder_width  Float?   @map("shoulder_width")
+  chest           Float?
+  waist           Float?
+  hip             Float?
+  arm_length      Float?   @map("arm_length")
+  leg_length      Float?   @map("leg_length")
+  fit_profile     Json?    @map("fit_profile")
+  raw_ai_response Json?    @map("raw_ai_response")
+  created_at      DateTime @default(now()) @map("created_at")
+  updated_at      DateTime @updatedAt @map("updated_at")
+  user            User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("body_analysis")
+}
+
+model DigitalAvatar {
+  id              String   @id @default(uuid())
+  user_id         String   @map("user_id")
+  avatar_type     String   @map("avatar_type")
+  avatar_image    String   @map("avatar_image") @db.VarChar(2048)
+  version         Int
+  is_active       Boolean  @default(false) @map("is_active")
+  raw_ai_response Json?    @map("raw_ai_response")
+  created_at      DateTime @default(now()) @map("created_at")
+  updated_at      DateTime @updatedAt @map("updated_at")
+  user            User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, version])
+  @@index([user_id, is_active])
+  @@map("digital_avatars")
 }
 
 model UserProfile {
@@ -73,22 +167,85 @@ model UserProfile {
   @@map("user_profiles")
 }
 
-model Product {
-  id           String         @id @default(uuid())
-  sku          String         @unique
-  name         String
-  description  String?
-  category_id  String         @map("category_id")
-  brand_id     String         @map("brand_id")
-  price        Float
-  created_at   DateTime       @default(now()) @map("created_at")
-  updated_at   DateTime       @updatedAt @map("updated_at")
-  images       ProductImage[]
-  wishlist     Wishlist[]
+model ProductCategoryGroup {
+  id          String                   @id @default(uuid())
+  code        ProductCategoryGroupCode @unique
+  name        String
+  description String?
+  sort_order  Int                      @default(0) @map("sort_order")
+  is_active   Boolean                  @default(true) @map("is_active")
+  created_at  DateTime                 @default(now()) @map("created_at")
+  updated_at  DateTime                 @updatedAt @map("updated_at")
+  categories  ProductCategory[]
 
+  @@index([is_active])
+  @@index([sort_order])
+  @@map("product_category_groups")
+}
+
+model ProductCategory {
+  id         String               @id @default(uuid())
+  group_id   String               @map("group_id")
+  slug       String               @unique
+  name       String
+  sort_order Int                  @default(0) @map("sort_order")
+  is_active  Boolean              @default(true) @map("is_active")
+  created_at DateTime             @default(now()) @map("created_at")
+  updated_at DateTime             @updatedAt @map("updated_at")
+  group      ProductCategoryGroup @relation(fields: [group_id], references: [id], onDelete: Cascade)
+
+  @@unique([group_id, name])
+  @@index([group_id])
+  @@index([is_active])
+  @@index([sort_order])
+  @@map("product_categories")
+}
+
+model Product {
+  id                 String         @id @default(uuid())
+  sku                String         @unique
+  name               String
+  description        String?
+  category           String?
+  subcategory        String?
+  gender             String?
+  brand              String?
+  category_id        String?        @map("category_id")
+  brand_id           String?        @map("brand_id")
+  price              Float
+  currency           String         @default("USD")
+  color              String?
+  size_options       Json?          @map("size_options")
+  fabric             String?
+  fit_type           String?        @map("fit_type")
+  style_tags         Json?          @map("style_tags")
+  occasion_tags      Json?          @map("occasion_tags")
+  image_url          String?        @map("image_url") @db.VarChar(2048)
+  product_url        String?        @map("product_url") @db.VarChar(2048)
+  avatar_category    AvatarCategory? @map("avatar_category")
+  overlay_order      Int?            @map("overlay_order")
+  avatar_overlay_url String?        @map("avatar_overlay_url") @db.VarChar(2048)
+  is_active          Boolean        @default(true) @map("is_active")
+  created_at         DateTime       @default(now()) @map("created_at")
+  updated_at         DateTime       @updatedAt @map("updated_at")
+  images             ProductImage[]
+  wishlist           Wishlist[]
+  product_views      ProductView[]
+  orders             Order[]
+
+  @@index([category])
+  @@index([subcategory])
+  @@index([gender])
+  @@index([brand])
   @@index([category_id])
   @@index([brand_id])
   @@index([price])
+  @@index([is_active])
+  @@index([category, subcategory])
+  @@index([gender, category])
+  @@index([avatar_category])
+  @@index([overlay_order])
+  @@index([avatar_category, overlay_order])
   @@map("products")
 }
 
@@ -129,27 +286,84 @@ enum OrderStatus {
 model Order {
   id           String      @id @default(uuid())
   user_id      String      @map("user_id")
+  product_id   String?     @map("product_id")
   total_amount Float       @map("total_amount")
   status       OrderStatus @default(CREATED)
   created_at   DateTime    @default(now()) @map("created_at")
   updated_at   DateTime    @updatedAt @map("updated_at")
   user         User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  product      Product?    @relation(fields: [product_id], references: [id], onDelete: SetNull)
 
   @@index([user_id])
   @@index([status])
+  @@index([product_id])
   @@map("orders")
 }
 
 model FashionDna {
-  id              String   @id @default(uuid())
-  user_id         String   @unique @map("user_id")
-  style_score     Float    @map("style_score")
-  color_affinity  Json     @map("color_affinity")
-  brand_affinity  Json     @map("brand_affinity")
-  lifestyle_score Float    @map("lifestyle_score")
-  created_at      DateTime @default(now()) @map("created_at")
-  updated_at      DateTime @updatedAt @map("updated_at")
-  user            User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  id                       String   @id @default(uuid())
+  user_id                  String   @unique @map("user_id")
+  style_type               String   @map("style_type")
+  color_affinity           Json     @map("color_affinity")
+  budget_range             String   @map("budget_range")
+  brand_affinity           Json     @map("brand_affinity")
+  fashion_confidence_score Float    @map("fashion_confidence_score")
+  face_traits              Json     @map("face_traits")
+  body_traits              Json     @map("body_traits")
+  preference_traits        Json     @map("preference_traits")
+  activity_traits          Json     @default("{}") @map("activity_traits")
+  created_at               DateTime @default(now()) @map("created_at")
+  updated_at               DateTime @updatedAt @map("updated_at")
+  user                     User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@map("fashion_dna")
+}
+
+model FashionDnaHistory {
+  id                       String   @id @default(uuid())
+  user_id                  String   @map("user_id")
+  fashion_dna_id           String   @map("fashion_dna_id")
+  change_reason            String   @map("change_reason")
+  change_source            String?  @map("change_source")
+  style_type               String   @map("style_type")
+  color_affinity           Json     @map("color_affinity")
+  budget_range             String   @map("budget_range")
+  brand_affinity           Json     @map("brand_affinity")
+  fashion_confidence_score Float    @map("fashion_confidence_score")
+  face_traits              Json     @map("face_traits")
+  body_traits              Json     @map("body_traits")
+  preference_traits        Json     @map("preference_traits")
+  activity_traits          Json     @default("{}") @map("activity_traits")
+  dna_created_at           DateTime @map("dna_created_at")
+  dna_updated_at           DateTime @map("dna_updated_at")
+  archived_at              DateTime @default(now()) @map("archived_at")
+  user                     User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, archived_at])
+  @@index([fashion_dna_id])
+  @@map("fashion_dna_history")
+}
+
+model ProductView {
+  id         String   @id @default(uuid())
+  user_id    String   @map("user_id")
+  product_id String   @map("product_id")
+  viewed_at  DateTime @default(now()) @map("viewed_at")
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  product    Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, viewed_at])
+  @@index([product_id])
+  @@map("product_views")
+}
+
+model SearchHistory {
+  id          String   @id @default(uuid())
+  user_id     String   @map("user_id")
+  query       String
+  searched_at DateTime @default(now()) @map("searched_at")
+  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, searched_at])
+  @@map("search_history")
 }

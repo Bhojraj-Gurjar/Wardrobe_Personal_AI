@@ -10,10 +10,12 @@ Object.defineProperty(exports, "RecommendationsService", {
 });
 const _common = require("@nestjs/common");
 const _qdrantservice = require("../../../database/qdrant.service");
+const _aiservice = require("../../ai/services/ai.service");
 const _recommendationsrepository = require("../repositories/recommendations.repository");
 const _embeddingprovider = require("../providers/embedding.provider");
 const _usercontextbuilder = require("./user-context.builder");
 const _recommendationconstants = require("../validators/recommendation.constants");
+const _productcatalogmapper = require("../../products/utils/product-catalog.mapper");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -29,30 +31,42 @@ function _ts_param(paramIndex, decorator) {
     };
 }
 let RecommendationsService = class RecommendationsService {
-    constructor(recommendationsRepository, qdrantService, embeddingProviderFactory){
+    constructor(recommendationsRepository, qdrantService, embeddingProviderFactory, aiService){
         this.recommendationsRepository = recommendationsRepository;
         this.qdrantService = qdrantService;
         this.embeddingProviderFactory = embeddingProviderFactory;
+        this.aiService = aiService;
         this.logger = new _common.Logger(RecommendationsService.name);
     }
     async getRecommendations(userId, query) {
         const rawSignals = await this.recommendationsRepository.getUserSignals(userId);
         const signals = (0, _usercontextbuilder.buildUserSignals)(rawSignals);
         const factors = (0, _usercontextbuilder.buildFactorsSummary)(signals);
-        const vectorResults = await this.searchWithQdrant(signals, query.limit);
+        const vectorResults = await this.searchWithQdrant(signals, query.limit, userId);
         if (vectorResults.length) {
             return this.buildResponse(vectorResults, factors, query.limit, _recommendationconstants.RECOMMENDATION_SOURCES.QDRANT);
         }
         const postgresResults = await this.searchWithPostgres(signals, query.limit);
         return this.buildResponse(postgresResults, factors, query.limit, _recommendationconstants.RECOMMENDATION_SOURCES.POSTGRESQL);
     }
-    async searchWithQdrant(signals, limit) {
+    async searchWithQdrant(signals, limit, userId) {
         if (!this.qdrantService.isConfigured()) {
             return [];
         }
         try {
             const provider = this.embeddingProviderFactory.getHeuristicProvider();
-            const vector = provider.embedUserSignals(signals);
+            let vector = provider.embedUserSignals(signals);
+            if (this.aiService.isConfigured()) {
+                try {
+                    const aiResult = await this.aiService.generateRecommendations({
+                        profile: signals.profile || signals,
+                        user_id: userId
+                    });
+                    vector = aiResult.vector;
+                } catch (error) {
+                    this.logger.warn(`AI recommendation vector fallback: ${error.message}`);
+                }
+            }
             const matches = await this.qdrantService.searchSimilar(vector, limit);
             if (!matches.length) {
                 return [];
@@ -106,29 +120,19 @@ let RecommendationsService = class RecommendationsService {
         };
     }
     formatProduct(product) {
-        return {
-            id: product.id,
-            sku: product.sku,
-            name: product.name,
-            description: product.description,
-            category_id: product.category_id,
-            brand_id: product.brand_id,
-            price: product.price,
-            images: (product.images || []).map((image)=>({
-                    id: image.id,
-                    url: image.url,
-                    sort_order: image.sort_order,
-                    is_primary: image.is_primary
-                }))
-        };
+        return (0, _productcatalogmapper.formatCatalogProduct)(product);
     }
     async indexProductForVectorSearch(product) {
         const provider = this.embeddingProviderFactory.getHeuristicProvider();
         const vector = provider.embedProduct(product);
         return this.qdrantService.upsertProductVector(product.id, vector, {
-            brand_id: product.brand_id,
-            category_id: product.category_id,
-            sku: product.sku
+            product_id: product.id,
+            sku: product.sku,
+            brand: product.brand ?? product.brand_id,
+            brand_id: product.brand_id ?? product.brand,
+            category: product.category ?? product.category_id,
+            category_id: product.category_id ?? product.category,
+            subcategory: product.subcategory
         });
     }
 };
@@ -137,8 +141,10 @@ RecommendationsService = _ts_decorate([
     _ts_param(0, (0, _common.Inject)(_recommendationsrepository.RecommendationsRepository)),
     _ts_param(1, (0, _common.Inject)(_qdrantservice.QdrantService)),
     _ts_param(2, (0, _common.Inject)(_embeddingprovider.EmbeddingProviderFactory)),
+    _ts_param(3, (0, _common.Inject)(_aiservice.AiService)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        void 0,
         void 0,
         void 0,
         void 0

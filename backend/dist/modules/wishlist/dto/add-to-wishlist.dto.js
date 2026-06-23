@@ -18,13 +18,25 @@ function _ts_decorate(decorators, target, key, desc) {
 }
 let AddToWishlistDto = class AddToWishlistDto {
     product_id;
+    sku;
 };
 _ts_decorate([
-    (0, _swagger.ApiProperty)({
-        example: 'product-uuid'
+    (0, _swagger.ApiPropertyOptional)({
+        example: 'product-uuid',
+        description: 'Stable product UUID used by wishlist and recommendations'
     }),
+    (0, _classvalidator.ValidateIf)((dto)=>!dto.sku),
     (0, _classvalidator.IsString)(),
     (0, _classvalidator.IsNotEmpty)()
 ], AddToWishlistDto.prototype, "product_id", void 0);
+_ts_decorate([
+    (0, _swagger.ApiPropertyOptional)({
+        example: 'WA-MENTSHIR-NIKE-01',
+        description: 'Immutable catalog SKU alternative to product_id'
+    }),
+    (0, _classvalidator.ValidateIf)((dto)=>!dto.product_id),
+    (0, _classvalidator.IsString)(),
+    (0, _classvalidator.IsNotEmpty)()
+], AddToWishlistDto.prototype, "sku", void 0);
 
 //# sourceMappingURL=add-to-wishlist.dto.js.map

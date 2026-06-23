@@ -1,5 +1,6 @@
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import {
+  IsBoolean,
   IsEnum,
   IsInt,
   IsNumber,
@@ -15,7 +16,8 @@ import {
   MAX_LIMIT,
   PRODUCT_SORT_FIELDS,
   SORT_ORDERS,
-} from '../validators/product.constants';
+  AVATAR_CATEGORIES,
+} from '../validators';
 
 export class QueryProductsDto {
   @ApiPropertyOptional({ default: DEFAULT_PAGE })
@@ -33,7 +35,7 @@ export class QueryProductsDto {
   @Max(MAX_LIMIT)
   limit = DEFAULT_LIMIT;
 
-  @ApiPropertyOptional({ description: 'Search by name, sku, or description' })
+  @ApiPropertyOptional({ description: 'Search by name, sku, brand, or category' })
   @IsOptional()
   @IsString()
   search;
@@ -51,24 +53,78 @@ export class QueryProductsDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  category_id;
+  category;
 
   @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  subcategory;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  gender;
+
+  @ApiPropertyOptional({ example: 'Nike' })
+  @IsOptional()
+  @IsString()
+  brand;
+
+  @ApiPropertyOptional({ example: 'Black' })
+  @IsOptional()
+  @IsString()
+  color;
+
+  @ApiPropertyOptional({ enum: AVATAR_CATEGORIES, description: 'Digital avatar wear slot' })
+  @IsOptional()
+  @IsEnum(AVATAR_CATEGORIES)
+  avatarCategory;
+
+  @ApiPropertyOptional({ description: 'Legacy filter alias for category' })
+  @IsOptional()
+  @IsString()
+  category_id;
+
+  @ApiPropertyOptional({ description: 'Legacy filter alias for brand' })
   @IsOptional()
   @IsString()
   brand_id;
 
   @ApiPropertyOptional()
   @IsOptional()
+  @Transform(({ value }) => {
+    if (value === true || value === 'true') return true;
+    if (value === false || value === 'false') return false;
+    return undefined;
+  })
+  @IsBoolean()
+  is_active;
+
+  @ApiPropertyOptional({ example: 20 })
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(0)
   min_price;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: 200 })
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(0)
   max_price;
+
+  @ApiPropertyOptional({ example: 20, description: 'Alias for min_price' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  minPrice;
+
+  @ApiPropertyOptional({ example: 200, description: 'Alias for max_price' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  maxPrice;
 }

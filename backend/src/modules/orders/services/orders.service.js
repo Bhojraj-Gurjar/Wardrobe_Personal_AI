@@ -1,14 +1,30 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { REFRESH_SOURCES } from '../../fashion-dna/constants/fashion-dna-regeneration.constants';
+import { FashionDnaRegenerationService } from '../../fashion-dna/services/fashion-dna-regeneration.service';
 import { OrdersRepository } from '../repositories/orders.repository';
 
 export @Injectable()
 class OrdersService {
-  constructor(@Inject(OrdersRepository) ordersRepository) {
+  constructor(
+    @Inject(OrdersRepository) ordersRepository,
+    @Inject(FashionDnaRegenerationService) fashionDnaRegenerationService,
+  ) {
     this.ordersRepository = ordersRepository;
+    this.fashionDnaRegenerationService = fashionDnaRegenerationService;
   }
 
   async create(userId, dto) {
-    const order = await this.ordersRepository.create(userId, dto.total_amount);
+    if (dto.product_id) {
+      const productExists = await this.ordersRepository.productExists(dto.product_id);
+
+      if (!productExists) {
+        throw new NotFoundException('Product not found');
+      }
+    }
+
+    const order = await this.ordersRepository.create(userId, dto);
+
+    this.fashionDnaRegenerationService.trigger(userId, REFRESH_SOURCES.PURCHASE);
 
     return this.formatOrder(order);
   }
@@ -44,6 +60,8 @@ class OrdersService {
     return {
       id: order.id,
       user_id: order.user_id,
+      product_id: order.product_id ?? null,
+      brand_id: order.product?.brand_id ?? null,
       total_amount: order.total_amount,
       status: order.status,
       created_at: order.created_at,

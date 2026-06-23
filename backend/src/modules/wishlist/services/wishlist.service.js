@@ -1,12 +1,22 @@
-import { Inject, ConflictException,
+import { Inject, BadRequestException, ConflictException,
   Injectable,
   NotFoundException, } from '@nestjs/common';
+import { REFRESH_SOURCES } from '../../fashion-dna/constants/fashion-dna-regeneration.constants';
+import { FashionDnaRegenerationService } from '../../fashion-dna/services/fashion-dna-regeneration.service';
+import { ProductRepository } from '../../products/repositories/product.repository';
+import { formatCatalogProduct } from '../../products/utils/product-catalog.mapper';
 import { WishlistRepository } from '../repositories/wishlist.repository';
 
 export @Injectable()
 class WishlistService {
-  constructor(@Inject(WishlistRepository) wishlistRepository) {
+  constructor(
+    @Inject(WishlistRepository) wishlistRepository,
+    @Inject(FashionDnaRegenerationService) fashionDnaRegenerationService,
+    @Inject(ProductRepository) productRepository,
+  ) {
     this.wishlistRepository = wishlistRepository;
+    this.fashionDnaRegenerationService = fashionDnaRegenerationService;
+    this.productRepository = productRepository;
   }
 
   async getWishlist(userId) {
@@ -18,24 +28,23 @@ class WishlistService {
   }
 
   async addToWishlist(userId, dto) {
-    const productExists = await this.wishlistRepository.productExists(
-      dto.product_id,
-    );
-
-    if (!productExists) {
-      throw new NotFoundException('Product not found');
-    }
+    const productId = await this.resolveProductId(dto);
 
     const existing = await this.wishlistRepository.findByUserAndProduct(
       userId,
-      dto.product_id,
+      productId,
     );
 
     if (existing) {
       throw new ConflictException('Product already in wishlist');
     }
 
-    const item = await this.wishlistRepository.create(userId, dto.product_id);
+    const item = await this.wishlistRepository.create(userId, productId);
+
+    this.fashionDnaRegenerationService.trigger(
+      userId,
+      REFRESH_SOURCES.WISHLIST_UPDATE,
+    );
 
     return this.formatWishlistItem(item);
   }
@@ -49,7 +58,36 @@ class WishlistService {
 
     await this.wishlistRepository.delete(id);
 
+    this.fashionDnaRegenerationService.trigger(
+      userId,
+      REFRESH_SOURCES.WISHLIST_UPDATE,
+    );
+
     return { message: 'Removed from wishlist successfully' };
+  }
+
+  async resolveProductId(dto) {
+    if (dto.product_id) {
+      const exists = await this.wishlistRepository.productExists(dto.product_id);
+
+      if (!exists) {
+        throw new NotFoundException('Product not found');
+      }
+
+      return dto.product_id;
+    }
+
+    if (dto.sku) {
+      const product = await this.productRepository.findBySku(dto.sku);
+
+      if (!product) {
+        throw new NotFoundException('Product not found');
+      }
+
+      return product.id;
+    }
+
+    throw new BadRequestException('product_id or sku is required');
   }
 
   formatWishlistItem(item) {
@@ -57,6 +95,7 @@ class WishlistService {
       id: item.id,
       user_id: item.user_id,
       product_id: item.product_id,
+      product_sku: item.product?.sku ?? null,
       created_at: item.created_at,
       product: this.formatProduct(item.product),
     };
@@ -67,20 +106,6 @@ class WishlistService {
       return null;
     }
 
-    return {
-      id: product.id,
-      sku: product.sku,
-      name: product.name,
-      description: product.description,
-      category_id: product.category_id,
-      brand_id: product.brand_id,
-      price: product.price,
-      images: (product.images || []).map((image) => ({
-        id: image.id,
-        url: image.url,
-        sort_order: image.sort_order,
-        is_primary: image.is_primary,
-      })),
-    };
+    return formatCatalogProduct(product);
   }
 }

@@ -1,5 +1,1 @@
-export {
-  DEFAULT_FACE_VECTOR_SIZE,
-  DEFAULT_SIMILARITY_THRESHOLD,
-  FACE_COLLECTION,
-} from './face.constants';
+// Face validation constants live in src/config/configuration.js (face.*).

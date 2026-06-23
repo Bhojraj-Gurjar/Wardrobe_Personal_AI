@@ -9,6 +9,8 @@ Object.defineProperty(exports, "OrdersService", {
     }
 });
 const _common = require("@nestjs/common");
+const _fashiondnaregenerationconstants = require("../../fashion-dna/constants/fashion-dna-regeneration.constants");
+const _fashiondnaregenerationservice = require("../../fashion-dna/services/fashion-dna-regeneration.service");
 const _ordersrepository = require("../repositories/orders.repository");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -25,11 +27,19 @@ function _ts_param(paramIndex, decorator) {
     };
 }
 let OrdersService = class OrdersService {
-    constructor(ordersRepository){
+    constructor(ordersRepository, fashionDnaRegenerationService){
         this.ordersRepository = ordersRepository;
+        this.fashionDnaRegenerationService = fashionDnaRegenerationService;
     }
     async create(userId, dto) {
-        const order = await this.ordersRepository.create(userId, dto.total_amount);
+        if (dto.product_id) {
+            const productExists = await this.ordersRepository.productExists(dto.product_id);
+            if (!productExists) {
+                throw new _common.NotFoundException('Product not found');
+            }
+        }
+        const order = await this.ordersRepository.create(userId, dto);
+        this.fashionDnaRegenerationService.trigger(userId, _fashiondnaregenerationconstants.REFRESH_SOURCES.PURCHASE);
         return this.formatOrder(order);
     }
     async findAll(userId, query) {
@@ -55,6 +65,8 @@ let OrdersService = class OrdersService {
         return {
             id: order.id,
             user_id: order.user_id,
+            product_id: order.product_id ?? null,
+            brand_id: order.product?.brand_id ?? null,
             total_amount: order.total_amount,
             status: order.status,
             created_at: order.created_at,
@@ -65,8 +77,10 @@ let OrdersService = class OrdersService {
 OrdersService = _ts_decorate([
     (0, _common.Injectable)(),
     _ts_param(0, (0, _common.Inject)(_ordersrepository.OrdersRepository)),
+    _ts_param(1, (0, _common.Inject)(_fashiondnaregenerationservice.FashionDnaRegenerationService)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        void 0,
         void 0
     ])
 ], OrdersService);

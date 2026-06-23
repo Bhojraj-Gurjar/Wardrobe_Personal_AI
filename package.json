@@ -1,0 +1,22 @@
+{
+  "name": "wardrobe-ai",
+  "private": true,
+  "description": "Wardrobe AI monorepo utilities",
+  "scripts": {
+    "reset": "tsx scripts/reset-system.ts",
+    "infra:up": "powershell -ExecutionPolicy Bypass -File scripts/infra-up.ps1",
+    "dev": "powershell -ExecutionPolicy Bypass -File scripts/infra-up.ps1; powershell -ExecutionPolicy Bypass -File scripts/dev-local.ps1",
+    "dev:backend": "npm run start:dev --prefix backend",
+    "dev:frontend": "npm run dev:3001 --prefix frontend",
+    "dev:ai": "ai-service\\.venv\\Scripts\\python.exe -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
+    "dev:apps": "powershell -ExecutionPolicy Bypass -File scripts/dev-local.ps1",
+    "verify:insightface": "ai-service\\.venv\\Scripts\\python.exe ai-service\\scripts\\verify_insightface_suite.py"
+  },
+  "devDependencies": {
+    "@qdrant/js-client-rest": "^1.18.0",
+    "dotenv": "^17.4.2",
+    "ioredis": "^5.11.1",
+    "pg": "^8.22.0",
+    "tsx": "^4.20.3"
+  }
+}

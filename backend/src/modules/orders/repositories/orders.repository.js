@@ -31,16 +31,31 @@ class OrdersRepository {
   findByIdAndUserId(id, userId) {
     return this.prisma.order.findFirst({
       where: { id, user_id: userId },
+      include: { product: true },
     });
   }
 
-  create(userId, totalAmount) {
+  productExists(productId) {
+    return this.prisma.product.findUnique({
+      where: { id: productId },
+      select: { id: true },
+    });
+  }
+
+  create(userId, dto) {
+    const data = {
+      user_id: userId,
+      total_amount: dto.total_amount,
+      status: ORDER_STATUS.CREATED,
+    };
+
+    if (dto.product_id) {
+      data.product_id = dto.product_id;
+    }
+
     return this.prisma.order.create({
-      data: {
-        user_id: userId,
-        total_amount: totalAmount,
-        status: ORDER_STATUS.CREATED,
-      },
+      data,
+      include: { product: true },
     });
   }
 }

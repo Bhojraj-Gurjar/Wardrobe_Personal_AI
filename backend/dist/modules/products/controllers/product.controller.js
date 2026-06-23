@@ -15,6 +15,7 @@ const _productservice = require("../services/product.service");
 const _createproductdto = require("../dto/create-product.dto");
 const _updateproductdto = require("../dto/update-product.dto");
 const _queryproductsdto = require("../dto/query-products.dto");
+const _searchproductsdto = require("../dto/search-products.dto");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -30,11 +31,18 @@ function _ts_param(paramIndex, decorator) {
     };
 }
 const queryProductsPipe = (0, _dtovalidationpipe.DtoValidationPipe)(_queryproductsdto.QueryProductsDto);
+const searchProductsPipe = (0, _dtovalidationpipe.DtoValidationPipe)(_searchproductsdto.SearchProductsDto);
 const createProductPipe = (0, _dtovalidationpipe.DtoValidationPipe)(_createproductdto.CreateProductDto);
 const updateProductPipe = (0, _dtovalidationpipe.DtoValidationPipe)(_updateproductdto.UpdateProductDto);
 let ProductController = class ProductController {
     constructor(productService){
         this.productService = productService;
+    }
+    search(query) {
+        return this.productService.search(query);
+    }
+    findByCategory(category, query) {
+        return this.productService.findByCategory(category, query);
     }
     findAll(query) {
         return this.productService.findAll(query);
@@ -53,9 +61,65 @@ let ProductController = class ProductController {
     }
 };
 _ts_decorate([
+    (0, _common.Get)('search'),
+    (0, _swagger.ApiOperation)({
+        summary: 'Search products',
+        description: 'Full-text search with brand, category, color, and price range filters'
+    }),
+    (0, _swagger.ApiQuery)({
+        name: 'q',
+        required: false,
+        description: 'Search query'
+    }),
+    (0, _swagger.ApiQuery)({
+        name: 'search',
+        required: false,
+        description: 'Alias for q'
+    }),
+    (0, _swagger.ApiResponse)({
+        status: 200,
+        description: 'Search results retrieved successfully'
+    }),
+    (0, _swagger.ApiResponse)({
+        status: 400,
+        description: 'Search query is required'
+    }),
+    _ts_param(0, (0, _common.Query)(searchProductsPipe)),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        void 0
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], ProductController.prototype, "search", null);
+_ts_decorate([
+    (0, _common.Get)('category/:category'),
+    (0, _swagger.ApiOperation)({
+        summary: 'List products by category',
+        description: 'Matches category group (e.g. MEN), subcategory slug (e.g. men-jackets), or legacy category_id'
+    }),
+    (0, _swagger.ApiParam)({
+        name: 'category',
+        example: 'men-jackets',
+        description: 'Category group code, subcategory slug, or legacy category id'
+    }),
+    (0, _swagger.ApiResponse)({
+        status: 200,
+        description: 'Category products retrieved successfully'
+    }),
+    _ts_param(0, (0, _common.Param)('category')),
+    _ts_param(1, (0, _common.Query)(queryProductsPipe)),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        void 0,
+        void 0
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], ProductController.prototype, "findByCategory", null);
+_ts_decorate([
     (0, _common.Get)(),
     (0, _swagger.ApiOperation)({
-        summary: 'List products with pagination, search, sort, filters'
+        summary: 'List products',
+        description: 'Paginated catalog with brand, category, color, and price range filters'
     }),
     (0, _swagger.ApiResponse)({
         status: 200,
@@ -96,7 +160,7 @@ _ts_decorate([
     (0, _common.Post)(),
     (0, _common.HttpCode)(201),
     (0, _swagger.ApiOperation)({
-        summary: 'Create a product'
+        summary: 'Create a catalog product'
     }),
     (0, _swagger.ApiResponse)({
         status: 201,

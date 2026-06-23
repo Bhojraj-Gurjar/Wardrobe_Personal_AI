@@ -1,0 +1,1 @@
+{"version":3,"sources":["../../../../src/modules/face-analysis/constants/face-analysis.constants.js"],"sourcesContent":["export const FACE_VECTOR_SIZE = 128;\r\n\r\nexport const FACE_TRAIT_SOURCE = 'face_analysis_module';\r\n"],"names":["FACE_TRAIT_SOURCE","FACE_VECTOR_SIZE"],"mappings":";;;;;;;;;;;QAEaA;eAAAA;;QAFAC;eAAAA;;;AAAN,MAAMA,mBAAmB;AAEzB,MAAMD,oBAAoB"}

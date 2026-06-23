@@ -9,6 +9,10 @@ Object.defineProperty(exports, "WishlistService", {
     }
 });
 const _common = require("@nestjs/common");
+const _fashiondnaregenerationconstants = require("../../fashion-dna/constants/fashion-dna-regeneration.constants");
+const _fashiondnaregenerationservice = require("../../fashion-dna/services/fashion-dna-regeneration.service");
+const _productrepository = require("../../products/repositories/product.repository");
+const _productcatalogmapper = require("../../products/utils/product-catalog.mapper");
 const _wishlistrepository = require("../repositories/wishlist.repository");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -25,8 +29,10 @@ function _ts_param(paramIndex, decorator) {
     };
 }
 let WishlistService = class WishlistService {
-    constructor(wishlistRepository){
+    constructor(wishlistRepository, fashionDnaRegenerationService, productRepository){
         this.wishlistRepository = wishlistRepository;
+        this.fashionDnaRegenerationService = fashionDnaRegenerationService;
+        this.productRepository = productRepository;
     }
     async getWishlist(userId) {
         const items = await this.wishlistRepository.findByUserId(userId);
@@ -35,15 +41,13 @@ let WishlistService = class WishlistService {
         };
     }
     async addToWishlist(userId, dto) {
-        const productExists = await this.wishlistRepository.productExists(dto.product_id);
-        if (!productExists) {
-            throw new _common.NotFoundException('Product not found');
-        }
-        const existing = await this.wishlistRepository.findByUserAndProduct(userId, dto.product_id);
+        const productId = await this.resolveProductId(dto);
+        const existing = await this.wishlistRepository.findByUserAndProduct(userId, productId);
         if (existing) {
             throw new _common.ConflictException('Product already in wishlist');
         }
-        const item = await this.wishlistRepository.create(userId, dto.product_id);
+        const item = await this.wishlistRepository.create(userId, productId);
+        this.fashionDnaRegenerationService.trigger(userId, _fashiondnaregenerationconstants.REFRESH_SOURCES.WISHLIST_UPDATE);
         return this.formatWishlistItem(item);
     }
     async removeFromWishlist(userId, id) {
@@ -52,15 +56,34 @@ let WishlistService = class WishlistService {
             throw new _common.NotFoundException('Wishlist item not found');
         }
         await this.wishlistRepository.delete(id);
+        this.fashionDnaRegenerationService.trigger(userId, _fashiondnaregenerationconstants.REFRESH_SOURCES.WISHLIST_UPDATE);
         return {
             message: 'Removed from wishlist successfully'
         };
+    }
+    async resolveProductId(dto) {
+        if (dto.product_id) {
+            const exists = await this.wishlistRepository.productExists(dto.product_id);
+            if (!exists) {
+                throw new _common.NotFoundException('Product not found');
+            }
+            return dto.product_id;
+        }
+        if (dto.sku) {
+            const product = await this.productRepository.findBySku(dto.sku);
+            if (!product) {
+                throw new _common.NotFoundException('Product not found');
+            }
+            return product.id;
+        }
+        throw new _common.BadRequestException('product_id or sku is required');
     }
     formatWishlistItem(item) {
         return {
             id: item.id,
             user_id: item.user_id,
             product_id: item.product_id,
+            product_sku: item.product?.sku ?? null,
             created_at: item.created_at,
             product: this.formatProduct(item.product)
         };
@@ -69,28 +92,18 @@ let WishlistService = class WishlistService {
         if (!product) {
             return null;
         }
-        return {
-            id: product.id,
-            sku: product.sku,
-            name: product.name,
-            description: product.description,
-            category_id: product.category_id,
-            brand_id: product.brand_id,
-            price: product.price,
-            images: (product.images || []).map((image)=>({
-                    id: image.id,
-                    url: image.url,
-                    sort_order: image.sort_order,
-                    is_primary: image.is_primary
-                }))
-        };
+        return (0, _productcatalogmapper.formatCatalogProduct)(product);
     }
 };
 WishlistService = _ts_decorate([
     (0, _common.Injectable)(),
     _ts_param(0, (0, _common.Inject)(_wishlistrepository.WishlistRepository)),
+    _ts_param(1, (0, _common.Inject)(_fashiondnaregenerationservice.FashionDnaRegenerationService)),
+    _ts_param(2, (0, _common.Inject)(_productrepository.ProductRepository)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        void 0,
+        void 0,
         void 0
     ])
 ], WishlistService);

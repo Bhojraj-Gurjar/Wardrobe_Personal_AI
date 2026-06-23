@@ -10,6 +10,7 @@ Object.defineProperty(exports, "OrdersModule", {
 });
 const _common = require("@nestjs/common");
 const _authmodule = require("../auth/auth.module");
+const _fashiondnamodule = require("../fashion-dna/fashion-dna.module");
 const _orderscontroller = require("./controllers/orders.controller");
 const _ordersservice = require("./services/orders.service");
 const _ordersrepository = require("./repositories/orders.repository");
@@ -24,7 +25,8 @@ let OrdersModule = class OrdersModule {
 OrdersModule = _ts_decorate([
     (0, _common.Module)({
         imports: [
-            _authmodule.AuthModule
+            _authmodule.AuthModule,
+            _fashiondnamodule.FashionDnaModule
         ],
         controllers: [
             _orderscontroller.OrdersController

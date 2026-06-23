@@ -10,6 +10,10 @@ Object.defineProperty(exports, "ProductService", {
 });
 const _common = require("@nestjs/common");
 const _productrepository = require("../repositories/product.repository");
+const _aiservice = require("../../ai/services/ai.service");
+const _productcatalogmapper = require("../utils/product-catalog.mapper");
+const _normalizeproductqueryutil = require("../utils/normalize-product-query.util");
+const _productidentityutil = require("../utils/product-identity.util");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -25,19 +29,41 @@ function _ts_param(paramIndex, decorator) {
     };
 }
 let ProductService = class ProductService {
-    constructor(productRepository){
+    constructor(productRepository, aiService){
         this.productRepository = productRepository;
+        this.aiService = aiService;
     }
     async findAll(query) {
-        const [products, total] = await this.productRepository.findMany(query);
+        const normalizedQuery = (0, _normalizeproductqueryutil.normalizeProductQuery)(query);
+        const [products, total] = await this.productRepository.findMany(normalizedQuery);
+        return this.buildPaginatedResponse(products, total, normalizedQuery);
+    }
+    async findByCategory(category, query) {
+        const normalizedQuery = (0, _normalizeproductqueryutil.normalizeProductQuery)({
+            ...query,
+            category: decodeURIComponent(category)
+        });
+        const [products, total] = await this.productRepository.findMany(normalizedQuery);
+        return this.buildPaginatedResponse(products, total, normalizedQuery);
+    }
+    async search(query) {
+        const normalizedQuery = (0, _normalizeproductqueryutil.normalizeProductQuery)(query);
+        const searchTerm = (normalizedQuery.q ?? normalizedQuery.search)?.trim();
+        if (!searchTerm) {
+            throw new _common.BadRequestException('Search query is required (use q or search)');
+        }
+        const [products, total] = await this.productRepository.findMany({
+            ...normalizedQuery,
+            search: searchTerm
+        });
+        return this.buildPaginatedResponse(products, total, normalizedQuery);
+    }
+    buildPaginatedResponse(products, total, query) {
         return {
             items: products.map((product)=>this.formatProduct(product)),
-            meta: {
-                total,
-                page: query.page,
-                limit: query.limit,
-                totalPages: Math.ceil(total / query.limit) || 1
-            }
+            total,
+            page: query.page,
+            limit: query.limit
         };
     }
     async findOne(id) {
@@ -47,21 +73,46 @@ let ProductService = class ProductService {
         }
         return this.formatProduct(product);
     }
+    async findBySku(sku) {
+        const product = await this.productRepository.findBySku(sku);
+        if (!product) {
+            throw new _common.NotFoundException('Product not found');
+        }
+        return this.formatProduct(product);
+    }
     async create(dto) {
         await this.ensureSkuAvailable(dto.sku);
-        const product = await this.productRepository.create(this.mapProductFields(dto), dto.images || []);
+        const createData = (0, _productcatalogmapper.mapCreateOrUpdateProductData)(dto);
+        if ((0, _productidentityutil.isCatalogSku)(dto.sku)) {
+            createData.id = (0, _productidentityutil.resolveStableProductId)(dto.sku);
+        }
+        const product = await this.productRepository.create(createData, (0, _productcatalogmapper.resolveCatalogImages)(dto));
+        this.scheduleEmbedding(product);
         return this.formatProduct(product);
     }
     async update(id, dto) {
-        await this.ensureProductExists(id);
-        if (dto.sku) {
-            await this.ensureSkuAvailable(dto.sku, id);
+        const existing = await this.ensureProductExists(id);
+        if (dto.sku !== undefined && dto.sku !== existing.sku) {
+            throw new _common.BadRequestException('SKU is immutable after product creation');
         }
-        const product = await this.productRepository.update(id, this.mapProductFields(dto), dto.images);
+        const images = dto.images !== undefined || dto.imageUrl !== undefined ? (0, _productcatalogmapper.resolveCatalogImages)(dto) : undefined;
+        const product = await this.productRepository.update(id, (0, _productcatalogmapper.mapCreateOrUpdateProductData)(dto, {
+            allowSku: false
+        }), images);
         return this.formatProduct(product);
     }
     async remove(id) {
-        await this.ensureProductExists(id);
+        const product = await this.ensureProductExists(id);
+        const referenceCount = await this.productRepository.countReferences(id);
+        if ((0, _productidentityutil.isCatalogSku)(product.sku) || referenceCount > 0) {
+            const deactivated = await this.productRepository.update(id, {
+                is_active: false
+            });
+            return {
+                message: 'Product deactivated to preserve wishlist and recommendation references',
+                product: this.formatProduct(deactivated)
+            };
+        }
         await this.productRepository.delete(id);
         return {
             message: 'Product deleted successfully'
@@ -80,54 +131,32 @@ let ProductService = class ProductService {
             throw new _common.ConflictException('SKU already exists');
         }
     }
-    mapProductFields(dto) {
-        const data = {};
-        if (dto.sku !== undefined) {
-            data.sku = dto.sku;
+    scheduleEmbedding(product) {
+        if (!this.aiService.isConfigured()) {
+            return;
         }
-        if (dto.name !== undefined) {
-            data.name = dto.name;
-        }
-        if (dto.description !== undefined) {
-            data.description = dto.description;
-        }
-        if (dto.category_id !== undefined) {
-            data.category_id = dto.category_id;
-        }
-        if (dto.brand_id !== undefined) {
-            data.brand_id = dto.brand_id;
-        }
-        if (dto.price !== undefined) {
-            data.price = dto.price;
-        }
-        return data;
+        this.aiService.embedProduct({
+            product_id: product.id,
+            product: {
+                name: product.name,
+                description: product.description,
+                sku: product.sku,
+                category: product.category ?? product.category_id,
+                brand: product.brand ?? product.brand_id
+            }
+        }).catch(()=>null);
     }
     formatProduct(product) {
-        return {
-            id: product.id,
-            sku: product.sku,
-            name: product.name,
-            description: product.description,
-            category_id: product.category_id,
-            brand_id: product.brand_id,
-            price: product.price,
-            images: (product.images || []).map((image)=>({
-                    id: image.id,
-                    url: image.url,
-                    sort_order: image.sort_order,
-                    is_primary: image.is_primary,
-                    created_at: image.created_at
-                })),
-            created_at: product.created_at,
-            updated_at: product.updated_at
-        };
+        return (0, _productcatalogmapper.formatCatalogProduct)(product);
     }
 };
 ProductService = _ts_decorate([
     (0, _common.Injectable)(),
     _ts_param(0, (0, _common.Inject)(_productrepository.ProductRepository)),
+    _ts_param(1, (0, _common.Inject)(_aiservice.AiService)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        void 0,
         void 0
     ])
 ], ProductService);

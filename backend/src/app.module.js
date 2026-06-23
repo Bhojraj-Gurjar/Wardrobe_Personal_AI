@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from './config/config.module';
 import { DatabaseModule } from './database/database.module';
+import { StorageModule } from './storage/storage.module';
 import { LoggerModule } from './common/logger/winston.config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -11,8 +12,16 @@ import { RecommendationsModule } from './modules/recommendations/recommendations
 import { FashionDnaModule } from './modules/fashion-dna/fashion-dna.module';
 import { WishlistModule } from './modules/wishlist/wishlist.module';
 import { OrdersModule } from './modules/orders/orders.module';
+import { UserActivityModule } from './modules/user-activity/user-activity.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { FaceModule } from './modules/face/face.module';
+import { FaceAnalysisModule } from './modules/face-analysis/face-analysis.module';
+import { BodyAnalysisModule } from './modules/body-analysis/body-analysis.module';
+import { DigitalAvatarModule } from './modules/digital-avatar/digital-avatar.module';
+import { UserPipelineModule } from './modules/user-pipeline/user-pipeline.module';
+import { PipelineEventModule } from './modules/user-pipeline/pipeline-event.module';
+import { UserArtifactsModule } from './modules/user-artifacts/user-artifacts.module';
+import { AiModule } from './modules/ai/ai.module';
 import { RequestIdMiddleware } from './middleware/request-id.middleware';
 
 export @Module({
@@ -20,6 +29,7 @@ export @Module({
     ConfigModule,
     LoggerModule,
     DatabaseModule,
+    StorageModule,
     AuthModule,
     UsersModule,
     ProductsModule,
@@ -27,8 +37,16 @@ export @Module({
     FashionDnaModule,
     WishlistModule,
     OrdersModule,
+    UserActivityModule,
     AdminModule,
+    AiModule,
     FaceModule,
+    FaceAnalysisModule,
+    BodyAnalysisModule,
+    DigitalAvatarModule,
+    PipelineEventModule,
+    UserPipelineModule,
+    UserArtifactsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

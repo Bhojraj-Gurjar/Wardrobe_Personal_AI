@@ -1,3 +1,6 @@
+# Infrastructure only — run frontend, backend, and ai-service locally.
+# Full stack: see docker-compose.apps.yml
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -38,11 +41,6 @@ services:
       - '6334:6334'
     volumes:
       - wardrobe_qdrant_data:/qdrant/storage
-    healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:6333/healthz']
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
 volumes:
   wardrobe_postgres_data:

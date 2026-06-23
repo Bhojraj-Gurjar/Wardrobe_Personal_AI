@@ -8,6 +8,8 @@ const _config = require("@nestjs/config");
 const _swagger = require("@nestjs/swagger");
 const _nestwinston = require("nest-winston");
 const _helmet = /*#__PURE__*/ _interop_require_default(require("helmet"));
+const _path = require("path");
+const _fs = require("fs");
 const _appmodule = require("./app.module");
 const _httpexceptionfilter = require("./common/filters/http-exception.filter");
 const _allexceptionsfilter = require("./common/filters/all-exceptions.filter");
@@ -26,9 +28,31 @@ async function bootstrap() {
     const configService = app.get(_config.ConfigService);
     const logger = app.get(_nestwinston.WINSTON_MODULE_NEST_PROVIDER);
     app.useLogger(logger);
-    app.use((0, _helmet.default)());
+    app.useBodyParser('json', {
+        limit: '20mb'
+    });
+    app.useBodyParser('urlencoded', {
+        extended: true,
+        limit: '20mb'
+    });
+    app.use((0, _helmet.default)({
+        crossOriginResourcePolicy: {
+            policy: 'cross-origin'
+        }
+    }));
+    const uploadsRoot = (0, _path.join)(process.cwd(), configService.get('storage.local.rootDir') || 'uploads');
+    if (!(0, _fs.existsSync)(uploadsRoot)) {
+        (0, _fs.mkdirSync)(uploadsRoot, {
+            recursive: true
+        });
+    }
+    app.useStaticAssets(uploadsRoot, {
+        prefix: configService.get('storage.local.publicPath') || '/uploads'
+    });
+    const corsOrigins = configService.get('cors.origins') || [];
+    const isProduction = configService.get('nodeEnv') === 'production';
     app.enableCors({
-        origin: configService.get('nodeEnv') === 'production' ? false : true,
+        origin: corsOrigins.length ? corsOrigins : isProduction ? false : true,
         credentials: true
     });
     app.setGlobalPrefix(_constants.API_PREFIX);

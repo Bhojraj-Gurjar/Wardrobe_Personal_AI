@@ -1,1 +1,1 @@
-// Fashion DNA is generated server-side; no request body DTO required.
+export { UpdateFashionDnaDto } from './update-fashion-dna.dto';

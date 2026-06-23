@@ -32,13 +32,52 @@ let AppController = class AppController {
     getHealth() {
         return this.appService.getHealth();
     }
+    getAiHealth() {
+        return this.appService.getAiHealth();
+    }
+    getQdrantHealth() {
+        return this.appService.getQdrantHealth();
+    }
+    getDiagnostics() {
+        return this.appService.getDiagnostics();
+    }
 };
 _ts_decorate([
     (0, _common.Get)('health'),
+    (0, _swagger.ApiOperation)({
+        summary: 'API health check'
+    }),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", []),
     _ts_metadata("design:returntype", void 0)
 ], AppController.prototype, "getHealth", null);
+_ts_decorate([
+    (0, _common.Get)('ai/health'),
+    (0, _swagger.ApiOperation)({
+        summary: 'FastAPI AI service health check'
+    }),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:returntype", void 0)
+], AppController.prototype, "getAiHealth", null);
+_ts_decorate([
+    (0, _common.Get)('qdrant/health'),
+    (0, _swagger.ApiOperation)({
+        summary: 'Qdrant vector database health check'
+    }),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:returntype", void 0)
+], AppController.prototype, "getQdrantHealth", null);
+_ts_decorate([
+    (0, _common.Get)('health/diagnostics'),
+    (0, _swagger.ApiOperation)({
+        summary: 'Face pipeline diagnostics (AI + Qdrant)'
+    }),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:returntype", void 0)
+], AppController.prototype, "getDiagnostics", null);
 AppController = _ts_decorate([
     (0, _swagger.ApiTags)('health'),
     (0, _common.Controller)(),

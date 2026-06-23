@@ -1,13 +1,15 @@
 import { Inject, ConflictException,
   ForbiddenException,
   Injectable,
-  UnauthorizedException, } from '@nestjs/common';
+  UnauthorizedException, forwardRef, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
 import { AuthRepository } from '../repositories/auth.repository';
 import { RedisService } from '../../../database/redis.service';
+import { UserPipelineService } from '../../user-pipeline/user-pipeline.service';
+import { UserArtifactsService } from '../../user-artifacts/user-artifacts.service';
 import { USER_STATUS } from '../../../common/constants/user-status';
 import { parseDurationToSeconds } from '../../../common/utils/parse-duration';
 
@@ -16,11 +18,21 @@ const REFRESH_TOKEN_PREFIX = 'auth:refresh:';
 
 export @Injectable()
 class AuthService {
-  constructor(@Inject(AuthRepository) authRepository, @Inject(JwtService) jwtService, @Inject(ConfigService) configService, @Inject(RedisService) redisService) {
+  constructor(
+    @Inject(AuthRepository) authRepository,
+    @Inject(JwtService) jwtService,
+    @Inject(ConfigService) configService,
+    @Inject(RedisService) redisService,
+    @Inject(forwardRef(() => UserPipelineService)) userPipelineService,
+    @Inject(UserArtifactsService) userArtifactsService,
+  ) {
     this.authRepository = authRepository;
     this.jwtService = jwtService;
     this.configService = configService;
     this.redisService = redisService;
+    this.userPipelineService = userPipelineService;
+    this.userArtifactsService = userArtifactsService;
+    this.logger = new Logger(AuthService.name);
     this.refreshTtlSeconds = parseDurationToSeconds(
       this.configService.get('jwt.refreshExpiresIn'),
     );
@@ -36,7 +48,11 @@ class AuthService {
       passwordHash,
     });
 
-    return this.buildAuthResponse(user);
+    this.userPipelineService.onUserCreated(user.id);
+    const response = await this.buildAuthResponse(user);
+    this.scheduleArtifactEnsure(user.id);
+
+    return response;
   }
 
   async login(dto) {
@@ -59,7 +75,10 @@ class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    return this.buildAuthResponse(user);
+    const response = await this.buildAuthResponse(user);
+    this.scheduleArtifactEnsure(user.id);
+
+    return response;
   }
 
   async refresh(dto) {
@@ -79,7 +98,10 @@ class AuthService {
     await this.ensureActiveUser(user);
     await this.revokeRefreshToken(dto.refreshToken);
 
-    return this.buildAuthResponse(user);
+    const response = await this.buildAuthResponse(user);
+    this.scheduleArtifactEnsure(user.id);
+
+    return response;
   }
 
   async logout(dto) {
@@ -160,5 +182,15 @@ class AuthService {
 
   revokeRefreshToken(refreshToken) {
     return this.redisService.del(`${REFRESH_TOKEN_PREFIX}${refreshToken}`);
+  }
+
+  scheduleArtifactEnsure(userId) {
+    setImmediate(() => {
+      this.userArtifactsService.ensureAllUserArtifacts(userId).catch((error) => {
+        this.logger.warn(
+          `Artifact ensure failed for user ${userId}: ${error.message}`,
+        );
+      });
+    });
   }
 }

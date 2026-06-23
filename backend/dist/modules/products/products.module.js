@@ -9,9 +9,13 @@ Object.defineProperty(exports, "ProductsModule", {
     }
 });
 const _common = require("@nestjs/common");
+const _aimodule = require("../ai/ai.module");
 const _productcontroller = require("./controllers/product.controller");
+const _productcategorycontroller = require("./controllers/product-category.controller");
 const _productservice = require("./services/product.service");
+const _productcategoryservice = require("./services/product-category.service");
 const _productrepository = require("./repositories/product.repository");
+const _productcategoryrepository = require("./repositories/product-category.repository");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -22,15 +26,24 @@ let ProductsModule = class ProductsModule {
 };
 ProductsModule = _ts_decorate([
     (0, _common.Module)({
+        imports: [
+            _aimodule.AiModule
+        ],
         controllers: [
+            _productcategorycontroller.ProductCategoryController,
             _productcontroller.ProductController
         ],
         providers: [
             _productservice.ProductService,
-            _productrepository.ProductRepository
+            _productcategoryservice.ProductCategoryService,
+            _productrepository.ProductRepository,
+            _productcategoryrepository.ProductCategoryRepository
         ],
         exports: [
-            _productservice.ProductService
+            _productservice.ProductService,
+            _productcategoryservice.ProductCategoryService,
+            _productrepository.ProductRepository,
+            _productcategoryrepository.ProductCategoryRepository
         ]
     })
 ], ProductsModule);

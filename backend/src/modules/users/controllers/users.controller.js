@@ -1,4 +1,4 @@
-import { Inject, Body, Controller, Get, Put, UseGuards } from '@nestjs/common';
+import { Inject, Body, Controller, Get, Post, Put, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -38,5 +38,12 @@ class UsersController {
   @ApiResponse({ status: 404, description: 'Profile not found' })
   updateProfile(@CurrentUser() user, @Body(updateProfilePipe) dto) {
     return this.usersService.updateProfile(user.userId, dto);
+  }
+
+  @Post('artifacts/ensure')
+  @ApiOperation({ summary: 'Ensure face, body, avatar, and fashion DNA records exist' })
+  @ApiResponse({ status: 200, description: 'Artifacts ensured successfully' })
+  ensureArtifacts(@CurrentUser() user) {
+    return this.usersService.ensureArtifacts(user.userId);
   }
 }
