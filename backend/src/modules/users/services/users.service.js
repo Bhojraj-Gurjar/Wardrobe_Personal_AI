@@ -1,4 +1,6 @@
 import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
+import { sanitizeBodyPhotoPath } from '../../../common/utils/user-image-guard.util';
+import { ApiCacheService } from '../../../common/services/api-cache.service';
 import { resolveProfileRegenerationSource } from '../../fashion-dna/constants/fashion-dna-regeneration.constants';
 import { FashionDnaRegenerationService } from '../../fashion-dna/services/fashion-dna-regeneration.service';
 import { BodyAnalysisService } from '../../body-analysis/body-analysis.service';
@@ -17,6 +19,7 @@ class UsersService {
     @Inject(PipelineEventBus) pipelineEventBus,
     @Inject(UserArtifactsService) userArtifactsService,
     @Inject(StoragePathResolver) storagePathResolver,
+    @Inject(ApiCacheService) apiCacheService,
   ) {
     this.usersRepository = usersRepository;
     this.fashionDnaRegenerationService = fashionDnaRegenerationService;
@@ -24,16 +27,27 @@ class UsersService {
     this.pipelineEventBus = pipelineEventBus;
     this.userArtifactsService = userArtifactsService;
     this.storagePathResolver = storagePathResolver;
+    this.apiCacheService = apiCacheService;
+  }
+
+  profileCacheKey(userId) {
+    return this.apiCacheService.buildKey('users:profile', userId);
   }
 
   async getProfile(userId) {
-    const context = await this.usersRepository.findProfileContextByUserId(userId);
+    return this.apiCacheService.getOrSet(
+      this.profileCacheKey(userId),
+      120,
+      async () => {
+        const context = await this.usersRepository.findProfileContextByUserId(userId);
 
-    if (!context?.profile) {
-      throw new NotFoundException('Profile not found');
-    }
+        if (!context?.profile) {
+          throw new NotFoundException('Profile not found');
+        }
 
-    return this.formatProfile(context.profile, context);
+        return this.formatProfile(context.profile, context);
+      },
+    );
   }
 
   async updateProfile(userId, dto) {
@@ -56,6 +70,8 @@ class UsersService {
     });
 
     const context = await this.usersRepository.findProfileContextByUserId(userId);
+
+    await this.apiCacheService.invalidate(this.profileCacheKey(userId));
 
     return this.formatProfile(profile, context);
   }
@@ -118,6 +134,12 @@ class UsersService {
 
   formatProfile(profile, context = {}) {
     const faceImagePath = context.face_registration?.face_image_url || null;
+    const preferences = profile.preferences || {};
+    const bodyImagePath =
+      sanitizeBodyPhotoPath(context.body_analysis?.body_image_url)
+      || sanitizeBodyPhotoPath(preferences.bodyPhoto)
+      || sanitizeBodyPhotoPath(preferences.body_photo)
+      || null;
 
     return {
       id: profile.id,
@@ -136,6 +158,10 @@ class UsersService {
       is_face_registered: context.face_registration?.is_face_registered ?? false,
       face_image_url: faceImagePath,
       faceImageUrl: this.storagePathResolver.toPublicUrl(faceImagePath),
+      body_image: bodyImagePath,
+      body_image_url: bodyImagePath,
+      bodyImageUrl: this.storagePathResolver.toPublicUrl(bodyImagePath),
+      bodyPhotoUrl: this.storagePathResolver.toPublicUrl(bodyImagePath),
       created_at: profile.created_at,
       updated_at: profile.updated_at,
     };

@@ -148,6 +148,7 @@ class AuthService {
       id: user.id,
       email: user.email,
       mobile: user.mobile,
+      role: user.role || 'USER',
       status: user.status,
       created_at: user.created_at,
       updated_at: user.updated_at,

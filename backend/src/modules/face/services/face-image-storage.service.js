@@ -34,4 +34,12 @@ class FaceImageStorageService {
 
     return uploadResult.storagePath;
   }
+
+  async readFaceImage(storagePath) {
+    if (!storagePath) {
+      return null;
+    }
+
+    return this.storageService.readStoredFile(storagePath);
+  }
 }

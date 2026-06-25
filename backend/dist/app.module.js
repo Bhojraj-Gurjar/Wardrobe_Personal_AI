@@ -31,6 +31,12 @@ const _digitalavatarmodule = require("./modules/digital-avatar/digital-avatar.mo
 const _userpipelinemodule = require("./modules/user-pipeline/user-pipeline.module");
 const _pipelineeventmodule = require("./modules/user-pipeline/pipeline-event.module");
 const _userartifactsmodule = require("./modules/user-artifacts/user-artifacts.module");
+const _cartmodule = require("./modules/cart/cart.module");
+const _stylistmodule = require("./modules/stylist/stylist.module");
+const _avatarmodule = require("./modules/avatar/avatar.module");
+const _tryonmodule = require("./modules/try-on/try-on.module");
+const _virtualtryonmodule = require("./modules/virtual-try-on/virtual-try-on.module");
+const _personalclosetmodule = require("./modules/personal-closet/personal-closet.module");
 const _aimodule = require("./modules/ai/ai.module");
 const _requestidmiddleware = require("./middleware/request-id.middleware");
 function _ts_decorate(decorators, target, key, desc) {
@@ -57,17 +63,23 @@ AppModule = _ts_decorate([
             _recommendationsmodule.RecommendationsModule,
             _fashiondnamodule.FashionDnaModule,
             _wishlistmodule.WishlistModule,
+            _cartmodule.CartModule,
             _ordersmodule.OrdersModule,
             _useractivitymodule.UserActivityModule,
             _adminmodule.AdminModule,
             _aimodule.AiModule,
+            _stylistmodule.StylistModule,
             _facemodule.FaceModule,
             _faceanalysismodule.FaceAnalysisModule,
             _bodyanalysismodule.BodyAnalysisModule,
             _digitalavatarmodule.DigitalAvatarModule,
+            _avatarmodule.AvatarModule,
             _pipelineeventmodule.PipelineEventModule,
             _userpipelinemodule.UserPipelineModule,
-            _userartifactsmodule.UserArtifactsModule
+            _userartifactsmodule.UserArtifactsModule,
+            _tryonmodule.TryOnModule,
+            _virtualtryonmodule.VirtualTryOnModule,
+            _personalclosetmodule.PersonalClosetModule
         ],
         controllers: [
             _appcontroller.AppController

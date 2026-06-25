@@ -1,10 +1,8 @@
-"""Body measurement extraction from one full-body image using MediaPipe Pose landmarks."""
+"""Body measurement extraction from one full-body image using MoveNet pose landmarks."""
 
 import logging
-from dataclasses import dataclass
 from typing import Any
 
-import mediapipe as mp
 import numpy as np
 from PIL import Image
 
@@ -15,10 +13,12 @@ from app.schemas.body_analysis import (
 )
 from app.services.body_shape_classifier import aggregate_body_shape, classify_body_shape
 from app.services.body_type_classifier import aggregate_body_type, classify_body_type
+from app.services.opencv_pose_provider import detect_pose_landmarks
+from app.services.pose_landmarks import LandmarkPoint, PoseIndex
 
 logger = logging.getLogger(__name__)
 
-POSE = mp.solutions.pose.PoseLandmark
+POSE = PoseIndex
 MIN_VISIBILITY = 0.35
 CHEST_TORSO_RATIO = 0.25
 WAIST_SCAN_START = 0.35
@@ -26,24 +26,17 @@ WAIST_SCAN_END = 0.75
 WAIST_SCAN_STEPS = 41
 
 
-@dataclass
-class LandmarkPoint:
-    x: float
-    y: float
-    visibility: float
+def _point(
+    landmarks: list[LandmarkPoint],
+    index: int,
+    width: int,
+    height: int,
+) -> LandmarkPoint:
+    return landmarks[index]
 
 
-def _point(landmarks, index: int, width: int, height: int) -> LandmarkPoint:
-    landmark = landmarks[index]
-    return LandmarkPoint(
-        x=landmark.x * width,
-        y=landmark.y * height,
-        visibility=float(landmark.visibility),
-    )
-
-
-def _confidence(landmarks, indices: list[int]) -> float:
-    values = [float(landmarks[index].visibility) for index in indices]
+def _confidence(landmarks: list[LandmarkPoint], indices: list[int]) -> float:
+    values = [landmarks[index].visibility for index in indices]
     if not values:
         return 0.0
     return round(float(np.mean(values)) * 100, 1)
@@ -138,18 +131,10 @@ def extract_body_measurements(
     if image_height < 120 or image_width < 120:
         return None
 
-    with mp.solutions.pose.Pose(
-        static_image_mode=True,
-        model_complexity=2,
-        enable_segmentation=False,
-        min_detection_confidence=0.5,
-    ) as pose:
-        results = pose.process(rgb)
+    landmarks = detect_pose_landmarks(rgb)
 
-    if not results.pose_landmarks:
+    if not landmarks:
         return None
-
-    landmarks = results.pose_landmarks.landmark
 
     left_shoulder = _point(landmarks, POSE.LEFT_SHOULDER, image_width, image_height)
     right_shoulder = _point(landmarks, POSE.RIGHT_SHOULDER, image_width, image_height)

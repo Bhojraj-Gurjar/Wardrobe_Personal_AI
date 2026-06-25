@@ -3,9 +3,12 @@ import logging
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 
 from app.routers import (
     avatar_generation,
+    body_analysis,
     digital_avatar,
     face,
     face_analysis,
@@ -16,6 +19,7 @@ from app.routers import (
     health,
     products,
     recommendations,
+    virtual_tryon,
 )
 from app.config import get_settings
 from app.services.face_engine import initialize_face_engine
@@ -23,18 +27,6 @@ from app.services.fashion_dna_vector_service import FashionDnaVectorService
 from app.services.qdrant_service import QdrantStore
 
 logger = logging.getLogger(__name__)
-
-
-def _include_body_analysis_router(app: FastAPI) -> None:
-    try:
-        from app.routers import body_analysis
-
-        app.include_router(body_analysis.router)
-    except Exception as error:
-        logger.error(
-            'Body analysis router disabled — MediaPipe or CV dependency unavailable: %s',
-            error,
-        )
 
 
 logging.basicConfig(
@@ -74,6 +66,16 @@ def create_app() -> FastAPI:
                 settings.face_vector_size,
             )
         FashionDnaVectorService().ensure_collection()
+
+        try:
+            from app.services.face_trait_service import get_face_trait_engine
+            from app.services.opencv_pose_provider import detect_pose_landmarks
+            import numpy as np
+
+            get_face_trait_engine()
+            detect_pose_landmarks(np.zeros((256, 192, 3), dtype=np.uint8))
+        except Exception as error:  # noqa: BLE001
+            logger.error("Vision analysis engines failed to initialize: %s", error)
 
 
 
@@ -133,7 +135,7 @@ def create_app() -> FastAPI:
 
     app.include_router(face_analysis.router)
 
-    _include_body_analysis_router(app)
+    app.include_router(body_analysis.router)
 
     app.include_router(avatar_generation.router)
 
@@ -145,7 +147,17 @@ def create_app() -> FastAPI:
 
     app.include_router(products.router)
 
+    app.include_router(virtual_tryon.router)
 
+    app.include_router(__import__("app.tryon.router", fromlist=["router"]).router)
+
+    tryon_results_dir = Path(__file__).resolve().parent / "generated" / "tryon"
+    tryon_results_dir.mkdir(parents=True, exist_ok=True)
+    app.mount(
+        "/tryon/results",
+        StaticFiles(directory=str(tryon_results_dir)),
+        name="tryon-results",
+    )
 
     return app
 

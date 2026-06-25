@@ -14,7 +14,7 @@ python-multipart>=0.0.9
 # Body analysis + face analysis — production CV stack (all AI logic in Python)
 numpy>=1.26.0,<3.0.0
 Pillow>=10.4.0,<12.0.0
-opencv-python>=4.10.0,<5.0.0
+opencv-python-headless>=4.10.0,<5.0.0
 mediapipe>=0.10.14,<0.10.30
 scipy>=1.11.0,<2.0.0
 
@@ -31,3 +31,6 @@ setuptools>=75.0.0,<82
 sentence-transformers>=3.3.0
 qdrant-client>=1.12.0
 redis>=5.2.0
+
+# Virtual try-on (CatVTON via Gradio Client)
+gradio_client>=1.7.0

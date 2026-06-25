@@ -41,6 +41,9 @@ let AppController = class AppController {
     getDiagnostics() {
         return this.appService.getDiagnostics();
     }
+    getMetrics() {
+        return this.appService.getMetrics();
+    }
 };
 _ts_decorate([
     (0, _common.Get)('health'),
@@ -78,6 +81,15 @@ _ts_decorate([
     _ts_metadata("design:paramtypes", []),
     _ts_metadata("design:returntype", void 0)
 ], AppController.prototype, "getDiagnostics", null);
+_ts_decorate([
+    (0, _common.Get)('metrics'),
+    (0, _swagger.ApiOperation)({
+        summary: 'Runtime metrics (memory, uptime)'
+    }),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:returntype", void 0)
+], AppController.prototype, "getMetrics", null);
 AppController = _ts_decorate([
     (0, _swagger.ApiTags)('health'),
     (0, _common.Controller)(),

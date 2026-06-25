@@ -12,6 +12,11 @@ enum UserStatus {
   SUSPENDED
 }
 
+enum UserRole {
+  USER
+  ADMIN
+}
+
 enum Gender {
   MALE
   FEMALE
@@ -53,22 +58,32 @@ enum AvatarCategory {
 }
 
 model User {
-  id            String      @id @default(uuid())
-  email         String      @unique
-  mobile        String?     @unique
-  password_hash String      @map("password_hash")
-  status        UserStatus  @default(ACTIVE)
-  created_at    DateTime    @default(now()) @map("created_at")
-  updated_at    DateTime    @updatedAt @map("updated_at")
-  profile       UserProfile?
-  wishlist      Wishlist[]
-  orders        Order[]
+  id               String      @id @default(uuid())
+  email            String      @unique
+  mobile           String?     @unique
+  password_hash    String      @map("password_hash")
+  role             UserRole    @default(USER)
+  status           UserStatus  @default(ACTIVE)
+  admin_created_at DateTime?   @map("admin_created_at")
+  created_at       DateTime    @default(now()) @map("created_at")
+  updated_at       DateTime    @updatedAt @map("updated_at")
+  profile          UserProfile?
+  wishlist         Wishlist[]
+  cart_items       CartItem[]
+  orders           Order[]
   fashion_dna   FashionDna?
   fashion_dna_history FashionDnaHistory[]
   face_registration FaceRegistration?
   face_analysis   FaceAnalysis?
   body_analysis   BodyAnalysis?
   digital_avatars DigitalAvatar[]
+  virtual_try_on  VirtualTryOn?
+  virtual_try_on_results VirtualTryOnResult[]
+  try_on_results  TryOnResult[]
+  saved_outfits   SavedOutfit[]
+  personal_closet PersonalClosetItem[]
+  favorite_brands FavoriteBrand[]
+  favorite_colors FavoriteColor[]
   product_views ProductView[]
   search_history SearchHistory[]
 
@@ -160,6 +175,7 @@ model UserProfile {
   body_type   BodyType? @map("body_type")
   skin_tone   SkinTone? @map("skin_tone")
   preferences Json?
+  body_image  String?   @map("body_image") @db.VarChar(2048)
   user        User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
   created_at  DateTime  @default(now()) @map("created_at")
   updated_at  DateTime  @updatedAt @map("updated_at")
@@ -225,13 +241,17 @@ model Product {
   avatar_category    AvatarCategory? @map("avatar_category")
   overlay_order      Int?            @map("overlay_order")
   avatar_overlay_url String?        @map("avatar_overlay_url") @db.VarChar(2048)
+  try_on_image       String?        @map("try_on_image") @db.VarChar(2048)
+  is_try_on_compatible Boolean?     @map("is_try_on_compatible")
   is_active          Boolean        @default(true) @map("is_active")
   created_at         DateTime       @default(now()) @map("created_at")
   updated_at         DateTime       @updatedAt @map("updated_at")
   images             ProductImage[]
   wishlist           Wishlist[]
+  cart_items         CartItem[]
   product_views      ProductView[]
   orders             Order[]
+  try_on_results     TryOnResult[]
 
   @@index([category])
   @@index([subcategory])
@@ -281,13 +301,35 @@ enum OrderStatus {
   PACKED
   SHIPPED
   DELIVERED
+  CANCELLED
+}
+
+model CartItem {
+  id         String   @id @default(uuid())
+  user_id    String   @map("user_id")
+  product_id String   @map("product_id")
+  quantity   Int      @default(1)
+  created_at DateTime @default(now()) @map("created_at")
+  updated_at DateTime @updatedAt @map("updated_at")
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  product    Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, product_id])
+  @@index([user_id])
+  @@map("cart_items")
 }
 
 model Order {
   id           String      @id @default(uuid())
   user_id      String      @map("user_id")
   product_id   String?     @map("product_id")
+  order_number String?     @map("order_number")
   total_amount Float       @map("total_amount")
+  subtotal     Float?
+  shipping     Float?
+  discount     Float?
+  coupon_code  String?     @map("coupon_code")
+  metadata     Json?
   status       OrderStatus @default(CREATED)
   created_at   DateTime    @default(now()) @map("created_at")
   updated_at   DateTime    @updatedAt @map("updated_at")
@@ -297,6 +339,7 @@ model Order {
   @@index([user_id])
   @@index([status])
   @@index([product_id])
+  @@index([order_number])
   @@map("orders")
 }
 
@@ -366,4 +409,119 @@ model SearchHistory {
 
   @@index([user_id, searched_at])
   @@map("search_history")
+}
+
+model VirtualTryOn {
+  id                     String   @id @default(uuid())
+  user_id                String   @unique @map("user_id")
+  body_image             String?  @map("body_image") @db.VarChar(2048)
+  transparent_image      String?  @map("transparent_image") @db.VarChar(2048)
+  selected_products      Json     @default("[]") @map("selected_products")
+  generated_outfit_image String?  @map("generated_outfit_image") @db.VarChar(2048)
+  created_at             DateTime @default(now()) @map("created_at")
+  updated_at             DateTime @updatedAt @map("updated_at")
+  user                   User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("virtual_try_on")
+}
+
+model VirtualTryOnResult {
+  id                   String   @id @default(uuid())
+  user_id              String   @map("user_id")
+  product_id           String?  @map("product_id")
+  body_photo_reference String?  @map("body_photo_reference") @db.VarChar(2048)
+  garment_image        String?  @map("garment_image") @db.VarChar(2048)
+  input_image          String?  @map("input_image") @db.VarChar(2048)
+  transparent_image    String?  @map("transparent_image") @db.VarChar(2048)
+  generated_image      String?  @map("generated_image") @db.VarChar(2048)
+  selected_products    Json     @default("[]") @map("selected_products")
+  created_at           DateTime @default(now()) @map("created_at")
+  user                 User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, created_at])
+  @@map("virtual_tryons")
+}
+
+model TryOnResult {
+  id              String   @id @default(uuid())
+  user_id         String   @map("user_id")
+  product_id      String?  @map("product_id")
+  body_image      String?  @map("body_image") @db.VarChar(2048)
+  garment_image   String?  @map("garment_image") @db.VarChar(2048)
+  generated_image String?  @map("generated_image") @db.VarChar(2048)
+  created_at      DateTime @default(now()) @map("created_at")
+  user            User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  product         Product? @relation(fields: [product_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id, created_at])
+  @@index([product_id])
+  @@map("try_on_results")
+}
+
+model SavedOutfit {
+  id            String   @id @default(uuid())
+  user_id       String   @map("user_id")
+  name          String?
+  products      Json     @default("[]")
+  items         Json     @default("[]")
+  preview_image String?  @map("preview_image") @db.VarChar(2048)
+  thumbnail     String?  @db.VarChar(2048)
+  total_price   Float?   @map("total_price")
+  source        String?
+  created_at    DateTime @default(now()) @map("created_at")
+  updated_at    DateTime @updatedAt @map("updated_at")
+  user          User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, created_at])
+  @@map("saved_outfits")
+}
+
+model PersonalClosetItem {
+  id           String   @id @default(uuid())
+  user_id      String   @map("user_id")
+  order_id     String   @map("order_id")
+  product_id   String   @map("product_id")
+  size         String?
+  is_removed   Boolean  @default(false) @map("is_removed")
+  purchased_at DateTime @map("purchased_at")
+  created_at   DateTime @default(now()) @map("created_at")
+  updated_at   DateTime @updatedAt @map("updated_at")
+  user         User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, order_id, product_id])
+  @@index([user_id, is_removed])
+  @@map("personal_closet")
+}
+
+model FavoriteBrand {
+  id                 String   @id @default(uuid())
+  user_id            String   @map("user_id")
+  brand_name         String   @map("brand_name")
+  logo_url           String?  @map("logo_url") @db.VarChar(2048)
+  interaction_count  Int      @default(0) @map("interaction_count")
+  preferred_category String?  @map("preferred_category")
+  is_removed         Boolean  @default(false) @map("is_removed")
+  created_at         DateTime @default(now()) @map("created_at")
+  updated_at         DateTime @updatedAt @map("updated_at")
+  user               User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, brand_name])
+  @@index([user_id, is_removed])
+  @@map("favorite_brands")
+}
+
+model FavoriteColor {
+  id            String   @id @default(uuid())
+  user_id       String   @map("user_id")
+  color_name    String   @map("color_name")
+  hex_code      String?  @map("hex_code")
+  usage_percent Float    @default(0) @map("usage_percent")
+  is_removed    Boolean  @default(false) @map("is_removed")
+  created_at    DateTime @default(now()) @map("created_at")
+  updated_at    DateTime @updatedAt @map("updated_at")
+  user          User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, color_name])
+  @@index([user_id, is_removed])
+  @@map("favorite_colors")
 }

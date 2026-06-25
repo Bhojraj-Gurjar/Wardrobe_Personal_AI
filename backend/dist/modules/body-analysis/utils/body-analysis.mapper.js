@@ -23,6 +23,9 @@ _export(exports, {
     },
     get mergeManualUpdateIntoRaw () {
         return mergeManualUpdateIntoRaw;
+    },
+    get resolveBodyHasAnalysis () {
+        return resolveBodyHasAnalysis;
     }
 });
 const EXTRACTED_TRAIT_KEYS = [
@@ -88,6 +91,28 @@ function mapUpdateDtoToPersistence(dto) {
     }
     return data;
 }
+function isDefaultArtifact(raw) {
+    return Boolean(raw && typeof raw === 'object' && !Array.isArray(raw) && raw.isDefault === true);
+}
+function resolveBodyHasAnalysis(record) {
+    if (!record?.body_type) {
+        return false;
+    }
+    return !isDefaultArtifact(record.raw_ai_response);
+}
+function resolveBodyConfidence(raw) {
+    if (raw?.overallConfidence != null) {
+        return raw.overallConfidence;
+    }
+    const values = [
+        raw?.bodyTypeConfidence,
+        raw?.bodyShapeConfidence
+    ].filter((value)=>value != null);
+    if (!values.length) {
+        return null;
+    }
+    return Math.round(values.reduce((sum, value)=>sum + value, 0) / values.length);
+}
 function mergeManualUpdateIntoRaw(rawAiResponse, dto) {
     const raw = rawAiResponse && typeof rawAiResponse === 'object' && !Array.isArray(rawAiResponse) ? {
         ...rawAiResponse
@@ -102,9 +127,11 @@ function mergeManualUpdateIntoRaw(rawAiResponse, dto) {
 function formatBodyAnalysisRecord(record) {
     const raw = record.raw_ai_response || {};
     const measurements = raw.measurements || null;
+    const hasAnalysis = resolveBodyHasAnalysis(record);
     return {
         id: record.id,
         userId: record.user_id,
+        hasAnalysis,
         bodyType: record.body_type,
         bodyShape: record.body_shape,
         bodyShapeConfidence: raw.bodyShapeConfidence ?? null,
@@ -126,6 +153,8 @@ function formatBodyAnalysisRecord(record) {
         framesAnalyzed: raw.framesAnalyzed ?? null,
         framesUsed: raw.framesUsed ?? null,
         overallConfidence: raw.overallConfidence ?? null,
+        confidence: hasAnalysis ? resolveBodyConfidence(raw) : null,
+        analyzedAt: hasAnalysis ? record.updated_at : null,
         rawAiResponse: record.raw_ai_response,
         createdAt: record.created_at,
         updatedAt: record.updated_at

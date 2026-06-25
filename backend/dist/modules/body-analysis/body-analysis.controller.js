@@ -61,6 +61,9 @@ let BodyAnalysisController = class BodyAnalysisController {
         const dto = (0, _bodyuploadutil.toBodyAnalysisDto)(files, body);
         return this.bodyAnalysisService.analyzeBody(user.userId, dto);
     }
+    analyzeStoredBody(user) {
+        return this.bodyAnalysisService.analyzeStoredBody(user.userId);
+    }
     updateBodyAnalysis(user, dto) {
         return this.bodyAnalysisService.updateBodyAnalysis(user.userId, dto);
     }
@@ -120,6 +123,35 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", void 0)
 ], BodyAnalysisController.prototype, "analyzeBody", null);
+_ts_decorate([
+    (0, _common.Post)('analyze-current'),
+    (0, _common.HttpCode)(200),
+    (0, _swagger.ApiOperation)({
+        summary: 'Analyze body traits from the stored body photo'
+    }),
+    (0, _swagger.ApiResponse)({
+        status: 200,
+        description: 'Body analysis completed successfully'
+    }),
+    (0, _swagger.ApiResponse)({
+        status: 400,
+        description: 'No stored body photo'
+    }),
+    (0, _swagger.ApiResponse)({
+        status: 401,
+        description: 'Unauthorized'
+    }),
+    (0, _swagger.ApiResponse)({
+        status: 404,
+        description: 'Stored body photo not found'
+    }),
+    _ts_param(0, (0, _currentuserdecorator.CurrentUser)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        void 0
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], BodyAnalysisController.prototype, "analyzeStoredBody", null);
 _ts_decorate([
     (0, _common.Put)('update'),
     (0, _swagger.ApiOperation)({

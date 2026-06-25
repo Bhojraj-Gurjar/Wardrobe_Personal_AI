@@ -45,6 +45,9 @@ let OrdersController = class OrdersController {
     findOne(user, id) {
         return this.ordersService.findOne(user.userId, id);
     }
+    cancel(user, id) {
+        return this.ordersService.cancel(user.userId, id);
+    }
 };
 _ts_decorate([
     (0, _common.Post)(),
@@ -121,6 +124,33 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", void 0)
 ], OrdersController.prototype, "findOne", null);
+_ts_decorate([
+    (0, _common.Post)(':id/cancel'),
+    (0, _common.HttpCode)(200),
+    (0, _swagger.ApiOperation)({
+        summary: 'Cancel an order'
+    }),
+    (0, _swagger.ApiParam)({
+        name: 'id',
+        description: 'Order UUID'
+    }),
+    (0, _swagger.ApiResponse)({
+        status: 200,
+        description: 'Order cancelled successfully'
+    }),
+    (0, _swagger.ApiResponse)({
+        status: 400,
+        description: 'Order cannot be cancelled'
+    }),
+    _ts_param(0, (0, _currentuserdecorator.CurrentUser)()),
+    _ts_param(1, (0, _common.Param)('id')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        void 0,
+        void 0
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], OrdersController.prototype, "cancel", null);
 OrdersController = _ts_decorate([
     (0, _swagger.ApiTags)('orders'),
     (0, _swagger.ApiBearerAuth)(),

@@ -86,4 +86,16 @@ class FaceController {
     const dto = await toFaceAuthDto(file, body);
     return this.faceService.verify(user.userId, dto);
   }
+
+  @Post('logout')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Verify face before logout and issue logout nonce' })
+  @UseInterceptors(faceUploadInterceptor)
+  async logout(@CurrentUser() user, @UploadedFile() file, @Body() body) {
+    const dto = await toFaceAuthDto(file, body);
+    return this.faceService.logout(user.userId, dto);
+  }
 }

@@ -42,6 +42,12 @@ let FaceImageStorageService = class FaceImageStorageService {
         this.logger.log(`Stored face image for user ${userId} at ${uploadResult.storagePath}`);
         return uploadResult.storagePath;
     }
+    async readFaceImage(storagePath) {
+        if (!storagePath) {
+            return null;
+        }
+        return this.storageService.readStoredFile(storagePath);
+    }
 };
 FaceImageStorageService = _ts_decorate([
     (0, _common.Injectable)(),

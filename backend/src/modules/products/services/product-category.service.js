@@ -1,22 +1,34 @@
 import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ApiCacheService } from '../../../common/services/api-cache.service';
 import { ProductCategoryRepository } from '../repositories/product-category.repository';
 import { PRODUCT_CATEGORY_GROUP_SEED } from '../constants/product-category.seed';
 
 export @Injectable()
 class ProductCategoryService {
-  constructor(@Inject(ProductCategoryRepository) productCategoryRepository) {
+  constructor(
+    @Inject(ProductCategoryRepository) productCategoryRepository,
+    @Inject(ApiCacheService) apiCacheService,
+  ) {
     this.productCategoryRepository = productCategoryRepository;
+    this.apiCacheService = apiCacheService;
     this.logger = new Logger(ProductCategoryService.name);
   }
 
   async findAll({ includeInactive = false } = {}) {
-    const groups = await this.productCategoryRepository.findAllGroupsWithCategories({
-      includeInactive,
-    });
+    const cacheKey = this.apiCacheService.buildKey(
+      'products:categories',
+      includeInactive ? 'all' : 'active',
+    );
 
-    return {
-      groups: groups.map((group) => this.formatGroup(group)),
-    };
+    return this.apiCacheService.getOrSet(cacheKey, 3600, async () => {
+      const groups = await this.productCategoryRepository.findAllGroupsWithCategories({
+        includeInactive,
+      });
+
+      return {
+        groups: groups.map((group) => this.formatGroup(group)),
+      };
+    });
   }
 
   async findGroupByCode(code) {

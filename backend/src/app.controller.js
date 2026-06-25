@@ -32,4 +32,10 @@ class AppController {
   getDiagnostics() {
     return this.appService.getDiagnostics();
   }
+
+  @Get('metrics')
+  @ApiOperation({ summary: 'Runtime metrics (memory, uptime)' })
+  getMetrics() {
+    return this.appService.getMetrics();
+  }
 }

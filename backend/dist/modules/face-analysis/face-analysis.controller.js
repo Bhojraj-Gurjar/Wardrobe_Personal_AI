@@ -48,6 +48,9 @@ let FaceAnalysisController = class FaceAnalysisController {
         const dto = await (0, _faceuploadutil.toFaceAuthDto)(file, body);
         return this.faceAnalysisService.analyzeFace(user.userId, dto);
     }
+    analyzeStoredFace(user) {
+        return this.faceAnalysisService.analyzeStoredFace(user.userId);
+    }
     updateFaceAnalysis(user, dto) {
         return this.faceAnalysisService.updateFaceAnalysis(user.userId, dto);
     }
@@ -107,6 +110,35 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", Promise)
 ], FaceAnalysisController.prototype, "analyzeFace", null);
+_ts_decorate([
+    (0, _common.Post)('analyze-current'),
+    (0, _common.HttpCode)(200),
+    (0, _swagger.ApiOperation)({
+        summary: 'Analyze face traits from the registered face photo'
+    }),
+    (0, _swagger.ApiResponse)({
+        status: 200,
+        description: 'Face analysis completed successfully'
+    }),
+    (0, _swagger.ApiResponse)({
+        status: 400,
+        description: 'No registered face photo'
+    }),
+    (0, _swagger.ApiResponse)({
+        status: 401,
+        description: 'Unauthorized'
+    }),
+    (0, _swagger.ApiResponse)({
+        status: 404,
+        description: 'Stored face photo not found'
+    }),
+    _ts_param(0, (0, _currentuserdecorator.CurrentUser)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        void 0
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], FaceAnalysisController.prototype, "analyzeStoredFace", null);
 _ts_decorate([
     (0, _common.Put)('update'),
     (0, _swagger.ApiOperation)({

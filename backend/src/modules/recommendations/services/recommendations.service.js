@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ApiCacheService } from '../../../common/services/api-cache.service';
 import { QdrantService } from '../../../database/qdrant.service';
 import { AiService } from '../../ai/services/ai.service';
 import { RecommendationsRepository } from '../repositories/recommendations.repository';
@@ -13,39 +14,111 @@ import { formatCatalogProduct } from '../../products/utils/product-catalog.mappe
 
 export @Injectable()
 class RecommendationsService {
-  constructor(@Inject(RecommendationsRepository) recommendationsRepository, @Inject(QdrantService) qdrantService, @Inject(EmbeddingProviderFactory) embeddingProviderFactory, @Inject(AiService) aiService) {
+  constructor(
+    @Inject(RecommendationsRepository) recommendationsRepository,
+    @Inject(QdrantService) qdrantService,
+    @Inject(EmbeddingProviderFactory) embeddingProviderFactory,
+    @Inject(AiService) aiService,
+    @Inject(ApiCacheService) apiCacheService,
+  ) {
     this.recommendationsRepository = recommendationsRepository;
     this.qdrantService = qdrantService;
     this.embeddingProviderFactory = embeddingProviderFactory;
     this.aiService = aiService;
+    this.apiCacheService = apiCacheService;
     this.logger = new Logger(RecommendationsService.name);
   }
 
   async getRecommendations(userId, query) {
-    const rawSignals =
-      await this.recommendationsRepository.getUserSignals(userId);
-    const signals = buildUserSignals(rawSignals);
-    const factors = buildFactorsSummary(signals);
+    const limit = query.limit || 12;
+    const mode = query.type || 'default';
+    const cacheKey = this.apiCacheService.buildKey(
+      'recommendations',
+      userId,
+      mode,
+      query.event || 'none',
+      limit,
+    );
 
-    const vectorResults = await this.searchWithQdrant(signals, query.limit, userId);
+    return this.apiCacheService.getOrSet(cacheKey, 300, async () => {
+      const rawSignals =
+        await this.recommendationsRepository.getUserSignals(userId);
+      const signals = buildUserSignals(rawSignals);
+      const factors = buildFactorsSummary(signals);
 
-    if (vectorResults.length) {
+      let vectorResults = await this.searchWithQdrant(signals, limit * 2, userId);
+
+      if (!vectorResults.length) {
+        vectorResults = await this.searchWithPostgres(signals, limit * 2);
+      }
+
+      vectorResults = this.applyRecommendationMode(vectorResults, mode, query.event);
+      vectorResults = this.deduplicateResults(vectorResults).slice(0, limit);
+
       return this.buildResponse(
         vectorResults,
         factors,
-        query.limit,
-        RECOMMENDATION_SOURCES.QDRANT,
+        limit,
+        vectorResults.length ? RECOMMENDATION_SOURCES.QDRANT : RECOMMENDATION_SOURCES.POSTGRESQL,
+        mode,
       );
+    });
+  }
+
+  applyRecommendationMode(items, mode, event) {
+    if (!items.length) {
+      return items;
     }
 
-    const postgresResults = await this.searchWithPostgres(signals, query.limit);
+    const boosted = items.map((item) => {
+      let score = item.score;
 
-    return this.buildResponse(
-      postgresResults,
-      factors,
-      query.limit,
-      RECOMMENDATION_SOURCES.POSTGRESQL,
-    );
+      if (mode === 'daily') {
+        score += 0.05;
+      } else if (mode === 'seasonal') {
+        const month = new Date().getMonth();
+        const seasonalTags = month >= 3 && month <= 8
+          ? ['summer', 'light', 'linen']
+          : ['winter', 'layer', 'warm'];
+        const tags = [
+          ...(Array.isArray(item.product.style_tags) ? item.product.style_tags : []),
+          item.product.category,
+          item.product.subcategory,
+        ].filter(Boolean).map((tag) => String(tag).toLowerCase());
+
+        if (seasonalTags.some((tag) => tags.some((value) => value.includes(tag)))) {
+          score += 0.12;
+        }
+      } else if (mode === 'event' && event) {
+        const eventTag = String(event).toLowerCase();
+        const occasions = Array.isArray(item.product.occasion_tags)
+          ? item.product.occasion_tags.map((tag) => String(tag).toLowerCase())
+          : [];
+
+        if (occasions.some((tag) => tag.includes(eventTag))) {
+          score += 0.15;
+        }
+      } else if (mode === 'trending') {
+        score += (item.product.review_count || 0) / 10000;
+      }
+
+      return { ...item, score };
+    });
+
+    return boosted.sort((left, right) => right.score - left.score);
+  }
+
+  deduplicateResults(items) {
+    const seen = new Set();
+
+    return items.filter((item) => {
+      if (seen.has(item.product.id)) {
+        return false;
+      }
+
+      seen.add(item.product.id);
+      return true;
+    });
   }
 
   async searchWithQdrant(signals, limit, userId) {
@@ -130,7 +203,7 @@ class RecommendationsService {
       .slice(0, limit);
   }
 
-  buildResponse(items, factors, limit, source) {
+  buildResponse(items, factors, limit, source, mode = 'default') {
     return {
       items: items.map((item) => ({
         score: item.score,
@@ -142,6 +215,7 @@ class RecommendationsService {
         total: items.length,
         limit,
         source,
+        mode,
       },
     };
   }

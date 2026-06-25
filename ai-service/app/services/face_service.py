@@ -29,6 +29,10 @@ class FaceService:
     def uncertain_threshold(self) -> float:
         return self._settings.face_similarity_uncertain
 
+    @property
+    def verify_threshold(self) -> float:
+        return self._settings.face_verify_threshold
+
     def embed(self, image_data: str) -> tuple[list[float], float]:
         image = decode_image_base64(image_data)
         return self.embed_from_image(image)
@@ -45,13 +49,22 @@ class FaceService:
         image = decode_image_base64(image_data)
         return self.verify_from_image(image, stored_embedding)
 
-    def verify_from_image(self, image, stored_embedding: list[float]) -> FaceMatchResult:
+    def verify_from_image(
+        self,
+        image,
+        stored_embedding: list[float],
+        *,
+        strict: bool = False,
+    ) -> FaceMatchResult:
         current, _quality = self.embed_from_image(image)
         score = self._cosine(current, stored_embedding)
-        return self._match_result(score)
+        threshold = self.verify_threshold if strict else self.success_threshold
+        return self._match_result(score, threshold=threshold)
 
-    def _match_result(self, score: float) -> FaceMatchResult:
-        if score >= self.success_threshold:
+    def _match_result(self, score: float, threshold: float | None = None) -> FaceMatchResult:
+        success_threshold = threshold if threshold is not None else self.success_threshold
+
+        if score >= success_threshold:
             return FaceMatchResult(score=score, verified=True, status="success")
         if score >= self.uncertain_threshold:
             return FaceMatchResult(score=score, verified=False, status="uncertain")

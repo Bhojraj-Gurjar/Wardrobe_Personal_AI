@@ -1,6 +1,7 @@
 # Start the full Wardrobe AI stack with Docker
 $ErrorActionPreference = "Stop"
-Set-Location $PSScriptRoot
+$ProjectRoot = Split-Path -Parent $PSScriptRoot
+Set-Location $ProjectRoot
 
 Write-Host "Stopping local dev servers on ports 3000, 3001, 8000..."
 foreach ($port in @(3000, 3001, 8000)) {
@@ -8,7 +9,7 @@ foreach ($port in @(3000, 3001, 8000)) {
     ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
 }
 
-Write-Host "Building and starting containers..."
+Write-Host "Building and starting containers (first build may take 15-30 minutes)..."
 docker compose up -d --build
 
 Write-Host ""

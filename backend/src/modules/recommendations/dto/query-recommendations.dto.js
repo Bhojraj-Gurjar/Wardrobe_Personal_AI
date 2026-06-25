@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   DEFAULT_LIMIT,
@@ -14,4 +14,14 @@ export class QueryRecommendationsDto {
   @Min(1)
   @Max(MAX_LIMIT)
   limit = DEFAULT_LIMIT;
+
+  @ApiPropertyOptional({ description: 'Recommendation mode: daily, seasonal, event, trending' })
+  @IsOptional()
+  @IsString()
+  type;
+
+  @ApiPropertyOptional({ description: 'Event type for event recommendations' })
+  @IsOptional()
+  @IsString()
+  event;
 }

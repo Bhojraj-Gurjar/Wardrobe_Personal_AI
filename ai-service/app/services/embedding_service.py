@@ -25,6 +25,7 @@ class FaceDetection:
     detection_score: float
     embedding: np.ndarray
     landmarks: np.ndarray | None = None
+    kps: np.ndarray | None = None
 
 
 @dataclass(frozen=True)
@@ -145,12 +146,15 @@ def detect_faces(rgb: np.ndarray) -> list[FaceDetection]:
             if getattr(face, "landmark_2d_106", None) is not None
             else None
         )
+        raw_kps = getattr(face, "kps", None)
+        kps = np.asarray(raw_kps, dtype=np.float32) if raw_kps is not None else None
         detections.append(
             FaceDetection(
                 bbox=bbox,
                 detection_score=float(getattr(face, "det_score", 0.0)),
                 embedding=embedding,
                 landmarks=landmarks,
+                kps=kps,
             ),
         )
 

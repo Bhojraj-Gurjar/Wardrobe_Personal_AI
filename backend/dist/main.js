@@ -8,6 +8,7 @@ const _config = require("@nestjs/config");
 const _swagger = require("@nestjs/swagger");
 const _nestwinston = require("nest-winston");
 const _helmet = /*#__PURE__*/ _interop_require_default(require("helmet"));
+const _compression = /*#__PURE__*/ _interop_require_default(require("compression"));
 const _path = require("path");
 const _fs = require("fs");
 const _appmodule = require("./app.module");
@@ -28,6 +29,7 @@ async function bootstrap() {
     const configService = app.get(_config.ConfigService);
     const logger = app.get(_nestwinston.WINSTON_MODULE_NEST_PROVIDER);
     app.useLogger(logger);
+    app.use((0, _compression.default)());
     app.useBodyParser('json', {
         limit: '20mb'
     });

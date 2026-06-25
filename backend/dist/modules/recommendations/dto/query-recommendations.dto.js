@@ -20,6 +20,8 @@ function _ts_decorate(decorators, target, key, desc) {
 }
 let QueryRecommendationsDto = class QueryRecommendationsDto {
     limit = _recommendationconstants.DEFAULT_LIMIT;
+    type;
+    event;
 };
 _ts_decorate([
     (0, _swagger.ApiPropertyOptional)({
@@ -31,5 +33,19 @@ _ts_decorate([
     (0, _classvalidator.Min)(1),
     (0, _classvalidator.Max)(_recommendationconstants.MAX_LIMIT)
 ], QueryRecommendationsDto.prototype, "limit", void 0);
+_ts_decorate([
+    (0, _swagger.ApiPropertyOptional)({
+        description: 'Recommendation mode: daily, seasonal, event, trending'
+    }),
+    (0, _classvalidator.IsOptional)(),
+    (0, _classvalidator.IsString)()
+], QueryRecommendationsDto.prototype, "type", void 0);
+_ts_decorate([
+    (0, _swagger.ApiPropertyOptional)({
+        description: 'Event type for event recommendations'
+    }),
+    (0, _classvalidator.IsOptional)(),
+    (0, _classvalidator.IsString)()
+], QueryRecommendationsDto.prototype, "event", void 0);
 
 //# sourceMappingURL=query-recommendations.dto.js.map

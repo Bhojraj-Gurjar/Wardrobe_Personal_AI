@@ -22,6 +22,55 @@ class RecommendationsController {
     this.recommendationsService = recommendationsService;
   }
 
+  @Get('daily')
+  @ApiOperation({ summary: 'Get daily personalized recommendations' })
+  getDaily(
+    @CurrentUser() user,
+    @Query(queryRecommendationsPipe) query,
+  ) {
+    return this.recommendationsService.getRecommendations(user.userId, {
+      ...query,
+      type: 'daily',
+    });
+  }
+
+  @Get('seasonal')
+  @ApiOperation({ summary: 'Get seasonal recommendations' })
+  getSeasonal(
+    @CurrentUser() user,
+    @Query(queryRecommendationsPipe) query,
+  ) {
+    return this.recommendationsService.getRecommendations(user.userId, {
+      ...query,
+      type: 'seasonal',
+    });
+  }
+
+  @Get('event')
+  @ApiOperation({ summary: 'Get event-based recommendations' })
+  getEvent(
+    @CurrentUser() user,
+    @Query(queryRecommendationsPipe) query,
+  ) {
+    return this.recommendationsService.getRecommendations(user.userId, {
+      ...query,
+      type: 'event',
+      event: query.event,
+    });
+  }
+
+  @Get('trending')
+  @ApiOperation({ summary: 'Get trending recommendations' })
+  getTrending(
+    @CurrentUser() user,
+    @Query(queryRecommendationsPipe) query,
+  ) {
+    return this.recommendationsService.getRecommendations(user.userId, {
+      ...query,
+      type: 'trending',
+    });
+  }
+
   @Get()
   @ApiOperation({
     summary: 'Get personalized product recommendations',

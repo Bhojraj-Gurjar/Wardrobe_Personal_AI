@@ -354,6 +354,13 @@ let AiService = class AiService {
     generateDigitalAvatar(payload) {
         return this.generateAvatar(payload);
     }
+    removeBodyBackground({ userId, bodyImagePath, outputPath }) {
+        return this.postJson('/virtual-tryon/remove-background', {
+            userId,
+            bodyImagePath,
+            outputPath
+        });
+    }
 };
 AiService = _ts_decorate([
     (0, _common.Injectable)(),

@@ -38,6 +38,12 @@ _export(exports, {
     },
     get STORAGE_PROVIDERS () {
         return STORAGE_PROVIDERS;
+    },
+    get USER_PNG_PUBLIC_PREFIX () {
+        return USER_PNG_PUBLIC_PREFIX;
+    },
+    get USER_PNG_STORAGE_FOLDER () {
+        return USER_PNG_STORAGE_FOLDER;
     }
 });
 const STORAGE_PROVIDERS = {
@@ -52,6 +58,8 @@ const FACE_STORAGE_FOLDER = 'faces';
 const FACE_PUBLIC_PREFIX = '/uploads/faces';
 const BODY_STORAGE_FOLDER = 'body';
 const BODY_PUBLIC_PREFIX = '/uploads/body';
+const USER_PNG_STORAGE_FOLDER = 'user-png';
+const USER_PNG_PUBLIC_PREFIX = '/uploads/user-png';
 const AVATAR_OUTPUT_FORMATS = {
     IMAGE_2D: 'png',
     MESH_3D: 'glb',

@@ -9,6 +9,7 @@ Object.defineProperty(exports, "UsersService", {
     }
 });
 const _common = require("@nestjs/common");
+const _apicacheservice = require("../../../common/services/api-cache.service");
 const _fashiondnaregenerationconstants = require("../../fashion-dna/constants/fashion-dna-regeneration.constants");
 const _fashiondnaregenerationservice = require("../../fashion-dna/services/fashion-dna-regeneration.service");
 const _bodyanalysisservice = require("../../body-analysis/body-analysis.service");
@@ -31,20 +32,26 @@ function _ts_param(paramIndex, decorator) {
     };
 }
 let UsersService = class UsersService {
-    constructor(usersRepository, fashionDnaRegenerationService, bodyAnalysisService, pipelineEventBus, userArtifactsService, storagePathResolver){
+    constructor(usersRepository, fashionDnaRegenerationService, bodyAnalysisService, pipelineEventBus, userArtifactsService, storagePathResolver, apiCacheService){
         this.usersRepository = usersRepository;
         this.fashionDnaRegenerationService = fashionDnaRegenerationService;
         this.bodyAnalysisService = bodyAnalysisService;
         this.pipelineEventBus = pipelineEventBus;
         this.userArtifactsService = userArtifactsService;
         this.storagePathResolver = storagePathResolver;
+        this.apiCacheService = apiCacheService;
+    }
+    profileCacheKey(userId) {
+        return this.apiCacheService.buildKey('users:profile', userId);
     }
     async getProfile(userId) {
-        const context = await this.usersRepository.findProfileContextByUserId(userId);
-        if (!context?.profile) {
-            throw new _common.NotFoundException('Profile not found');
-        }
-        return this.formatProfile(context.profile, context);
+        return this.apiCacheService.getOrSet(this.profileCacheKey(userId), 120, async ()=>{
+            const context = await this.usersRepository.findProfileContextByUserId(userId);
+            if (!context?.profile) {
+                throw new _common.NotFoundException('Profile not found');
+            }
+            return this.formatProfile(context.profile, context);
+        });
     }
     async updateProfile(userId, dto) {
         await this.ensureProfileExists(userId);
@@ -57,6 +64,7 @@ let UsersService = class UsersService {
             });
         });
         const context = await this.usersRepository.findProfileContextByUserId(userId);
+        await this.apiCacheService.invalidate(this.profileCacheKey(userId));
         return this.formatProfile(profile, context);
     }
     async ensureProfileExists(userId) {
@@ -135,8 +143,10 @@ UsersService = _ts_decorate([
     _ts_param(3, (0, _common.Inject)(_pipelineeventbus.PipelineEventBus)),
     _ts_param(4, (0, _common.Inject)(_userartifactsservice.UserArtifactsService)),
     _ts_param(5, (0, _common.Inject)(_storagepathresolverservice.StoragePathResolver)),
+    _ts_param(6, (0, _common.Inject)(_apicacheservice.ApiCacheService)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        void 0,
         void 0,
         void 0,
         void 0,

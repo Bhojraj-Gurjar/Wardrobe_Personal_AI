@@ -36,6 +36,9 @@ _export(exports, {
     get isStoredImagePath () {
         return isStoredImagePath;
     },
+    get mimeTypeFromExtension () {
+        return mimeTypeFromExtension;
+    },
     get parseImagePayload () {
         return parseImagePayload;
     },
@@ -70,6 +73,19 @@ function buildBodyObjectKey(userId, extension = 'jpg') {
 }
 function extensionFromMimeType(mimeType = 'image/png') {
     return mimeType.split('/')[1]?.replace('jpeg', 'jpg') || 'png';
+}
+function mimeTypeFromExtension(extension = 'jpg') {
+    const normalized = extension.toLowerCase().replace('jpeg', 'jpg');
+    if (normalized === 'jpg') {
+        return 'image/jpeg';
+    }
+    if (normalized === 'png') {
+        return 'image/png';
+    }
+    if (normalized === 'webp') {
+        return 'image/webp';
+    }
+    return `image/${normalized}`;
 }
 function parseImagePayload(imagePayload) {
     if (!imagePayload || typeof imagePayload !== 'string') {

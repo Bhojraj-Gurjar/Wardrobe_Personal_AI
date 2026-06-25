@@ -16,6 +16,42 @@ const DTO_TO_COLUMN = {
   beardType: 'beard_type',
 };
 
+function isDefaultArtifact(raw) {
+  return Boolean(
+    raw
+    && typeof raw === 'object'
+    && !Array.isArray(raw)
+    && raw.isDefault === true,
+  );
+}
+
+export function resolveFaceHasAnalysis(record) {
+  if (!record?.face_shape) {
+    return false;
+  }
+
+  return !isDefaultArtifact(record.raw_ai_response);
+}
+
+function resolveOverallConfidence(raw) {
+  if (raw?.overallConfidence != null) {
+    return raw.overallConfidence;
+  }
+
+  const values = [
+    raw?.faceShapeConfidence,
+    raw?.skinToneConfidence,
+    raw?.hairStyleConfidence,
+    raw?.beardTypeConfidence,
+  ].filter((value) => value != null);
+
+  if (!values.length) {
+    return null;
+  }
+
+  return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
+}
+
 export function mapAiResponseToPersistence(aiResponse) {
   if (!aiResponse || typeof aiResponse !== 'object') {
     return {
@@ -69,10 +105,12 @@ export function mergeManualUpdateIntoRaw(rawAiResponse, dto) {
 
 export function formatFaceAnalysisRecord(record) {
   const raw = record.raw_ai_response || {};
+  const hasAnalysis = resolveFaceHasAnalysis(record);
 
   return {
     id: record.id,
     userId: record.user_id,
+    hasAnalysis,
     faceShape: record.face_shape,
     faceShapeConfidence: raw.faceShapeConfidence ?? null,
     faceShapeMetrics: raw.faceShapeMetrics ?? null,
@@ -87,8 +125,11 @@ export function formatFaceAnalysisRecord(record) {
     hairStyleConfidence: raw.hairStyleConfidence ?? null,
     hairMetrics: raw.hairMetrics ?? null,
     beardType: record.beard_type,
+    beardStyle: record.beard_type,
     beardTypeConfidence: raw.beardTypeConfidence ?? null,
     beardMetrics: raw.beardMetrics ?? null,
+    confidence: hasAnalysis ? resolveOverallConfidence(raw) : null,
+    analyzedAt: hasAnalysis ? record.updated_at : null,
     rawAiResponse: record.raw_ai_response,
     createdAt: record.created_at,
     updatedAt: record.updated_at,

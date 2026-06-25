@@ -38,4 +38,12 @@ class BodyImageStorageService {
   findStoredBodyImagePath(userId) {
     return this.storageService.findBodyImageForUser(userId);
   }
+
+  async readBodyImage(storagePath) {
+    if (!storagePath) {
+      return null;
+    }
+
+    return this.storageService.readStoredFile(storagePath);
+  }
 }

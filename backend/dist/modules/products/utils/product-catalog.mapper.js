@@ -23,10 +23,23 @@ _export(exports, {
     },
     get resolveLegacyCategoryId () {
         return resolveLegacyCategoryId;
+    },
+    get resolveThumbnailUrl () {
+        return resolveThumbnailUrl;
     }
 });
 const _avatarconstants = require("../constants/avatar.constants");
 const _productintegrationmapper = require("./product-integration.mapper");
+function resolveThumbnailUrl(url, width = 320) {
+    if (!url || typeof url !== 'string') {
+        return null;
+    }
+    if (url.includes('images.unsplash.com') || url.includes('images.pexels.com')) {
+        const separator = url.includes('?') ? '&' : '?';
+        return `${url}${separator}w=${width}&q=80&auto=format`;
+    }
+    return url;
+}
 function deriveCatalogRating(sku = '') {
     let hash = 0;
     for(let index = 0; index < sku.length; index += 1){
@@ -103,6 +116,7 @@ function formatCatalogProduct(product) {
         styleTags: product.style_tags ?? [],
         occasionTags: product.occasion_tags ?? [],
         imageUrl: primaryImageUrl,
+        thumbnailUrl: resolveThumbnailUrl(primaryImageUrl, 320),
         rating: deriveCatalogRating(product.sku),
         reviewCount: deriveReviewCount(product.sku),
         productUrl: product.product_url ?? null,

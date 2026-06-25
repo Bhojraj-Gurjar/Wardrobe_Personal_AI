@@ -105,6 +105,31 @@ let BodyAnalysisService = class BodyAnalysisService {
         if (bodyImagePath) {
             await this.bodyAnalysisRepository.saveBodyImagePath(userId, bodyImagePath);
         }
+        return this.persistBodyTraitAnalysis(userId, imageDto, bodyImagePath);
+    }
+    async analyzeStoredBody(userId) {
+        if (!this.aiService.isConfigured()) {
+            throw new _common.ServiceUnavailableException('AI service unavailable.');
+        }
+        let record = await this.bodyAnalysisRepository.findByUserId(userId);
+        let bodyImagePath = record?.body_image_url || await this.bodyImageStorageService.findStoredBodyImagePath(userId);
+        if (!bodyImagePath) {
+            throw new _common.BadRequestException('Upload a body photo before running analysis.');
+        }
+        if (record && !record.body_image_url) {
+            record = await this.bodyAnalysisRepository.saveBodyImagePath(userId, bodyImagePath);
+        }
+        const storedImage = await this.bodyImageStorageService.readBodyImage(bodyImagePath);
+        if (!storedImage?.buffer?.length) {
+            throw new _common.NotFoundException('Stored body photo could not be loaded.');
+        }
+        return this.persistBodyTraitAnalysis(userId, {
+            imageBuffer: storedImage.buffer,
+            imageMimeType: storedImage.mimeType,
+            height: record?.height ?? null
+        }, bodyImagePath);
+    }
+    async persistBodyTraitAnalysis(userId, imageDto, bodyImagePath = null) {
         let aiResponse;
         try {
             aiResponse = await this.aiService.analyzeBodyTraits({

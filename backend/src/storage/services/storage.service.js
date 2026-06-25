@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { readdir } from 'fs/promises';
-import { join } from 'path';
+import { readdir, readFile } from 'fs/promises';
+import { join, extname } from 'path';
 import { ConfigService } from '@nestjs/config';
 import { DEFAULT_STORAGE_PROVIDER } from '../storage.constants';
 import { createStorageProvider } from '../utils/storage-path.util';
@@ -8,9 +8,18 @@ import {
   buildAvatarObjectKey,
   buildBodyObjectKey,
   buildFaceObjectKey,
+  buildTryOnGarmentObjectKey,
+  buildTryOnPersonObjectKey,
   extensionFromMimeType,
+  mimeTypeFromExtension,
+  toFilesystemPath,
 } from '../utils/storage-path.util';
-import { BODY_PUBLIC_PREFIX, BODY_STORAGE_FOLDER, FACE_STORAGE_FOLDER } from '../storage.constants';
+import {
+  BODY_PUBLIC_PREFIX,
+  BODY_STORAGE_FOLDER,
+  FACE_STORAGE_FOLDER,
+  TRY_ON_STORAGE_FOLDER,
+} from '../storage.constants';
 
 export @Injectable()
 class StorageService {
@@ -67,8 +76,47 @@ class StorageService {
     });
   }
 
+  async uploadTryOnPersonImage({ userId, buffer, mimeType }) {
+    const extension = extensionFromMimeType(mimeType);
+    const objectKey = buildTryOnPersonObjectKey(userId, extension);
+
+    return this.provider.upload({
+      buffer,
+      mimeType,
+      objectKey,
+    });
+  }
+
+  async uploadTryOnGarmentImage({ userId, buffer, mimeType }) {
+    const extension = extensionFromMimeType(mimeType);
+    const objectKey = buildTryOnGarmentObjectKey(userId, extension);
+
+    return this.provider.upload({
+      buffer,
+      mimeType,
+      objectKey,
+    });
+  }
+
   async deleteStoredFile(storagePath) {
     return this.provider.deleteStoragePath(storagePath);
+  }
+
+  async readStoredFile(storagePath) {
+    if (!storagePath) {
+      return null;
+    }
+
+    const rootDir = this.configService.get('storage.local.rootDir') || 'uploads';
+    const absolutePath = toFilesystemPath(storagePath, rootDir);
+    const extension = extname(absolutePath).replace('.', '') || 'jpg';
+
+    const buffer = await readFile(absolutePath);
+
+    return {
+      buffer,
+      mimeType: mimeTypeFromExtension(extension),
+    };
   }
 
   async deleteFaceImagesForUser(userId) {

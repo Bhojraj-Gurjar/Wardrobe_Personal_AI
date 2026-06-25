@@ -6,6 +6,7 @@ import {
   DEFAULT_STORAGE_PROVIDER,
   FACE_PUBLIC_PREFIX,
   STORAGE_PROVIDERS,
+  TRY_ON_PUBLIC_PREFIX,
 } from '../storage.constants';
 
 const DATA_URL_PATTERN = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/;
@@ -34,8 +35,42 @@ export function buildBodyObjectKey(userId, extension = 'jpg') {
   return `body/${userId}/body.${extension}`;
 }
 
+export function buildTryOnPersonObjectKey(userId, extension = 'jpg') {
+  return `try-on/${userId}/person.${extension}`;
+}
+
+export function buildTryOnGarmentObjectKey(userId, extension = 'jpg') {
+  return `try-on/${userId}/garment.${extension}`;
+}
+
+export function buildTryOnPersonStoragePath(userId, extension = 'jpg') {
+  return `${TRY_ON_PUBLIC_PREFIX}/${userId}/person.${extension}`;
+}
+
+export function buildTryOnGarmentStoragePath(userId, extension = 'jpg') {
+  return `${TRY_ON_PUBLIC_PREFIX}/${userId}/garment.${extension}`;
+}
+
 export function extensionFromMimeType(mimeType = 'image/png') {
   return mimeType.split('/')[1]?.replace('jpeg', 'jpg') || 'png';
+}
+
+export function mimeTypeFromExtension(extension = 'jpg') {
+  const normalized = extension.toLowerCase().replace('jpeg', 'jpg');
+
+  if (normalized === 'jpg') {
+    return 'image/jpeg';
+  }
+
+  if (normalized === 'png') {
+    return 'image/png';
+  }
+
+  if (normalized === 'webp') {
+    return 'image/webp';
+  }
+
+  return `image/${normalized}`;
 }
 
 export function parseImagePayload(imagePayload) {
@@ -84,8 +119,21 @@ export function isStoredImagePath(value) {
     typeof value === 'string'
     && (value.startsWith(AVATAR_PUBLIC_PREFIX)
       || value.startsWith(FACE_PUBLIC_PREFIX)
-      || value.startsWith(BODY_PUBLIC_PREFIX))
+      || value.startsWith(BODY_PUBLIC_PREFIX)
+      || value.startsWith(TRY_ON_PUBLIC_PREFIX))
   );
+}
+
+export function isFacePhotoPath(value) {
+  return typeof value === 'string' && value.startsWith(FACE_PUBLIC_PREFIX);
+}
+
+export function isBodyPhotoPath(value) {
+  return typeof value === 'string' && value.startsWith(BODY_PUBLIC_PREFIX);
+}
+
+export function isTryOnImagePath(value) {
+  return typeof value === 'string' && value.startsWith(TRY_ON_PUBLIC_PREFIX);
 }
 
 export function toFilesystemPath(storagePath, rootDir) {

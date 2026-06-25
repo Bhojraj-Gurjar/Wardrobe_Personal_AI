@@ -27,6 +27,13 @@ class UsersRepository {
             updated_at: true,
           },
         },
+        body_analysis: {
+          select: {
+            body_image_url: true,
+            height: true,
+            updated_at: true,
+          },
+        },
       },
     });
   }

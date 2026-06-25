@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import helmet from 'helmet';
+import compression from 'compression';
 import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { AppModule } from './app.module';
@@ -21,6 +22,8 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const logger = app.get(WINSTON_MODULE_NEST_PROVIDER);
   app.useLogger(logger);
+
+  app.use(compression());
 
   app.useBodyParser('json', { limit: '20mb' });
   app.useBodyParser('urlencoded', { extended: true, limit: '20mb' });

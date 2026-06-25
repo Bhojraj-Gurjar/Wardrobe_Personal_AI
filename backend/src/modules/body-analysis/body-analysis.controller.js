@@ -75,6 +75,17 @@ class BodyAnalysisController {
     return this.bodyAnalysisService.analyzeBody(user.userId, dto);
   }
 
+  @Post('analyze-current')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Analyze body traits from the stored body photo' })
+  @ApiResponse({ status: 200, description: 'Body analysis completed successfully' })
+  @ApiResponse({ status: 400, description: 'No stored body photo' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Stored body photo not found' })
+  analyzeStoredBody(@CurrentUser() user) {
+    return this.bodyAnalysisService.analyzeStoredBody(user.userId);
+  }
+
   @Put('update')
   @ApiOperation({ summary: 'Update authenticated user body analysis traits' })
   @ApiResponse({ status: 200, description: 'Body analysis updated successfully' })

@@ -65,6 +65,17 @@ class FaceAnalysisController {
     return this.faceAnalysisService.analyzeFace(user.userId, dto);
   }
 
+  @Post('analyze-current')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Analyze face traits from the registered face photo' })
+  @ApiResponse({ status: 200, description: 'Face analysis completed successfully' })
+  @ApiResponse({ status: 400, description: 'No registered face photo' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Stored face photo not found' })
+  analyzeStoredFace(@CurrentUser() user) {
+    return this.faceAnalysisService.analyzeStoredFace(user.userId);
+  }
+
   @Put('update')
   @ApiOperation({ summary: 'Update authenticated user face analysis traits' })
   @ApiResponse({ status: 200, description: 'Face analysis updated successfully' })

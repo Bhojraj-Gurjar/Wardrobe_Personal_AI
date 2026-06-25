@@ -4,6 +4,7 @@ export const ORDER_STATUS = {
   PACKED: 'PACKED',
   SHIPPED: 'SHIPPED',
   DELIVERED: 'DELIVERED',
+  CANCELLED: 'CANCELLED',
 };
 
 export const ORDER_STATUS_VALUES = Object.values(ORDER_STATUS);

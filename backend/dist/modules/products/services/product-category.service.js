@@ -9,6 +9,7 @@ Object.defineProperty(exports, "ProductCategoryService", {
     }
 });
 const _common = require("@nestjs/common");
+const _apicacheservice = require("../../../common/services/api-cache.service");
 const _productcategoryrepository = require("../repositories/product-category.repository");
 const _productcategoryseed = require("../constants/product-category.seed");
 function _ts_decorate(decorators, target, key, desc) {
@@ -26,17 +27,21 @@ function _ts_param(paramIndex, decorator) {
     };
 }
 let ProductCategoryService = class ProductCategoryService {
-    constructor(productCategoryRepository){
+    constructor(productCategoryRepository, apiCacheService){
         this.productCategoryRepository = productCategoryRepository;
+        this.apiCacheService = apiCacheService;
         this.logger = new _common.Logger(ProductCategoryService.name);
     }
     async findAll({ includeInactive = false } = {}) {
-        const groups = await this.productCategoryRepository.findAllGroupsWithCategories({
-            includeInactive
+        const cacheKey = this.apiCacheService.buildKey('products:categories', includeInactive ? 'all' : 'active');
+        return this.apiCacheService.getOrSet(cacheKey, 3600, async ()=>{
+            const groups = await this.productCategoryRepository.findAllGroupsWithCategories({
+                includeInactive
+            });
+            return {
+                groups: groups.map((group)=>this.formatGroup(group))
+            };
         });
-        return {
-            groups: groups.map((group)=>this.formatGroup(group))
-        };
     }
     async findGroupByCode(code) {
         const group = await this.productCategoryRepository.findGroupByCode(code);
@@ -92,8 +97,10 @@ let ProductCategoryService = class ProductCategoryService {
 ProductCategoryService = _ts_decorate([
     (0, _common.Injectable)(),
     _ts_param(0, (0, _common.Inject)(_productcategoryrepository.ProductCategoryRepository)),
+    _ts_param(1, (0, _common.Inject)(_apicacheservice.ApiCacheService)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        void 0,
         void 0
     ])
 ], ProductCategoryService);

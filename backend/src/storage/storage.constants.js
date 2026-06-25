@@ -18,6 +18,14 @@ export const BODY_STORAGE_FOLDER = 'body';
 
 export const BODY_PUBLIC_PREFIX = '/uploads/body';
 
+export const USER_PNG_STORAGE_FOLDER = 'user-png';
+
+export const USER_PNG_PUBLIC_PREFIX = '/uploads/user-png';
+
+export const TRY_ON_STORAGE_FOLDER = 'try-on';
+
+export const TRY_ON_PUBLIC_PREFIX = '/uploads/try-on';
+
 /** Future 3D twin assets will use mesh formats instead of raster images. */
 export const AVATAR_OUTPUT_FORMATS = {
   IMAGE_2D: 'png',

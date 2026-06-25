@@ -34,7 +34,24 @@ let AppService = class AppService {
         return {
             status: 'ok',
             service: 'Wardrobe AI API',
-            layer: 'nestjs'
+            layer: 'nestjs',
+            uptime: process.uptime()
+        };
+    }
+    getMetrics() {
+        const memory = process.memoryUsage();
+        return {
+            status: 'ok',
+            timestamp: new Date().toISOString(),
+            uptimeSeconds: Math.round(process.uptime()),
+            memory: {
+                rssMb: Math.round(memory.rss / 1024 / 1024),
+                heapUsedMb: Math.round(memory.heapUsed / 1024 / 1024),
+                heapTotalMb: Math.round(memory.heapTotal / 1024 / 1024),
+                externalMb: Math.round(memory.external / 1024 / 1024)
+            },
+            nodeVersion: process.version,
+            pid: process.pid
         };
     }
     async getAiHealth() {

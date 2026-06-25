@@ -212,6 +212,45 @@ class FaceService {
     }
   }
 
+  async logout(userId, dto) {
+    if (!dto.imageBuffer?.length) {
+      throw new BadRequestException('Face image is required.');
+    }
+
+    if (!this.aiService.isConfigured()) {
+      throw new ServiceUnavailableException('AI service unavailable.');
+    }
+
+    const registration = await this.faceRepository.findFaceRegistration(userId);
+
+    if (!registration?.is_face_registered) {
+      throw new BadRequestException('Register a face before using face logout verification.');
+    }
+
+    let result;
+
+    try {
+      result = await this.aiService.logoutFace(userId, dto.imageBuffer, dto.imageMimeType);
+    } catch (error) {
+      this.rethrowAiError(error);
+    }
+
+    const logoutNonce = randomUUID();
+
+    await this.redisService.setex(
+      `auth:logout-nonce:${userId}:${logoutNonce}`,
+      120,
+      '1',
+    );
+
+    return {
+      verified: true,
+      similarity_score: result?.similarity_score ?? result?.similarityScore ?? null,
+      logoutNonce,
+      message: 'Face verified for logout',
+    };
+  }
+
   rethrowAiError(error) {
     if (
       error instanceof BadRequestException
@@ -240,6 +279,7 @@ class FaceService {
       id: user.id,
       email: user.email,
       mobile: user.mobile,
+      role: user.role || 'USER',
       status: user.status,
       created_at: user.created_at,
       updated_at: user.updated_at,

@@ -18,6 +18,26 @@ class BodyAnalysisRepository {
     });
   }
 
+  findUserBodyImageContext(userId) {
+    return this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        profile: true,
+        body_analysis: true,
+      },
+    });
+  }
+
+  updateProfileBodyImageRefs(userId, { body_image: bodyImage, preferences }) {
+    return this.prisma.userProfile.update({
+      where: { user_id: userId },
+      data: {
+        ...(bodyImage ? { body_image: bodyImage } : {}),
+        ...(preferences ? { preferences } : {}),
+      },
+    });
+  }
+
   /**
    * Persist AI analysis for a user.
    * Updates the existing row when present; otherwise creates exactly one row.

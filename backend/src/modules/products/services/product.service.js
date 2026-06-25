@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ApiCacheService } from '../../../common/services/api-cache.service';
 import { ProductRepository } from '../repositories/product.repository';
 import { AiService } from '../../ai/services/ai.service';
 import {
@@ -23,16 +24,33 @@ class ProductService {
   constructor(
     @Inject(ProductRepository) productRepository,
     @Inject(AiService) aiService,
+    @Inject(ApiCacheService) apiCacheService,
   ) {
     this.productRepository = productRepository;
     this.aiService = aiService;
+    this.apiCacheService = apiCacheService;
+    this.productListTtlSeconds = 300;
+    this.productDetailTtlSeconds = 600;
+  }
+
+  buildListCacheKey(query) {
+    return this.apiCacheService.buildKey(
+      'products:list',
+      JSON.stringify(query),
+    );
   }
 
   async findAll(query) {
     const normalizedQuery = normalizeProductQuery(query);
-    const [products, total] = await this.productRepository.findMany(normalizedQuery);
 
-    return this.buildPaginatedResponse(products, total, normalizedQuery);
+    return this.apiCacheService.getOrSet(
+      this.buildListCacheKey(normalizedQuery),
+      this.productListTtlSeconds,
+      async () => {
+        const [products, total] = await this.productRepository.findMany(normalizedQuery);
+        return this.buildPaginatedResponse(products, total, normalizedQuery);
+      },
+    );
   }
 
   async findByCategory(category, query) {
@@ -40,9 +58,15 @@ class ProductService {
       ...query,
       category: decodeURIComponent(category),
     });
-    const [products, total] = await this.productRepository.findMany(normalizedQuery);
 
-    return this.buildPaginatedResponse(products, total, normalizedQuery);
+    return this.apiCacheService.getOrSet(
+      this.buildListCacheKey(normalizedQuery),
+      this.productListTtlSeconds,
+      async () => {
+        const [products, total] = await this.productRepository.findMany(normalizedQuery);
+        return this.buildPaginatedResponse(products, total, normalizedQuery);
+      },
+    );
   }
 
   async search(query) {
@@ -53,12 +77,18 @@ class ProductService {
       throw new BadRequestException('Search query is required (use q or search)');
     }
 
-    const [products, total] = await this.productRepository.findMany({
-      ...normalizedQuery,
-      search: searchTerm,
-    });
+    return this.apiCacheService.getOrSet(
+      this.apiCacheService.buildKey('products:search', searchTerm, JSON.stringify(normalizedQuery)),
+      120,
+      async () => {
+        const [products, total] = await this.productRepository.findMany({
+          ...normalizedQuery,
+          search: searchTerm,
+        });
 
-    return this.buildPaginatedResponse(products, total, normalizedQuery);
+        return this.buildPaginatedResponse(products, total, normalizedQuery);
+      },
+    );
   }
 
   buildPaginatedResponse(products, total, query) {
@@ -71,13 +101,19 @@ class ProductService {
   }
 
   async findOne(id) {
-    const product = await this.productRepository.findById(id);
+    return this.apiCacheService.getOrSet(
+      this.apiCacheService.buildKey('products:detail', id),
+      this.productDetailTtlSeconds,
+      async () => {
+        const product = await this.productRepository.findById(id);
 
-    if (!product) {
-      throw new NotFoundException('Product not found');
-    }
+        if (!product) {
+          throw new NotFoundException('Product not found');
+        }
 
-    return this.formatProduct(product);
+        return this.formatProduct(product);
+      },
+    );
   }
 
   async findBySku(sku) {

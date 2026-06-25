@@ -61,4 +61,14 @@ class OrdersController {
   findOne(@CurrentUser() user, @Param('id') id) {
     return this.ordersService.findOne(user.userId, id);
   }
+
+  @Post(':id/cancel')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Cancel an order' })
+  @ApiParam({ name: 'id', description: 'Order UUID' })
+  @ApiResponse({ status: 200, description: 'Order cancelled successfully' })
+  @ApiResponse({ status: 400, description: 'Order cannot be cancelled' })
+  cancel(@CurrentUser() user, @Param('id') id) {
+    return this.ordersService.cancel(user.userId, id);
+  }
 }

@@ -11,6 +11,7 @@ import { ModuleRef } from '@nestjs/core';
 import { FaceAnalysisRepository } from './face-analysis.repository';
 import { FaceBiometricTraitsService } from './services/face-biometric-traits.service';
 import { FaceAnalysisVectorService } from './services/face-analysis-vector.service';
+import { FaceImageStorageService } from '../face/services/face-image-storage.service';
 import { AiService } from '../ai/services/ai.service';
 import { REFRESH_SOURCES } from '../fashion-dna/constants/fashion-dna-regeneration.constants';
 import { FashionDnaRegenerationService } from '../fashion-dna/services/fashion-dna-regeneration.service';
@@ -37,6 +38,7 @@ class FaceAnalysisService {
     @Inject(FaceAnalysisRepository) faceAnalysisRepository,
     @Inject(FaceBiometricTraitsService) biometricTraitsService,
     @Inject(FaceAnalysisVectorService) faceAnalysisVectorService,
+    @Inject(FaceImageStorageService) faceImageStorageService,
     @Inject(AiService) aiService,
     @Inject(forwardRef(() => FashionDnaRegenerationService))
     fashionDnaRegenerationService,
@@ -46,6 +48,7 @@ class FaceAnalysisService {
     this.faceAnalysisRepository = faceAnalysisRepository;
     this.biometricTraitsService = biometricTraitsService;
     this.faceAnalysisVectorService = faceAnalysisVectorService;
+    this.faceImageStorageService = faceImageStorageService;
     this.aiService = aiService;
     this.fashionDnaRegenerationService = fashionDnaRegenerationService;
     this.pipelineEventBus = pipelineEventBus;
@@ -90,6 +93,35 @@ class FaceAnalysisService {
 
     await resolveFaceService(this.moduleRef).replaceFacePhoto(userId, imageDto);
 
+    return this.persistFaceTraitAnalysis(userId, imageDto);
+  }
+
+  async analyzeStoredFace(userId) {
+    const facePhoto = await resolveFaceService(this.moduleRef).getFacePhoto(userId);
+
+    if (!facePhoto.is_face_registered || !facePhoto.face_image_url) {
+      throw new BadRequestException('Register a face photo before running analysis.');
+    }
+
+    if (!this.aiService.isConfigured()) {
+      throw new ServiceUnavailableException('AI service unavailable.');
+    }
+
+    const storedImage = await this.faceImageStorageService.readFaceImage(
+      facePhoto.face_image_url,
+    );
+
+    if (!storedImage?.buffer?.length) {
+      throw new NotFoundException('Stored face photo could not be loaded.');
+    }
+
+    return this.persistFaceTraitAnalysis(userId, {
+      imageBuffer: storedImage.buffer,
+      imageMimeType: storedImage.mimeType,
+    });
+  }
+
+  async persistFaceTraitAnalysis(userId, imageDto) {
     let aiResponse;
 
     try {

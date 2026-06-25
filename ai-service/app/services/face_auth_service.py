@@ -311,7 +311,7 @@ class FaceAuthService:
         if not stored:
             raise FaceValidationError("Face not registered.", "not_registered")
 
-        result = face_service.verify_from_image(image, stored)
+        result = face_service.verify_from_image(image, stored, strict=True)
         if not result.verified:
             face_diagnostics.log_event(
                 FACE_VERIFY_FAILED,

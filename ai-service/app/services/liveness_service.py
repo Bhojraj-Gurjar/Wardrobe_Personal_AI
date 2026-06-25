@@ -20,17 +20,46 @@ class LivenessService:
     def __init__(self) -> None:
         self._settings = get_settings()
 
+    @staticmethod
+    def _crop_face_region(
+        gray: np.ndarray,
+        bbox: tuple[float, float, float, float],
+        padding: float = 0.12,
+    ) -> np.ndarray:
+        x1, y1, x2, y2 = bbox
+        height, width = gray.shape[:2]
+        face_width = max(float(x2 - x1), 1.0)
+        face_height = max(float(y2 - y1), 1.0)
+        pad_x = face_width * padding
+        pad_y = face_height * padding
+
+        left = max(0, int(x1 - pad_x))
+        top = max(0, int(y1 - pad_y))
+        right = min(width, int(x2 + pad_x))
+        bottom = min(height, int(y2 + pad_y))
+
+        if right <= left or bottom <= top:
+            return gray
+
+        return gray[top:bottom, left:right]
+
     def validate_frame(self, rgb: np.ndarray, detection: FaceDetection | None = None) -> float:
         if rgb is None or rgb.size == 0:
             raise FaceValidationError("Invalid image.", "invalid_image")
 
         gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
-        blur_score = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+        region = (
+            self._crop_face_region(gray, detection.bbox)
+            if detection is not None
+            else gray
+        )
+
+        blur_score = float(cv2.Laplacian(region, cv2.CV_64F).var())
 
         if blur_score < self._settings.face_min_blur_variance:
             raise FaceValidationError("Image quality is too low.", "blur")
 
-        mean_luma = float(np.mean(gray))
+        mean_luma = float(np.mean(region))
         if mean_luma < self._settings.face_min_brightness:
             raise FaceValidationError("Image quality is too low.", "too_dark")
         if mean_luma > self._settings.face_max_brightness:
@@ -43,10 +72,11 @@ class LivenessService:
 
         quality = min(1.0, blur_score / max(self._settings.face_min_blur_variance, 1.0))
         logger.info(
-            "Liveness quality passed | blur=%.2f | luma=%.2f | quality=%.2f",
+            "Liveness quality passed | blur=%.2f | luma=%.2f | quality=%.2f | face_crop=%s",
             blur_score,
             mean_luma,
             quality,
+            detection is not None,
         )
         return quality
 

@@ -1,9 +1,8 @@
-"""Production face-trait engine using DeepFace, MediaPipe, and OpenCV."""
+"""Face-trait engine using InsightFace detection + OpenCV analyzers (no TensorFlow)."""
 
 from __future__ import annotations
 
 import logging
-import os
 import threading
 from typing import Any
 
@@ -11,35 +10,19 @@ import numpy as np
 from PIL import Image
 
 from app.services.beard_analyzer import analyze_beard
+from app.services.embedding_service import extract_single_face_embedding
 from app.services.face_shape_analyzer import analyze_face_shape
-from app.services.hair_analyzer import analyze_hair
-from app.services.skin_tone_analyzer import analyze_skin_tone
-from app.services.face_trait_models import (
-    get_face_landmarker_model,
-    get_hair_segmenter_model,
-)
 from app.services.face_validation import FaceValidationError
+from app.services.hair_analyzer import analyze_hair
+from app.services.insightface_landmark_adapter import (
+    build_analyzer_landmarks,
+    crop_face_region,
+)
+from app.services.opencv_hair_segmenter import segment_hair_opencv
+from app.services.skin_tone_analyzer import analyze_skin_tone
 from app.utils.image import image_to_numpy
 
-os.environ.setdefault("TF_USE_LEGACY_KERAS", "1")
-os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
-
 logger = logging.getLogger(__name__)
-
-FACE_SHAPES = ("Oval", "Round", "Square", "Diamond", "Heart")
-SKIN_TONES = ("Fair", "Light", "Medium", "Wheatish", "Deep")
-HAIR_LENGTHS = ("Bald", "Short", "Medium", "Long")
-HAIR_COLORS = ("Black", "Brown", "Blonde", "Grey", "Red")
-HAIR_STYLES = (
-    "Side Part",
-    "Curly",
-    "Straight",
-    "Buzz Cut",
-    "Wavy",
-    "Undercut",
-    "Crew Cut",
-)
-BEARD_TYPES = ("Clean Shave", "Light Beard", "Full Beard")
 
 _ENGINE_LOCK = threading.Lock()
 _ENGINE: "FaceTraitEngine | None" = None
@@ -47,99 +30,32 @@ _ENGINE: "FaceTraitEngine | None" = None
 
 class FaceTraitEngine:
     def __init__(self) -> None:
-        import cv2
-        import mediapipe as mp
-        from deepface import DeepFace
-        from mediapipe.tasks import python
-        from mediapipe.tasks.python import vision
+        logger.info("FaceTraitEngine initialized (InsightFace + OpenCV)")
 
-        self._cv2 = cv2
-        self._mp = mp
-        self._deepface = DeepFace
+    def _resolve_face_inputs(
+        self,
+        rgb: np.ndarray,
+    ) -> tuple[np.ndarray, list[Any], int, int, np.ndarray]:
+        _, detection = extract_single_face_embedding(rgb)
 
-        landmarker_path = str(get_face_landmarker_model())
-        hair_model_path = str(get_hair_segmenter_model())
-
-        landmarker_options = vision.FaceLandmarkerOptions(
-            base_options=python.BaseOptions(model_asset_path=landmarker_path),
-            running_mode=vision.RunningMode.IMAGE,
-            num_faces=1,
-            output_face_blendshapes=False,
-            output_facial_transformation_matrixes=False,
-        )
-        hair_options = vision.ImageSegmenterOptions(
-            base_options=python.BaseOptions(model_asset_path=hair_model_path),
-            running_mode=vision.RunningMode.IMAGE,
-            output_category_mask=True,
-            output_confidence_masks=False,
-        )
-
-        self._landmarker = vision.FaceLandmarker.create_from_options(landmarker_options)
-        self._hair_segmenter = vision.ImageSegmenter.create_from_options(hair_options)
-        logger.info("FaceTraitEngine initialized (DeepFace + MediaPipe + OpenCV)")
-
-    def close(self) -> None:
-        self._landmarker.close()
-        self._hair_segmenter.close()
-
-    def _extract_single_face(self, rgb: np.ndarray) -> np.ndarray:
-        cv2 = self._cv2
-        bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
-        faces = self._deepface.extract_faces(
-            img_path=bgr,
-            detector_backend="retinaface",
-            enforce_detection=True,
-            align=True,
-        )
-
-        if not faces:
-            raise FaceValidationError("No face detected.", "no_face")
-        if len(faces) > 1:
-            raise FaceValidationError("Multiple faces detected.", "multiple_faces")
-
-        face = faces[0]
-        face_rgb = np.clip(face["face"] * 255.0, 0, 255).astype(np.uint8)
-
-        if face_rgb.shape[2] == 3:
-            face_rgb = cv2.cvtColor(face_rgb, cv2.COLOR_BGR2RGB)
-
-        return face_rgb
-
-    def _detect_landmarks(self, rgb: np.ndarray) -> list[Any]:
-        mp_image = self._mp.Image(
-            image_format=self._mp.ImageFormat.SRGB,
-            data=np.ascontiguousarray(rgb),
-        )
-        result = self._landmarker.detect(mp_image)
-
-        if not result.face_landmarks:
+        kps = detection.kps
+        if kps is None or kps.shape != (5, 2):
             raise FaceValidationError(
                 "Unable to extract facial landmarks.",
                 "landmarks_missing",
             )
 
-        return result.face_landmarks[0]
+        face_rgb, shifted_bbox, offset = crop_face_region(rgb, detection.bbox)
+        crop_h, crop_w = face_rgb.shape[:2]
+        shifted_kps = kps - np.array([offset[0], offset[1]], dtype=np.float32)
+        landmarks = build_analyzer_landmarks(shifted_bbox, shifted_kps, crop_w, crop_h)
+        hair_mask = segment_hair_opencv(face_rgb, landmarks, crop_w, crop_h)
+        return face_rgb, landmarks, crop_w, crop_h, hair_mask
 
-    def _segment_hair(self, rgb: np.ndarray) -> np.ndarray:
-        mp_image = self._mp.Image(
-            image_format=self._mp.ImageFormat.SRGB,
-            data=np.ascontiguousarray(rgb),
-        )
-        result = self._hair_segmenter.segment(mp_image)
-
-        if result.category_mask is None:
-            return np.zeros(rgb.shape[:2], dtype=bool)
-
-        mask = result.category_mask.numpy_view().squeeze()
-        return mask == 1
-
-    def analyze(self, image: Image.Image) -> dict[str, str]:
+    def analyze(self, image: Image.Image) -> dict[str, Any]:
         rgb = image_to_numpy(image)
-        face_rgb = self._extract_single_face(rgb)
-        height, width = face_rgb.shape[:2]
+        face_rgb, landmarks, width, height, hair_mask = self._resolve_face_inputs(rgb)
 
-        landmarks = self._detect_landmarks(face_rgb)
-        hair_mask = self._segment_hair(face_rgb)
         shape_result = analyze_face_shape(landmarks, width, height)
         skin_result = analyze_skin_tone(face_rgb, landmarks, width, height)
         hair_result = analyze_hair(face_rgb, hair_mask, landmarks, width, height)
@@ -166,7 +82,7 @@ class FaceTraitEngine:
 
         logger.info(
             "Face trait analysis complete | shape=%s (%.1f%%) skin=%s (%.1f%%) "
-            "hair=%s/%s/%s (%.1f%%/%.1f%%/%.1f%%) beard=%s (%.1f%%)",
+            "hair=%s/%s/%s beard=%s (%.1f%%)",
             result["faceShape"],
             result["faceShapeConfidence"],
             result["skinTone"],
@@ -174,9 +90,6 @@ class FaceTraitEngine:
             result["hairLength"],
             result["hairColor"],
             result["hairStyle"],
-            result["hairLengthConfidence"],
-            result["hairColorConfidence"],
-            result["hairStyleConfidence"],
             result["beardType"],
             result["beardTypeConfidence"],
         )
@@ -192,6 +105,6 @@ def get_face_trait_engine() -> FaceTraitEngine:
     return _ENGINE
 
 
-def analyze_face_traits(image: Image.Image) -> dict[str, str]:
+def analyze_face_traits(image: Image.Image) -> dict[str, Any]:
     """Analyze a frontal face image and return canonical trait labels."""
     return get_face_trait_engine().analyze(image)

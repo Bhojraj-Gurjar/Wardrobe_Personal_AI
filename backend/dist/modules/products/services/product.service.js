@@ -9,6 +9,7 @@ Object.defineProperty(exports, "ProductService", {
     }
 });
 const _common = require("@nestjs/common");
+const _apicacheservice = require("../../../common/services/api-cache.service");
 const _productrepository = require("../repositories/product.repository");
 const _aiservice = require("../../ai/services/ai.service");
 const _productcatalogmapper = require("../utils/product-catalog.mapper");
@@ -29,22 +30,32 @@ function _ts_param(paramIndex, decorator) {
     };
 }
 let ProductService = class ProductService {
-    constructor(productRepository, aiService){
+    constructor(productRepository, aiService, apiCacheService){
         this.productRepository = productRepository;
         this.aiService = aiService;
+        this.apiCacheService = apiCacheService;
+        this.productListTtlSeconds = 300;
+        this.productDetailTtlSeconds = 600;
+    }
+    buildListCacheKey(query) {
+        return this.apiCacheService.buildKey('products:list', JSON.stringify(query));
     }
     async findAll(query) {
         const normalizedQuery = (0, _normalizeproductqueryutil.normalizeProductQuery)(query);
-        const [products, total] = await this.productRepository.findMany(normalizedQuery);
-        return this.buildPaginatedResponse(products, total, normalizedQuery);
+        return this.apiCacheService.getOrSet(this.buildListCacheKey(normalizedQuery), this.productListTtlSeconds, async ()=>{
+            const [products, total] = await this.productRepository.findMany(normalizedQuery);
+            return this.buildPaginatedResponse(products, total, normalizedQuery);
+        });
     }
     async findByCategory(category, query) {
         const normalizedQuery = (0, _normalizeproductqueryutil.normalizeProductQuery)({
             ...query,
             category: decodeURIComponent(category)
         });
-        const [products, total] = await this.productRepository.findMany(normalizedQuery);
-        return this.buildPaginatedResponse(products, total, normalizedQuery);
+        return this.apiCacheService.getOrSet(this.buildListCacheKey(normalizedQuery), this.productListTtlSeconds, async ()=>{
+            const [products, total] = await this.productRepository.findMany(normalizedQuery);
+            return this.buildPaginatedResponse(products, total, normalizedQuery);
+        });
     }
     async search(query) {
         const normalizedQuery = (0, _normalizeproductqueryutil.normalizeProductQuery)(query);
@@ -52,11 +63,13 @@ let ProductService = class ProductService {
         if (!searchTerm) {
             throw new _common.BadRequestException('Search query is required (use q or search)');
         }
-        const [products, total] = await this.productRepository.findMany({
-            ...normalizedQuery,
-            search: searchTerm
+        return this.apiCacheService.getOrSet(this.apiCacheService.buildKey('products:search', searchTerm, JSON.stringify(normalizedQuery)), 120, async ()=>{
+            const [products, total] = await this.productRepository.findMany({
+                ...normalizedQuery,
+                search: searchTerm
+            });
+            return this.buildPaginatedResponse(products, total, normalizedQuery);
         });
-        return this.buildPaginatedResponse(products, total, normalizedQuery);
     }
     buildPaginatedResponse(products, total, query) {
         return {
@@ -67,11 +80,13 @@ let ProductService = class ProductService {
         };
     }
     async findOne(id) {
-        const product = await this.productRepository.findById(id);
-        if (!product) {
-            throw new _common.NotFoundException('Product not found');
-        }
-        return this.formatProduct(product);
+        return this.apiCacheService.getOrSet(this.apiCacheService.buildKey('products:detail', id), this.productDetailTtlSeconds, async ()=>{
+            const product = await this.productRepository.findById(id);
+            if (!product) {
+                throw new _common.NotFoundException('Product not found');
+            }
+            return this.formatProduct(product);
+        });
     }
     async findBySku(sku) {
         const product = await this.productRepository.findBySku(sku);
@@ -154,8 +169,10 @@ ProductService = _ts_decorate([
     (0, _common.Injectable)(),
     _ts_param(0, (0, _common.Inject)(_productrepository.ProductRepository)),
     _ts_param(1, (0, _common.Inject)(_aiservice.AiService)),
+    _ts_param(2, (0, _common.Inject)(_apicacheservice.ApiCacheService)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        void 0,
         void 0,
         void 0
     ])

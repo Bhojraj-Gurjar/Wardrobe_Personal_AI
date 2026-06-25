@@ -22,11 +22,12 @@ class Settings(BaseSettings):
     insightface_model: str = "buffalo_sc"
     face_vector_size: int = 512
     face_similarity_threshold: float = 0.40
+    face_verify_threshold: float = 0.52
     face_registration_duplicate_threshold: float = 0.45
     face_similarity_uncertain: float = 0.32
-    face_min_detection_score: float = 0.50
-    face_min_blur_variance: float = 80.0
-    face_min_brightness: float = 35.0
+    face_min_detection_score: float = 0.45
+    face_min_blur_variance: float = 55.0
+    face_min_brightness: float = 28.0
     face_max_brightness: float = 220.0
     face_blink_ear_threshold: float = 0.21
     face_head_movement_min_delta: float = 12.0

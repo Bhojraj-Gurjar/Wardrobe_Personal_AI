@@ -73,6 +73,19 @@ let StorageService = class StorageService {
     async deleteStoredFile(storagePath) {
         return this.provider.deleteStoragePath(storagePath);
     }
+    async readStoredFile(storagePath) {
+        if (!storagePath) {
+            return null;
+        }
+        const rootDir = this.configService.get('storage.local.rootDir') || 'uploads';
+        const absolutePath = (0, _storagepathutil.toFilesystemPath)(storagePath, rootDir);
+        const extension = (0, _path.extname)(absolutePath).replace('.', '') || 'jpg';
+        const buffer = await (0, _promises.readFile)(absolutePath);
+        return {
+            buffer,
+            mimeType: (0, _storagepathutil.mimeTypeFromExtension)(extension)
+        };
+    }
     async deleteFaceImagesForUser(userId) {
         return this.provider.deleteFolder(`${_storageconstants.FACE_STORAGE_FOLDER}/${userId}`);
     }

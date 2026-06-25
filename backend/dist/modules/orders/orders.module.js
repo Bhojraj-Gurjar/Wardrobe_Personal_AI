@@ -13,6 +13,7 @@ const _authmodule = require("../auth/auth.module");
 const _fashiondnamodule = require("../fashion-dna/fashion-dna.module");
 const _orderscontroller = require("./controllers/orders.controller");
 const _ordersservice = require("./services/orders.service");
+const _orderlifecycleservice = require("./services/order-lifecycle.service");
 const _ordersrepository = require("./repositories/orders.repository");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -33,10 +34,12 @@ OrdersModule = _ts_decorate([
         ],
         providers: [
             _ordersservice.OrdersService,
+            _orderlifecycleservice.OrderLifecycleService,
             _ordersrepository.OrdersRepository
         ],
         exports: [
-            _ordersservice.OrdersService
+            _ordersservice.OrdersService,
+            _ordersrepository.OrdersRepository
         ]
     })
 ], OrdersModule);

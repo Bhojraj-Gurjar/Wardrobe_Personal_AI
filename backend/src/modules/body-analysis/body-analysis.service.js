@@ -1,20 +1,16 @@
 import {
-
-  Inject,
-
   BadRequestException,
-
+  Inject,
   Injectable,
-
   Logger,
-
   NotFoundException,
-
   ServiceUnavailableException,
-
   forwardRef,
-
 } from '@nestjs/common';
+import {
+  IMAGE_MUTATION_SOURCES,
+  sanitizeBodyPhotoPath,
+} from '../../common/utils/user-image-guard.util';
 
 import { ModuleRef } from '@nestjs/core';
 
@@ -128,30 +124,82 @@ class BodyAnalysisService {
 
     let record = await this.bodyAnalysisRepository.findByUserId(userId);
 
+    const resolvedPath = await this.resolveCanonicalBodyImagePath(userId, record);
 
-
-    if (record && !record.body_image_url) {
-
-      const repairedPath = await this.bodyImageStorageService.findStoredBodyImagePath(userId);
-
-      if (repairedPath) {
-
-        this.logger.warn(
-
-          `Repaired missing body_image_url for user ${userId} from stored file`,
-
-        );
-
-        record = await this.bodyAnalysisRepository.saveBodyImagePath(userId, repairedPath);
-
-      }
-
+    if (resolvedPath && (!record || record.body_image_url !== resolvedPath)) {
+      this.logger.log(
+        `Linked stored onboarding body photo for user ${userId}`,
+      );
+      record = await this.bodyAnalysisRepository.saveBodyImagePath(
+        userId,
+        resolvedPath,
+      );
     }
-
-
 
     return this.formatBodyAnalysisResponse(record);
 
+  }
+
+  async resolveCanonicalBodyImagePath(userId, record = null) {
+    const stored = sanitizeBodyPhotoPath(record?.body_image_url);
+
+    if (stored) {
+      return stored;
+    }
+
+    const filesystemPath = await this.bodyImageStorageService.findStoredBodyImagePath(userId);
+    const sanitizedFilesystem = sanitizeBodyPhotoPath(filesystemPath);
+
+    if (sanitizedFilesystem) {
+      return sanitizedFilesystem;
+    }
+
+    const user = await this.bodyAnalysisRepository.findUserBodyImageContext(userId);
+
+    if (!user) {
+      return null;
+    }
+
+    const preferences = user.profile?.preferences || {};
+    const candidates = [
+      preferences.bodyPhoto,
+      preferences.body_photo,
+      preferences.onboardingBodyPhoto,
+    ];
+
+    for (const candidate of candidates) {
+      const sanitized = sanitizeBodyPhotoPath(candidate);
+
+      if (sanitized) {
+        return sanitized;
+      }
+    }
+
+    return null;
+  }
+
+  async syncBodyPhotoToProfile(userId, bodyImagePath) {
+    const sanitized = sanitizeBodyPhotoPath(bodyImagePath);
+
+    if (!sanitized) {
+      return;
+    }
+
+    const user = await this.bodyAnalysisRepository.findUserBodyImageContext(userId);
+
+    if (!user?.profile) {
+      return;
+    }
+
+    const preferences = {
+      ...(user.profile.preferences || {}),
+      bodyPhoto: sanitized,
+    };
+
+    await this.bodyAnalysisRepository.updateProfileBodyImageRefs(userId, {
+      body_image: sanitized,
+      preferences,
+    });
   }
 
 
@@ -227,109 +275,99 @@ class BodyAnalysisService {
 
 
   async analyzeBody(userId, imageDto) {
-
     if (!imageDto?.imageBuffer?.length && !imageDto?.videoBuffer?.length) {
-
       throw new BadRequestException('Provide an image and/or a walkaround video.');
-
     }
-
-
 
     if (!this.aiService.isConfigured()) {
-
       throw new ServiceUnavailableException('AI service unavailable.');
-
     }
-
-
 
     const bodyImagePath = await this.replaceBodyPhoto(userId, imageDto);
 
-
-
     if (bodyImagePath) {
-
       await this.bodyAnalysisRepository.saveBodyImagePath(userId, bodyImagePath);
-
+      await this.syncBodyPhotoToProfile(userId, bodyImagePath);
     }
 
+    return this.persistBodyTraitAnalysis(userId, imageDto, bodyImagePath);
+  }
 
+  async analyzeStoredBody(userId) {
+    if (!this.aiService.isConfigured()) {
+      throw new ServiceUnavailableException('AI service unavailable.');
+    }
 
+    let record = await this.bodyAnalysisRepository.findByUserId(userId);
+    const bodyImagePath = await this.resolveCanonicalBodyImagePath(userId, record);
+
+    if (!bodyImagePath) {
+      throw new BadRequestException('Upload a body photo before running analysis.');
+    }
+
+    if (!record?.body_image_url || record.body_image_url !== bodyImagePath) {
+      record = await this.bodyAnalysisRepository.saveBodyImagePath(userId, bodyImagePath);
+      await this.syncBodyPhotoToProfile(userId, bodyImagePath);
+    }
+
+    const storedImage = await this.bodyImageStorageService.readBodyImage(bodyImagePath);
+
+    if (!storedImage?.buffer?.length) {
+      throw new NotFoundException('Stored body photo could not be loaded.');
+    }
+
+    const user = await this.bodyAnalysisRepository.findUserBodyImageContext(userId);
+    const height = record?.height ?? user?.profile?.height ?? null;
+
+    return this.persistBodyTraitAnalysis(
+      userId,
+      {
+        imageBuffer: storedImage.buffer,
+        imageMimeType: storedImage.mimeType,
+        height,
+      },
+      bodyImagePath,
+    );
+  }
+
+  async persistBodyTraitAnalysis(userId, imageDto, bodyImagePath = null) {
     let aiResponse;
 
-
-
     try {
-
       aiResponse = await this.aiService.analyzeBodyTraits({
-
         imageBuffer: imageDto.imageBuffer,
-
         imageMimeType: imageDto.imageMimeType,
-
         videoBuffer: imageDto.videoBuffer,
-
         videoMimeType: imageDto.videoMimeType,
-
         height: imageDto.height,
-
       });
-
     } catch (error) {
-
       this.logger.error(
-
         `Body trait analysis failed for user ${userId}: ${error.message}`,
-
       );
-
       throw error;
-
     }
 
-
-
     const record = await this.bodyAnalysisRepository.saveAnalysisFromAi(
-
       userId,
-
       aiResponse,
-
       bodyImagePath,
-
     );
-
-
 
     await this.bodyAnalysisVectorService.syncUserVector(userId, record);
 
-
-
     this.fashionDnaRegenerationService.trigger(
-
       userId,
-
       REFRESH_SOURCES.BODY_ANALYSIS,
-
     );
 
-
-
     setImmediate(() => {
-
       this.pipelineEventBus.emit(PIPELINE_SIGNALS.BODY_ANALYSIS_COMPLETED, {
-
         userId,
-
       });
-
     });
 
-
-
     return this.formatBodyAnalysisResponse(record);
-
   }
 
 
