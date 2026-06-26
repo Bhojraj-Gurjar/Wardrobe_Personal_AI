@@ -95,6 +95,7 @@ class ProductRepository {
           { brand: { contains: query.search, mode: 'insensitive' } },
           { category: { contains: query.search, mode: 'insensitive' } },
           { subcategory: { contains: query.search, mode: 'insensitive' } },
+          { product_type: { contains: query.search, mode: 'insensitive' } },
           { color: { contains: query.search, mode: 'insensitive' } },
         ],
       });
@@ -120,6 +121,11 @@ class ProductRepository {
 
     if (query.subcategory) {
       and.push({ subcategory: query.subcategory });
+    }
+
+    const productType = query.productType ?? query.product_type;
+    if (productType) {
+      and.push({ product_type: { equals: productType, mode: 'insensitive' } });
     }
 
     if (query.gender) {

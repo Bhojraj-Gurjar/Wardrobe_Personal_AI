@@ -10,6 +10,25 @@ from PIL import Image
 logger = logging.getLogger(__name__)
 
 
+def _rembg_alpha(image_rgb: np.ndarray) -> np.ndarray | None:
+    try:
+        from rembg import remove
+    except ImportError:
+        return None
+
+    try:
+        result = remove(Image.fromarray(image_rgb))
+        if not isinstance(result, Image.Image):
+            return None
+        rgba = np.array(result)
+        if rgba.ndim == 3 and rgba.shape[2] >= 4:
+            return rgba[:, :, 3].astype(np.uint8)
+        if rgba.ndim == 2:
+            return rgba.astype(np.uint8)
+        return None
+    except Exception:
+        return None
+
 def _mediapipe_mask(image_rgb: np.ndarray) -> np.ndarray | None:
     try:
         import mediapipe as mp
@@ -42,7 +61,7 @@ def _refine_mask(mask: np.ndarray) -> np.ndarray:
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
     refined = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
     refined = cv2.morphologyEx(refined, cv2.MORPH_OPEN, kernel, iterations=1)
-    return cv2.GaussianBlur(refined, (5, 5), 0)
+    return cv2.GaussianBlur(refined, (7, 7), 0)
 
 
 def remove_background_to_png(input_path: Path, output_path: Path) -> Path:
@@ -54,7 +73,11 @@ def remove_background_to_png(input_path: Path, output_path: Path) -> Path:
         raise ValueError(f"Could not decode image: {input_path}")
 
     image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
-    mask = _mediapipe_mask(image_rgb) or _grabcut_mask(image_bgr)
+    mask = _rembg_alpha(image_rgb)
+    if mask is None:
+        mask = _mediapipe_mask(image_rgb)
+    if mask is None:
+        mask = _grabcut_mask(image_bgr)
     mask = _refine_mask(mask)
 
     rgba = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGBA)

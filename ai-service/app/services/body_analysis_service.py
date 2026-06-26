@@ -4,8 +4,10 @@ from typing import Any
 from PIL import Image
 
 from app.schemas.body_analysis import BodyAnalysisResult
+from app.services.body_anthropometry import build_proportion_scores
 from app.services.body_measurement import aggregate_measurements, measure_pose_frame
 from app.services.fit_recommendations import generate_fit_profile
+from app.services.size_recommendations import generate_size_recommendations
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +28,12 @@ def analyze_body_traits(
         raise BodyValidationError(
             "Provide an image and/or a 360 walkaround video.",
             code="missing_media",
+        )
+
+    if not height_cm or height_cm <= 0:
+        raise BodyValidationError(
+            "Height in centimeters is required to calibrate body measurements.",
+            code="missing_height",
         )
 
     samples: list[dict[str, Any]] = []
@@ -81,14 +89,53 @@ def analyze_body_traits(
 
     response = BodyAnalysisResult.model_validate(result)
 
+    width_measurements = result.get("widthMeasurementsCm")
+    if not width_measurements:
+        for sample in reversed(samples):
+            candidate = sample.get("widthMeasurementsCm")
+            if candidate:
+                width_measurements = candidate
+                break
+
     fit_profile = generate_fit_profile(
         response.body_type,
         response.body_shape,
         body_type_code=response.body_type_code,
         body_shape_code=response.body_shape_code,
+        measurements={
+            "height": response.height,
+            "shoulderWidth": response.shoulder_width,
+            "chest": response.chest,
+            "waist": response.waist,
+            "hip": response.hip,
+            "armLength": response.arm_length,
+            "legLength": response.leg_length,
+        },
+        body_type_ratios=response.body_type_ratios,
+        body_shape_ratios=response.body_shape_ratios,
+        width_measurements=width_measurements,
     )
+    size_recommendations = generate_size_recommendations(
+        chest_cm=response.chest,
+        waist_cm=response.waist,
+        shoulder_cm=response.shoulder_width,
+    )
+    proportion_scores = build_proportion_scores(
+        {
+            "shoulderWidth": response.shoulder_width or 0,
+            "chest": response.chest or 0,
+            "waist": response.waist or 0,
+            "hip": response.hip or 0,
+            "armLength": response.arm_length or 0,
+            "legLength": response.leg_length or 0,
+        },
+        response.height or height_cm or 0,
+    )
+
     payload = response.model_dump_public()
     payload["fitProfile"] = fit_profile
+    payload["sizeRecommendations"] = size_recommendations
+    payload["proportionScores"] = proportion_scores
 
     logger.info(
         "Body analysis complete mode=%s shape=%s type=%s fit_sections=%s confidence=%s",

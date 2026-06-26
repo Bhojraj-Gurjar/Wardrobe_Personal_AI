@@ -24,6 +24,7 @@
     "prisma:studio": "prisma studio",
     "seed:categories": "node scripts/seed-product-categories.js",
     "seed:catalog": "node scripts/seed-product-catalog.js",
+    "seed:backfill-product-type": "node scripts/backfill-product-type.js",
     "seed:products": "node scripts/seed-product-categories.js && node scripts/seed-product-catalog.js",
     "seed:try-on-products": "node scripts/seed-try-on-products.js",
     "seed:curated-shirts": "node scripts/seed-curated-shirt-products.js",
@@ -31,7 +32,8 @@
     "seed:curated-pants": "node scripts/seed-curated-pants-products.js",
     "seed:curated-jackets": "node scripts/seed-curated-jackets-products.js",
     "seed:curated-footwear": "node scripts/seed-curated-footwear-products.js",
-    "seed:admin": "node scripts/seed-admin.js"
+    "seed:admin": "node scripts/seed-admin.js",
+    "backfill:body-photo-processing": "node scripts/backfill-body-photo-processing.js"
   },
   "dependencies": {
     "@nestjs/axios": "^4.0.1",

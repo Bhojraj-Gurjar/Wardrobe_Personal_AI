@@ -1,40 +1,8 @@
-const CLOTHING_KEYWORDS = [
-  'shirt',
-  'shirts',
-  't-shirt',
-  'tshirt',
-  'tee',
-  'top',
-  'blouse',
-  'pants',
-  'trouser',
-  'chino',
-  'jean',
-  'jacket',
-  'coat',
-  'hoodie',
-  'sweater',
-  'dress',
-  'skirt',
-  'kurta',
-  'suit',
-];
-
-const INCOMPATIBLE_KEYWORDS = [
-  'shoe',
-  'sneaker',
-  'footwear',
-  'boot',
-  'sandal',
-  'watch',
-  'bag',
-  'belt',
-  'hat',
-  'cap',
-  'sock',
-  'jewelry',
-  'accessory',
-];
+import {
+  inferProductType,
+  isTryOnCompatibleProductType,
+  resolveTryOnSlotFromProductType,
+} from '../../products/constants/product-type.constants';
 
 function resolvePrimaryImageUrl(product) {
   if (!product) {
@@ -72,32 +40,23 @@ function hasCatalogStyleImage(imageUrl) {
     || normalized.includes('/uploads/');
 }
 
-function matchesClothingCategory(product) {
-  const haystack = [
-    product.category,
-    product.subcategory,
-    product.name,
-    product.sku,
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
-
-  if (INCOMPATIBLE_KEYWORDS.some((keyword) => haystack.includes(keyword))) {
-    return false;
-  }
-
-  return CLOTHING_KEYWORDS.some((keyword) => haystack.includes(keyword));
+function resolveProductType(product) {
+  return product.product_type
+    ?? product.productType
+    ?? inferProductType(product);
 }
 
 export function assessTryOnCompatibility(product) {
   const tryOnImage = resolvePrimaryImageUrl(product);
+  const productType = resolveProductType(product);
+  const hasTryOnSlot = Boolean(resolveTryOnSlotFromProductType(productType));
 
-  if (product.is_try_on_compatible === true && tryOnImage) {
+  if (product.is_try_on_compatible === true && tryOnImage && hasTryOnSlot) {
     return {
       isTryOnCompatible: true,
       tryOnImage: product.try_on_image || tryOnImage,
       compatibilityLabel: 'Try-On Available',
+      productType,
     };
   }
 
@@ -106,6 +65,7 @@ export function assessTryOnCompatibility(product) {
       isTryOnCompatible: false,
       tryOnImage: product.try_on_image || tryOnImage,
       compatibilityLabel: 'Not Compatible',
+      productType,
     };
   }
 
@@ -114,16 +74,17 @@ export function assessTryOnCompatibility(product) {
       isTryOnCompatible: false,
       tryOnImage,
       compatibilityLabel: 'Not Compatible',
+      productType,
     };
   }
 
-  const clothingMatch = matchesClothingCategory(product);
-  const compatible = clothingMatch && hasCatalogStyleImage(tryOnImage);
+  const compatible = isTryOnCompatibleProductType(productType) && hasCatalogStyleImage(tryOnImage);
 
   return {
     isTryOnCompatible: compatible,
     tryOnImage: product.try_on_image || tryOnImage,
     compatibilityLabel: compatible ? 'Try-On Available' : 'Not Compatible',
+    productType,
   };
 }
 
@@ -141,6 +102,7 @@ export function formatTryOnCatalogProduct(product, storagePathResolver) {
     brand: product.brand,
     category: product.category,
     subcategory: product.subcategory,
+    productType: compatibility.productType,
     price: product.price,
     currency: product.currency || 'USD',
     imageUrl: garmentUrl,

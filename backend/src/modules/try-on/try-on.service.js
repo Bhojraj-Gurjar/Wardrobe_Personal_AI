@@ -1,5 +1,6 @@
 import {
   BadGatewayException,
+  BadRequestException,
   GatewayTimeoutException,
   Inject,
   Injectable,
@@ -10,10 +11,15 @@ import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { TryOnHistoryRepository } from './try-on-history.repository';
+import {
+  assertTryOnImageUrl,
+  isRetryableTryOnError,
+  mapTryOnServiceError,
+} from './utils/try-on-image.util';
 
 const TRYON_PATH = '/tryon/generate';
 const TRYON_TIMEOUT_MS = 65000;
-
+const TRYON_RETRY_DELAYS_MS = [2000, 4000, 8000];
 export @Injectable()
 class TryOnService {
   constructor(
@@ -52,6 +58,57 @@ class TryOnService {
     ).replace(/\/$/, '');
   }
 
+  get aiServicePublicUrl() {
+    return String(
+      this.configService.get('aiService.publicUrl')
+      || process.env.AI_SERVICE_PUBLIC_URL
+      || this.baseUrl
+      || 'http://localhost:8000',
+    ).replace(/\/$/, '');
+  }
+
+  resolvePublicImageUrl(url, resolver) {
+    if (!url) {
+      return null;
+    }
+
+    if (/^https?:\/\//i.test(url)) {
+      return url;
+    }
+
+    return resolver(url) || url;
+  }
+
+  async postTryOnWithRetry(url, payload) {
+    let lastError;
+
+    for (let attempt = 0; attempt < TRYON_RETRY_DELAYS_MS.length + 1; attempt += 1) {
+      try {
+        return await firstValueFrom(
+          this.httpService.post(url, payload, {
+            timeout: TRYON_TIMEOUT_MS,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        );
+      } catch (error) {
+        lastError = error;
+
+        if (!isRetryableTryOnError(error) || attempt >= TRYON_RETRY_DELAYS_MS.length) {
+          throw error;
+        }
+
+        const delayMs = TRYON_RETRY_DELAYS_MS[attempt];
+        this.logger.warn(
+          `HuggingFace model loading (attempt ${attempt + 1}/${TRYON_RETRY_DELAYS_MS.length + 1}), retrying in ${delayMs}ms`,
+        );
+        await new Promise((resolve) => {
+          setTimeout(resolve, delayMs);
+        });
+      }
+    }
+
+    throw lastError;
+  }
   rewriteImageUrlForAi(url) {
     const publicBase = this.storagePublicBaseUrl;
     const internalBase = this.storageInternalBaseUrl;
@@ -62,6 +119,10 @@ class TryOnService {
 
     if (publicBase && url.startsWith(publicBase)) {
       return `${internalBase}${url.slice(publicBase.length)}`;
+    }
+
+    if (url.startsWith('/')) {
+      return `${internalBase}${url}`;
     }
 
     return url.replace(
@@ -92,11 +153,7 @@ class TryOnService {
     const browserBase = this.storagePublicBaseUrl
       || 'http://localhost:8000';
 
-    const aiPublicBase = String(
-      process.env.AI_SERVICE_PUBLIC_URL
-      || process.env.NEXT_PUBLIC_AI_SERVICE_URL
-      || 'http://localhost:8000',
-    ).replace(/\/$/, '');
+    const aiPublicBase = this.aiServicePublicUrl;
 
     const resolved = path.startsWith('/tryon/')
       ? `${aiPublicBase}${path}`
@@ -116,46 +173,45 @@ class TryOnService {
       throw new ServiceUnavailableException('AI_SERVICE_URL is not configured');
     }
 
-    const url = `${this.baseUrl}${TRYON_PATH}`;
-    const aiPersonUrl = this.rewriteImageUrlForAi(personImageUrl);
-    const aiGarmentUrl = this.rewriteImageUrlForAi(garmentImageUrl);
+    const validatedPersonUrl = assertTryOnImageUrl(personImageUrl, 'Person');
+    const validatedGarmentUrl = assertTryOnImageUrl(garmentImageUrl, 'Garment');
 
-    this.logger.log(`→ FastAPI POST ${TRYON_PATH} | url=${url}`);
+    const url = `${this.baseUrl}${TRYON_PATH}`;
+    const aiPersonUrl = this.rewriteImageUrlForAi(validatedPersonUrl);
+    const aiGarmentUrl = this.rewriteImageUrlForAi(validatedGarmentUrl);
+
+    this.logger.log('Uploading person image for virtual try-on');
+    this.logger.log('Uploading garment image for virtual try-on');
+    this.logger.log(`Calling HuggingFace try-on | url=${url}`);
+
+    const startedAt = Date.now();
 
     try {
-      const response = await firstValueFrom(
-        this.httpService.post(
-          url,
-          {
-            personImageUrl: aiPersonUrl,
-            garmentImageUrl: aiGarmentUrl,
-          },
-          {
-            timeout: TRYON_TIMEOUT_MS,
-            headers: { 'Content-Type': 'application/json' },
-          },
-        ),
-      );
+      const response = await this.postTryOnWithRetry(url, {
+        personImageUrl: aiPersonUrl,
+        garmentImageUrl: aiGarmentUrl,
+      });
 
-      this.logger.log(`← FastAPI POST ${TRYON_PATH} | status=${response.status}`);
+      const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1);
+      this.logger.log(`Inference completed in ${elapsedSec} sec | status=${response.status}`);
 
       const result = this.normalizeTryOnResultUrl(response.data);
 
       if (persistHistory) {
         await this.tryOnHistoryRepository.create(userId, {
-          inputImage: personImageUrl,
-          transparentImage: garmentImageUrl,
+          inputImage: validatedPersonUrl,
+          transparentImage: validatedGarmentUrl,
           generatedImage: result?.resultImageUrl || result?.result_image_url || null,
           selectedProducts: [],
         });
       }
 
+      this.logger.log('Virtual try-on generation successful.');
       return result;
     } catch (error) {
       this.handleError(error);
     }
   }
-
   async getHistory(userId) {
     const records = await this.tryOnHistoryRepository.findManyByUserId(userId);
 
@@ -175,25 +231,23 @@ class TryOnService {
 
   handleError(error) {
     const status = error?.response?.status;
-    const detail =
-      error?.response?.data?.detail
-      || error?.response?.data?.message
-      || error?.message;
+    const message = mapTryOnServiceError(error);
+
+    this.logger.error(
+      `Virtual try-on failed | status=${status || 'n/a'} | ${error?.response?.data?.detail || error?.message || message}`,
+    );
 
     if (error?.code === 'ECONNABORTED' || status === 504) {
-      throw new GatewayTimeoutException(
-        detail || 'Virtual try-on timed out',
-      );
+      throw new GatewayTimeoutException(message);
+    }
+
+    if (status === 400) {
+      throw new BadRequestException(message);
     }
 
     if (status) {
-      throw new BadGatewayException(
-        detail || `FastAPI returned HTTP ${status}`,
-      );
+      throw new BadGatewayException(message);
     }
 
-    throw new ServiceUnavailableException(
-      `Cannot reach AI service: ${detail || 'connection failed'}`,
-    );
-  }
-}
+    throw new ServiceUnavailableException(message);
+  }}

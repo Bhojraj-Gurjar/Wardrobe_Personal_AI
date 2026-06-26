@@ -147,6 +147,8 @@ function formatBodyAnalysisRecord(record) {
         armLength: record.arm_length,
         legLength: record.leg_length,
         fitProfile: record.fit_profile,
+        sizeRecommendations: raw.sizeRecommendations ?? null,
+        proportionScores: raw.proportionScores ?? null,
         measurements,
         analysisMode: raw.analysisMode ?? null,
         framesExtracted: raw.framesExtracted ?? null,

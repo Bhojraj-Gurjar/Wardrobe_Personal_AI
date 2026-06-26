@@ -44,6 +44,15 @@ const ORDER_INCLUDE = {
         }
     }
 };
+function resolvePagination(page, limit, defaultLimit = 50) {
+    const pageNum = Math.max(1, Number.parseInt(page, 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, Number.parseInt(limit, 10) || defaultLimit));
+    return {
+        page: pageNum,
+        limit: limitNum,
+        skip: (pageNum - 1) * limitNum
+    };
+}
 let AdminRepository = class AdminRepository {
     constructor(prismaService){
         this.prisma = prismaService;
@@ -56,6 +65,19 @@ let AdminRepository = class AdminRepository {
             include: {
                 profile: true
             }
+        });
+    }
+    updateUserAdminAccess(userId, data) {
+        return this.prisma.user.update({
+            where: {
+                id: userId
+            },
+            data
+        });
+    }
+    createAdminUser(data) {
+        return this.prisma.user.create({
+            data
         });
     }
     findUserById(id) {
@@ -97,7 +119,7 @@ let AdminRepository = class AdminRepository {
         if (status) {
             where.status = status.toUpperCase();
         }
-        const skip = (page - 1) * limit;
+        const { skip, limit: take } = resolvePagination(page, limit);
         return this.prisma.$transaction([
             this.prisma.user.findMany({
                 where,
@@ -115,7 +137,7 @@ let AdminRepository = class AdminRepository {
                     created_at: 'desc'
                 },
                 skip,
-                take: limit
+                take
             }),
             this.prisma.user.count({
                 where
@@ -228,7 +250,7 @@ let AdminRepository = class AdminRepository {
                 }
             ];
         }
-        const skip = (page - 1) * limit;
+        const { skip, limit: take } = resolvePagination(page, limit);
         return this.prisma.$transaction([
             this.prisma.product.findMany({
                 where,
@@ -248,7 +270,7 @@ let AdminRepository = class AdminRepository {
                     created_at: 'desc'
                 },
                 skip,
-                take: limit
+                take
             }),
             this.prisma.product.count({
                 where
@@ -334,7 +356,7 @@ let AdminRepository = class AdminRepository {
                 }
             ];
         }
-        const skip = ((query.page || 1) - 1) * (query.limit || 50);
+        const { skip, limit: take } = resolvePagination(query.page, query.limit);
         return this.prisma.$transaction([
             this.prisma.order.findMany({
                 where,
@@ -343,7 +365,7 @@ let AdminRepository = class AdminRepository {
                     created_at: 'desc'
                 },
                 skip,
-                take: query.limit || 50
+                take
             }),
             this.prisma.order.count({
                 where
@@ -425,8 +447,7 @@ let AdminRepository = class AdminRepository {
                         category: true,
                         price: true
                     }
-                },
-                metadata: true
+                }
             }
         });
     }

@@ -334,12 +334,16 @@ let AiService = class AiService {
             payloadBytes
         });
     }
-    generateFitProfile({ bodyType, bodyShape, bodyTypeCode = null, bodyShapeCode = null }) {
+    generateFitProfile({ bodyType, bodyShape, bodyTypeCode = null, bodyShapeCode = null, measurements = null, bodyTypeRatios = null, bodyShapeRatios = null, widthMeasurementsCm = null }) {
         return this.postJson('/body-analysis/fit-profile', {
             bodyType,
             bodyShape,
             bodyTypeCode,
-            bodyShapeCode
+            bodyShapeCode,
+            measurements,
+            bodyTypeRatios,
+            bodyShapeRatios,
+            widthMeasurementsCm
         });
     }
     generateRecommendations(payload) {

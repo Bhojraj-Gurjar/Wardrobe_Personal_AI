@@ -507,9 +507,8 @@ def analyze_fashion_dna(
     hist = history or {}
 
     if not _has_behavioral_activity(hist):
-        raise ValueError(
-            "Fashion DNA requires shopping activity — wishlist, orders, product views, or searches."
-        )
+        hist = hist or {}
+        hist.setdefault("activity_volume", {})
 
     style_type = _derive_style_type(prefs, body)
     color_result = _derive_color_affinity(prefs, hist, body)

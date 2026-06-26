@@ -9,10 +9,13 @@ Object.defineProperty(exports, "UsersService", {
     }
 });
 const _common = require("@nestjs/common");
+const _userimageguardutil = require("../../../common/utils/user-image-guard.util");
 const _apicacheservice = require("../../../common/services/api-cache.service");
 const _fashiondnaregenerationconstants = require("../../fashion-dna/constants/fashion-dna-regeneration.constants");
 const _fashiondnaregenerationservice = require("../../fashion-dna/services/fashion-dna-regeneration.service");
 const _bodyanalysisservice = require("../../body-analysis/body-analysis.service");
+const _bodyphotoprocessingservice = require("../../body-analysis/services/body-photo-processing.service");
+const _bodyphotodisplayutil = require("../../body-analysis/utils/body-photo-display.util");
 const _storagepathresolverservice = require("../../../storage/services/storage-path-resolver.service");
 const _pipelineeventbus = require("../../user-pipeline/pipeline-event.bus");
 const _userartifactsservice = require("../../user-artifacts/user-artifacts.service");
@@ -32,7 +35,7 @@ function _ts_param(paramIndex, decorator) {
     };
 }
 let UsersService = class UsersService {
-    constructor(usersRepository, fashionDnaRegenerationService, bodyAnalysisService, pipelineEventBus, userArtifactsService, storagePathResolver, apiCacheService){
+    constructor(usersRepository, fashionDnaRegenerationService, bodyAnalysisService, pipelineEventBus, userArtifactsService, storagePathResolver, apiCacheService, bodyPhotoProcessingService){
         this.usersRepository = usersRepository;
         this.fashionDnaRegenerationService = fashionDnaRegenerationService;
         this.bodyAnalysisService = bodyAnalysisService;
@@ -40,6 +43,7 @@ let UsersService = class UsersService {
         this.userArtifactsService = userArtifactsService;
         this.storagePathResolver = storagePathResolver;
         this.apiCacheService = apiCacheService;
+        this.bodyPhotoProcessingService = bodyPhotoProcessingService;
     }
     profileCacheKey(userId) {
         return this.apiCacheService.buildKey('users:profile', userId);
@@ -110,6 +114,12 @@ let UsersService = class UsersService {
     }
     formatProfile(profile, context = {}) {
         const faceImagePath = context.face_registration?.face_image_url || null;
+        const preferences = profile.preferences || {};
+        const userId = profile.user_id;
+        const originalPath = (0, _bodyphotodisplayutil.resolveOriginalBodyImagePath)(context.body_analysis, preferences) || (0, _userimageguardutil.sanitizeBodyPhotoPath)(context.body_analysis?.body_image_url) || (0, _userimageguardutil.sanitizeBodyPhotoPath)(preferences.bodyPhoto) || (0, _userimageguardutil.sanitizeBodyPhotoPath)(preferences.body_photo) || (0, _userimageguardutil.sanitizeBodyPhotoPath)(profile.body_image) || null;
+        const transparentCandidate = (0, _bodyphotodisplayutil.resolveTransparentBodyImagePath)(userId, preferences);
+        const transparentPath = transparentCandidate && this.bodyPhotoProcessingService.transparentPngExists(userId) ? transparentCandidate : null;
+        const displayPath = transparentPath || originalPath;
         return {
             id: profile.id,
             user_id: profile.user_id,
@@ -127,6 +137,13 @@ let UsersService = class UsersService {
             is_face_registered: context.face_registration?.is_face_registered ?? false,
             face_image_url: faceImagePath,
             faceImageUrl: this.storagePathResolver.toPublicUrl(faceImagePath),
+            body_image: originalPath,
+            body_image_url: originalPath,
+            bodyImageUrl: this.storagePathResolver.toPublicUrl(displayPath),
+            bodyPhotoUrl: this.storagePathResolver.toPublicUrl(displayPath),
+            bodyPhotoOriginalUrl: this.storagePathResolver.toPublicUrl(originalPath),
+            bodyPhotoTransparentUrl: this.storagePathResolver.toPublicUrl(transparentPath),
+            bodyPhotoProcessing: preferences.bodyPhotoProcessing || null,
             created_at: profile.created_at,
             updated_at: profile.updated_at
         };
@@ -144,8 +161,10 @@ UsersService = _ts_decorate([
     _ts_param(4, (0, _common.Inject)(_userartifactsservice.UserArtifactsService)),
     _ts_param(5, (0, _common.Inject)(_storagepathresolverservice.StoragePathResolver)),
     _ts_param(6, (0, _common.Inject)(_apicacheservice.ApiCacheService)),
+    _ts_param(7, (0, _common.Inject)(_bodyphotoprocessingservice.BodyPhotoProcessingService)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        void 0,
         void 0,
         void 0,
         void 0,

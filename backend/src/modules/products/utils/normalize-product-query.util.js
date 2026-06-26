@@ -13,5 +13,9 @@ export function normalizeProductQuery(query = {}) {
     normalized.search = normalized.q;
   }
 
+  if (normalized.productType !== undefined && normalized.product_type === undefined) {
+    normalized.product_type = normalized.productType;
+  }
+
   return normalized;
 }

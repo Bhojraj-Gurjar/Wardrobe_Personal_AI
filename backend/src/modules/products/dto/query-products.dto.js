@@ -60,6 +60,16 @@ export class QueryProductsDto {
   @IsString()
   subcategory;
 
+  @ApiPropertyOptional({ example: 'T-Shirt', description: 'Filter by product type' })
+  @IsOptional()
+  @IsString()
+  productType;
+
+  @ApiPropertyOptional({ example: 'T-Shirt', description: 'Alias for productType' })
+  @IsOptional()
+  @IsString()
+  product_type;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

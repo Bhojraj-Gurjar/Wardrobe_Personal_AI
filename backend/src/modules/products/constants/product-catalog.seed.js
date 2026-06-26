@@ -4,6 +4,10 @@
  */
 
 const { resolveStableProductId } = require('../../../../scripts/lib/product-identity.cjs');
+const {
+  SUBCATEGORY_TO_PRODUCT_TYPE,
+  inferProductType,
+} = require('./product-type.constants');
 
 /** Verified public image URLs — 5 per subcategory (HEAD-checked). */
 const VERIFIED_IMAGE_URLS = {
@@ -336,6 +340,9 @@ function buildCatalogProducts() {
       description: `${line.name} by ${line.brand}. Part of the Wardrobe AI ${line.subcategory.replace(/-/g, ' ')} collection.`,
       category: meta.category,
       subcategory: line.subcategory,
+      productType: line.productType
+        ?? SUBCATEGORY_TO_PRODUCT_TYPE[line.subcategory]
+        ?? inferProductType({ name: line.name, subcategory: line.subcategory }),
       gender: meta.gender,
       brand: line.brand,
       price: line.price,

@@ -5,6 +5,10 @@ import {
   EMPTY_TRY_ON_OUTFIT,
   TRY_ON_LAYER_STACK,
 } from '../constants/try-on-layer.constants';
+import {
+  inferProductType,
+  resolveTryOnSlotFromProductType,
+} from '../../products/constants/product-type.constants';
 
 function resolveOverlayUrl(product) {
   return (
@@ -21,7 +25,9 @@ export function mapProductToTryOnLayer(product, categoryId) {
     return null;
   }
 
-  const slot = CATEGORY_TO_TRY_ON_SLOT[categoryId];
+  const productType = product.productType ?? product.product_type ?? inferProductType(product);
+  const slot = resolveTryOnSlotFromProductType(productType)
+    ?? CATEGORY_TO_TRY_ON_SLOT[categoryId];
 
   if (!slot) {
     return null;
@@ -32,6 +38,7 @@ export function mapProductToTryOnLayer(product, categoryId) {
     name: product.name,
     category: categoryId,
     categoryId,
+    productType,
     slot,
     imageUrl: product.imageUrl ?? product.image_url ?? null,
     overlayUrl: resolveOverlayUrl(product),

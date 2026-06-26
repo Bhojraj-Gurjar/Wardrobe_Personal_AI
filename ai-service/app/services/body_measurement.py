@@ -11,9 +11,14 @@ from app.schemas.body_analysis import (
     BodyMeasurements,
     MeasurementField,
 )
+from app.services.body_anthropometry import (
+    clamp_to_height_bounds,
+    validate_measurements,
+    width_to_circumference,
+)
 from app.services.body_shape_classifier import aggregate_body_shape, classify_body_shape
 from app.services.body_type_classifier import aggregate_body_type, classify_body_type
-from app.services.opencv_pose_provider import detect_pose_landmarks
+from app.services.opencv_pose_provider import detect_pose_landmarks_with_source
 from app.services.pose_landmarks import LandmarkPoint, PoseIndex
 
 logger = logging.getLogger(__name__)
@@ -125,13 +130,19 @@ def extract_body_measurements(
     pil_image: Image.Image,
     height_cm: float | None = None,
 ) -> dict[str, Any] | None:
+    if not height_cm or height_cm <= 0:
+        logger.warning("Body measurement requires user height for calibration")
+        return None
+
     rgb = np.array(pil_image.convert("RGB"))
     image_height, image_width = rgb.shape[:2]
 
     if image_height < 120 or image_width < 120:
         return None
 
-    landmarks = detect_pose_landmarks(rgb)
+    pose_result = detect_pose_landmarks_with_source(rgb)
+    landmarks = pose_result.get("landmarks") if pose_result else None
+    pose_source = pose_result.get("source") if pose_result else "none"
 
     if not landmarks:
         return None
@@ -213,54 +224,84 @@ def extract_body_measurements(
     ) <= 0:
         return None
 
-    scale = (height_cm / body_height_px) if height_cm and height_cm > 0 else None
+    scale = height_cm / body_height_px
+
+    shoulder_width_cm = clamp_to_height_bounds(
+        shoulder_width_px * scale,
+        height_cm,
+        "shoulderWidth",
+    )
+    chest_width_cm = chest_width_px * scale
+    waist_width_cm = waist_width_px * scale
+    hip_width_cm = hip_width_px * scale
+    arm_length_cm = clamp_to_height_bounds(
+        arm_length_px * scale,
+        height_cm,
+        "armLength",
+    )
+    leg_length_cm = clamp_to_height_bounds(
+        leg_length_px * scale,
+        height_cm,
+        "legLength",
+    )
+
+    chest_circ_cm = clamp_to_height_bounds(
+        width_to_circumference(chest_width_cm, "chest"),
+        height_cm,
+        "chest",
+    )
+    waist_circ_cm = clamp_to_height_bounds(
+        width_to_circumference(waist_width_cm, "waist"),
+        height_cm,
+        "waist",
+    )
+    hip_circ_cm = clamp_to_height_bounds(
+        width_to_circumference(hip_width_cm, "hip"),
+        height_cm,
+        "hip",
+    )
+
+    height_value = round(float(height_cm), 1)
+
+    def _field(value: float, confidence: float) -> MeasurementField:
+        return MeasurementField(
+            value=round(value, 1),
+            normalized=_normalize(value, height_value),
+            confidence=confidence,
+        )
 
     measurement_fields = {
-        "height": _build_measurement_field(
-            body_height_px,
-            body_height_px,
+        "height": _field(
+            height_value,
             _path_confidence([head_top, left_ankle, right_ankle]),
-            scale,
         ),
-        "shoulderWidth": _build_measurement_field(
-            shoulder_width_px,
-            body_height_px,
+        "shoulderWidth": _field(
+            shoulder_width_cm,
             _segment_confidence(left_shoulder, right_shoulder),
-            scale,
         ),
-        "chest": _build_measurement_field(
-            chest_width_px,
-            body_height_px,
+        "chest": _field(
+            chest_circ_cm,
             _segment_confidence(left_shoulder, right_shoulder),
-            scale,
         ),
-        "waist": _build_measurement_field(
-            waist_width_px,
-            body_height_px,
+        "waist": _field(
+            waist_circ_cm,
             waist_confidence,
-            scale,
         ),
-        "hip": _build_measurement_field(
-            hip_width_px,
-            body_height_px,
+        "hip": _field(
+            hip_circ_cm,
             _segment_confidence(left_hip, right_hip),
-            scale,
         ),
-        "armLength": _build_measurement_field(
-            arm_length_px,
-            body_height_px,
+        "armLength": _field(
+            arm_length_cm,
             _path_confidence(
                 [left_shoulder, left_elbow, left_wrist, right_shoulder, right_elbow, right_wrist]
             ),
-            scale,
         ),
-        "legLength": _build_measurement_field(
-            leg_length_px,
-            body_height_px,
+        "legLength": _field(
+            leg_length_cm,
             _path_confidence(
                 [left_hip, left_knee, left_ankle, right_hip, right_knee, right_ankle]
             ),
-            scale,
         ),
     }
 
@@ -280,17 +321,26 @@ def extract_body_measurements(
     height_value = measurements.height.value
     chest_value = measurements.chest.value
 
+    validation = validate_measurements(
+        {
+            "chest": chest_value,
+            "waist": waist_value,
+            "hip": hip_value,
+        },
+        height_value,
+    )
+
     body_type_result = classify_body_type(
-        shoulder_value,
-        waist_value,
-        chest_value,
-        hip_value,
+        shoulder_width_cm,
+        waist_width_cm,
+        chest_width_cm,
+        hip_width_cm,
         height_value,
     )
     body_shape_result = classify_body_shape(
-        shoulder_value,
-        waist_value,
-        hip_value,
+        shoulder_width_cm,
+        waist_width_cm,
+        hip_width_cm,
     )
 
     response = BodyAnalysisResult(
@@ -325,6 +375,15 @@ def extract_body_measurements(
     payload = response.model_dump_public()
     payload["_bodyTypeClassification"] = body_type_result
     payload["_bodyShapeClassification"] = body_shape_result
+    payload["poseSource"] = pose_source
+    payload["calibrationHeightCm"] = height_value
+    payload["measurementValidation"] = validation
+    payload["widthMeasurementsCm"] = {
+        "shoulderWidth": shoulder_width_cm,
+        "chest": round(chest_width_cm, 1),
+        "waist": round(waist_width_cm, 1),
+        "hip": round(hip_width_cm, 1),
+    }
     return payload
 
 
@@ -367,6 +426,7 @@ def measure_pose_frame(
         "armLength": result.get("armLength"),
         "legLength": result.get("legLength"),
         "measurements": measurements,
+        "widthMeasurementsCm": result.get("widthMeasurementsCm"),
         "_visibility": frame_confidence / 100,
         "_frameConfidence": frame_confidence,
         "_source": source,

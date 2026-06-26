@@ -14,6 +14,7 @@ import {
   resolveCatalogImages,
 } from '../utils/product-catalog.mapper';
 import { normalizeProductQuery } from '../utils/normalize-product-query.util';
+import { inferProductType } from '../constants/product-type.constants';
 import {
   isCatalogSku,
   resolveStableProductId,
@@ -130,6 +131,10 @@ class ProductService {
     await this.ensureSkuAvailable(dto.sku);
 
     const createData = mapCreateOrUpdateProductData(dto);
+
+    if (!createData.product_type) {
+      createData.product_type = dto.productType || inferProductType(dto);
+    }
 
     if (isCatalogSku(dto.sku)) {
       createData.id = resolveStableProductId(dto.sku);

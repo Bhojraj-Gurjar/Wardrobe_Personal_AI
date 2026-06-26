@@ -394,12 +394,25 @@ class AiService {
     return this.post('/body-analysis/analyze', formData, {}, { payloadBytes });
   }
 
-  generateFitProfile({ bodyType, bodyShape, bodyTypeCode = null, bodyShapeCode = null }) {
+  generateFitProfile({
+    bodyType,
+    bodyShape,
+    bodyTypeCode = null,
+    bodyShapeCode = null,
+    measurements = null,
+    bodyTypeRatios = null,
+    bodyShapeRatios = null,
+    widthMeasurementsCm = null,
+  }) {
     return this.postJson('/body-analysis/fit-profile', {
       bodyType,
       bodyShape,
       bodyTypeCode,
       bodyShapeCode,
+      measurements,
+      bodyTypeRatios,
+      bodyShapeRatios,
+      widthMeasurementsCm,
     });
   }
 

@@ -12,20 +12,44 @@ class RecommendationsRepository {
   }
 
   async getUserSignals(userId) {
-    const [profile, fashionDna, wishlistItems, orders] = await Promise.all([
+    const [
+      profile,
+      fashionDna,
+      wishlistItems,
+      orders,
+      faceAnalysis,
+      bodyAnalysis,
+      closetItems,
+    ] = await Promise.all([
       this.prisma.userProfile.findUnique({ where: { user_id: userId } }),
       this.prisma.fashionDna.findUnique({ where: { user_id: userId } }),
       this.prisma.wishlist.findMany({
         where: { user_id: userId },
-        include: { product: true },
+        include: { product: { include: { images: { orderBy: { sort_order: 'asc' } } } } },
       }),
       this.prisma.order.findMany({
         where: { user_id: userId },
         orderBy: { created_at: 'desc' },
       }),
+      this.prisma.faceAnalysis.findUnique({ where: { user_id: userId } }),
+      this.prisma.bodyAnalysis.findUnique({ where: { user_id: userId } }),
+      this.prisma.personalClosetItem.findMany({
+        where: { user_id: userId, is_removed: false },
+        include: { product: { include: { images: { orderBy: { sort_order: 'asc' } } } } },
+        take: 20,
+        orderBy: { created_at: 'desc' },
+      }),
     ]);
 
-    return { profile, fashionDna, wishlistItems, orders };
+    return {
+      profile,
+      fashionDna,
+      wishlistItems,
+      orders,
+      faceAnalysis,
+      bodyAnalysis,
+      closetItems,
+    };
   }
 
   findProductsByIds(ids) {

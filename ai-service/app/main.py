@@ -68,6 +68,13 @@ def create_app() -> FastAPI:
         FashionDnaVectorService().ensure_collection()
 
         try:
+            from app.tryon.service import log_tryon_startup_config
+
+            log_tryon_startup_config()
+        except Exception as error:  # noqa: BLE001
+            logger.error("Virtual try-on startup check failed: %s", error)
+
+        try:
             from app.services.face_trait_service import get_face_trait_engine
             from app.services.opencv_pose_provider import detect_pose_landmarks
             import numpy as np

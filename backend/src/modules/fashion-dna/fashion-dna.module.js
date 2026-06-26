@@ -14,6 +14,7 @@ import { FashionDnaRegenerationService } from './services/fashion-dna-regenerati
 import { FashionDnaHistoryRepository } from './repositories/fashion-dna-history.repository';
 import { FashionDnaHistoryService } from './services/fashion-dna-history.service';
 import { FashionDnaVectorService } from './services/fashion-dna-vector.service';
+import { FashionDnaEngineService } from './services/fashion-dna-engine.service';
 
 export @Module({
   imports: [
@@ -28,6 +29,7 @@ export @Module({
     FashionDnaActivityRepository,
     FashionDnaBehavioralService,
     FashionDnaContextService,
+    FashionDnaEngineService,
     FashionDnaRefreshService,
     FashionDnaCacheService,
     FashionDnaRegenerationService,

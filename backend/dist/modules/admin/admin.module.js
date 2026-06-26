@@ -14,6 +14,7 @@ const _facemodule = require("../face/face.module");
 const _ordersmodule = require("../orders/orders.module");
 const _admincontroller = require("./controllers/admin.controller");
 const _adminservice = require("./services/admin.service");
+const _adminbootstrapservice = require("./services/admin-bootstrap.service");
 const _adminrepository = require("./repositories/admin.repository");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -35,6 +36,7 @@ AdminModule = _ts_decorate([
         ],
         providers: [
             _adminservice.AdminService,
+            _adminbootstrapservice.AdminBootstrapService,
             _adminrepository.AdminRepository
         ],
         exports: [

@@ -55,6 +55,11 @@ export function hasBehavioralActivity(signals) {
     || Number(volume.orders || 0) > 0
     || Number(volume.product_views || 0) > 0
     || Number(volume.searches || 0) > 0
+    || Number(volume.cart || 0) > 0
+    || Number(volume.closet || 0) > 0
+    || Number(volume.try_on || 0) > 0
+    || Number(volume.virtual_try_on || 0) > 0
+    || Number(volume.saved_looks || 0) > 0
   );
 }
 
@@ -76,19 +81,19 @@ class FashionDnaContextService {
 
   async collectContext(userId) {
     const profile = await this.fashionDnaRepository.findUserProfile(userId);
+    const preferences = profile?.preferences || {};
 
     const [faceTraits, visualFaceTraits, storedBodyTraits, signals] = await Promise.all([
       this.faceAnalysisService.collectBiometricTraits(userId),
       this.faceAnalysisService.getStoredTraits(userId),
       this.bodyAnalysisService.getStoredTraits(userId),
-      this.behavioralService.collectSignals(userId),
+      this.behavioralService.collectSignals(userId, preferences),
     ]);
 
     const profileInsights = this.bodyProfileInsightsService.analyze(profile);
     const bodyTraits = storedBodyTraits
       ? { ...profileInsights, ...storedBodyTraits, analysis_source: 'body_analysis_record' }
       : profileInsights;
-    const preferences = profile?.preferences || {};
     const onboarding = extractOnboardingInputs(profile);
 
     return {

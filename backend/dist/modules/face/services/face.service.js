@@ -163,6 +163,32 @@ let FaceService = class FaceService {
             this.rethrowAiError(error);
         }
     }
+    async logout(userId, dto) {
+        if (!dto.imageBuffer?.length) {
+            throw new _common.BadRequestException('Face image is required.');
+        }
+        if (!this.aiService.isConfigured()) {
+            throw new _common.ServiceUnavailableException('AI service unavailable.');
+        }
+        const registration = await this.faceRepository.findFaceRegistration(userId);
+        if (!registration?.is_face_registered) {
+            throw new _common.BadRequestException('Register a face before using face logout verification.');
+        }
+        let result;
+        try {
+            result = await this.aiService.logoutFace(userId, dto.imageBuffer, dto.imageMimeType);
+        } catch (error) {
+            this.rethrowAiError(error);
+        }
+        const logoutNonce = (0, _crypto.randomUUID)();
+        await this.redisService.setex(`auth:logout-nonce:${userId}:${logoutNonce}`, 120, '1');
+        return {
+            verified: true,
+            similarity_score: result?.similarity_score ?? result?.similarityScore ?? null,
+            logoutNonce,
+            message: 'Face verified for logout'
+        };
+    }
     rethrowAiError(error) {
         if (error instanceof _common.BadRequestException || error instanceof _common.UnauthorizedException || error instanceof _common.ConflictException || error instanceof _common.ServiceUnavailableException) {
             throw error;

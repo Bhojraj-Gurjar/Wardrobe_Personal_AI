@@ -97,6 +97,21 @@ class PersonalClosetRepository {
     });
   }
 
+  createSavedOutfit(userId, data) {
+    return this.prisma.savedOutfit.create({
+      data: {
+        user_id: userId,
+        name: data.name,
+        products: data.products || [],
+        items: data.items || [],
+        preview_image: data.preview_image || null,
+        thumbnail: data.thumbnail || null,
+        total_price: data.total_price ?? null,
+        source: data.source || 'digital-avatar',
+      },
+    });
+  }
+
   findFavoriteBrands(userId) {
     return this.prisma.favoriteBrand.findMany({
       where: { user_id: userId },

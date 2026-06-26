@@ -2,6 +2,7 @@ import {
   topAffinityKeys,
   resolveProductBrand,
   resolveProductCategory,
+  resolveProductType,
 } from '../utils';
 import { resolveOnboardingBudget } from '../utils/budget-score.util';
 import { buildBehaviorProfileFromInteractions } from '../utils/behavior-score.util';
@@ -29,6 +30,13 @@ export function buildUserSignals({
         .filter(Boolean),
     ),
   ];
+  const wishlistProductTypes = [
+    ...new Set(
+      wishlistItems
+        .map((item) => resolveProductType(item.product))
+        .filter(Boolean),
+    ),
+  ];
 
   const activityBrands = topAffinityKeys(
     fashionDna?.activity_traits?.favorite_brands,
@@ -42,6 +50,10 @@ export function buildUserSignals({
   const favoriteCategories = topAffinityKeys(
     fashionDna?.activity_traits?.favorite_categories,
     6,
+  );
+  const favoriteProductTypes = topAffinityKeys(
+    fashionDna?.activity_traits?.favorite_product_types,
+    8,
   );
 
   const orderCount = orders.length;
@@ -57,9 +69,11 @@ export function buildUserSignals({
     wishlistProductIds,
     wishlistBrands,
     wishlistCategories,
+    wishlistProductTypes,
     favoriteBrands,
     favoriteColors,
     favoriteCategories,
+    favoriteProductTypes,
     orderStats: {
       count: orderCount,
       totalSpent,

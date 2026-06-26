@@ -4,6 +4,11 @@ import { ApiCacheService } from '../../../common/services/api-cache.service';
 import { resolveProfileRegenerationSource } from '../../fashion-dna/constants/fashion-dna-regeneration.constants';
 import { FashionDnaRegenerationService } from '../../fashion-dna/services/fashion-dna-regeneration.service';
 import { BodyAnalysisService } from '../../body-analysis/body-analysis.service';
+import { BodyPhotoProcessingService } from '../../body-analysis/services/body-photo-processing.service';
+import {
+  resolveOriginalBodyImagePath,
+  resolveTransparentBodyImagePath,
+} from '../../body-analysis/utils/body-photo-display.util';
 import { StoragePathResolver } from '../../../storage/services/storage-path-resolver.service';
 import { PIPELINE_SIGNALS, PipelineEventBus } from '../../user-pipeline/pipeline-event.bus';
 import { UserArtifactsService } from '../../user-artifacts/user-artifacts.service';
@@ -20,6 +25,7 @@ class UsersService {
     @Inject(UserArtifactsService) userArtifactsService,
     @Inject(StoragePathResolver) storagePathResolver,
     @Inject(ApiCacheService) apiCacheService,
+    @Inject(BodyPhotoProcessingService) bodyPhotoProcessingService,
   ) {
     this.usersRepository = usersRepository;
     this.fashionDnaRegenerationService = fashionDnaRegenerationService;
@@ -28,6 +34,7 @@ class UsersService {
     this.userArtifactsService = userArtifactsService;
     this.storagePathResolver = storagePathResolver;
     this.apiCacheService = apiCacheService;
+    this.bodyPhotoProcessingService = bodyPhotoProcessingService;
   }
 
   profileCacheKey(userId) {
@@ -135,11 +142,19 @@ class UsersService {
   formatProfile(profile, context = {}) {
     const faceImagePath = context.face_registration?.face_image_url || null;
     const preferences = profile.preferences || {};
-    const bodyImagePath =
-      sanitizeBodyPhotoPath(context.body_analysis?.body_image_url)
+    const userId = profile.user_id;
+    const originalPath = resolveOriginalBodyImagePath(context.body_analysis, preferences)
+      || sanitizeBodyPhotoPath(context.body_analysis?.body_image_url)
       || sanitizeBodyPhotoPath(preferences.bodyPhoto)
       || sanitizeBodyPhotoPath(preferences.body_photo)
+      || sanitizeBodyPhotoPath(profile.body_image)
       || null;
+    const transparentCandidate = resolveTransparentBodyImagePath(userId, preferences);
+    const transparentPath = transparentCandidate
+      && this.bodyPhotoProcessingService.transparentPngExists(userId)
+      ? transparentCandidate
+      : null;
+    const displayPath = transparentPath || originalPath;
 
     return {
       id: profile.id,
@@ -158,10 +173,13 @@ class UsersService {
       is_face_registered: context.face_registration?.is_face_registered ?? false,
       face_image_url: faceImagePath,
       faceImageUrl: this.storagePathResolver.toPublicUrl(faceImagePath),
-      body_image: bodyImagePath,
-      body_image_url: bodyImagePath,
-      bodyImageUrl: this.storagePathResolver.toPublicUrl(bodyImagePath),
-      bodyPhotoUrl: this.storagePathResolver.toPublicUrl(bodyImagePath),
+      body_image: originalPath,
+      body_image_url: originalPath,
+      bodyImageUrl: this.storagePathResolver.toPublicUrl(displayPath),
+      bodyPhotoUrl: this.storagePathResolver.toPublicUrl(displayPath),
+      bodyPhotoOriginalUrl: this.storagePathResolver.toPublicUrl(originalPath),
+      bodyPhotoTransparentUrl: this.storagePathResolver.toPublicUrl(transparentPath),
+      bodyPhotoProcessing: preferences.bodyPhotoProcessing || null,
       created_at: profile.created_at,
       updated_at: profile.updated_at,
     };

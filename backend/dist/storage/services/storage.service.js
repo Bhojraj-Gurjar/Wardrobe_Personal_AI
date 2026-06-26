@@ -70,6 +70,24 @@ let StorageService = class StorageService {
             objectKey
         });
     }
+    async uploadTryOnPersonImage({ userId, buffer, mimeType }) {
+        const extension = (0, _storagepathutil.extensionFromMimeType)(mimeType);
+        const objectKey = (0, _storagepathutil.buildTryOnPersonObjectKey)(userId, extension);
+        return this.provider.upload({
+            buffer,
+            mimeType,
+            objectKey
+        });
+    }
+    async uploadTryOnGarmentImage({ userId, buffer, mimeType }) {
+        const extension = (0, _storagepathutil.extensionFromMimeType)(mimeType);
+        const objectKey = (0, _storagepathutil.buildTryOnGarmentObjectKey)(userId, extension);
+        return this.provider.upload({
+            buffer,
+            mimeType,
+            objectKey
+        });
+    }
     async deleteStoredFile(storagePath) {
         return this.provider.deleteStoragePath(storagePath);
     }

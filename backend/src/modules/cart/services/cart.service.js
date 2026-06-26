@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { ProductInteractionService } from '../../recommendations/services/product-interaction.service';
 import { OrdersService } from '../../orders/services/orders.service';
+import { FashionDnaRegenerationService } from '../../fashion-dna/services/fashion-dna-regeneration.service';
+import { REFRESH_SOURCES } from '../../fashion-dna/constants/fashion-dna-regeneration.constants';
 import { calculateCartTotals, generateOrderNumber } from '../../commerce/constants/commerce.constants';
 import { formatCatalogProduct } from '../../products/utils/product-catalog.mapper';
 import { CartRepository } from '../repositories/cart.repository';
@@ -16,10 +18,16 @@ class CartService {
     @Inject(CartRepository) cartRepository,
     @Inject(ProductInteractionService) productInteractionService,
     @Inject(OrdersService) ordersService,
+    @Inject(FashionDnaRegenerationService) fashionDnaRegenerationService,
   ) {
     this.cartRepository = cartRepository;
     this.productInteractionService = productInteractionService;
     this.ordersService = ordersService;
+    this.fashionDnaRegenerationService = fashionDnaRegenerationService;
+  }
+
+  triggerFashionDnaRefresh(userId) {
+    this.fashionDnaRegenerationService.trigger(userId, REFRESH_SOURCES.CART_UPDATE);
   }
 
   async getCart(userId, couponCode = null) {
@@ -60,6 +68,7 @@ class CartService {
     }
 
     const items = await this.cartRepository.findByUserId(userId);
+    this.triggerFashionDnaRefresh(userId);
     return this.buildCartResponse(items, dto.coupon_code || null, item);
   }
 
@@ -88,6 +97,7 @@ class CartService {
 
     await this.cartRepository.delete(id);
     const items = await this.cartRepository.findByUserId(userId);
+    this.triggerFashionDnaRefresh(userId);
     return this.buildCartResponse(items);
   }
 

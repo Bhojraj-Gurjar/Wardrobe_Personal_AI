@@ -7,6 +7,7 @@ import {
   FACE_PUBLIC_PREFIX,
   STORAGE_PROVIDERS,
   TRY_ON_PUBLIC_PREFIX,
+  USER_PNG_PUBLIC_PREFIX,
 } from '../storage.constants';
 
 const DATA_URL_PATTERN = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/;
@@ -49,6 +50,14 @@ export function buildTryOnPersonStoragePath(userId, extension = 'jpg') {
 
 export function buildTryOnGarmentStoragePath(userId, extension = 'jpg') {
   return `${TRY_ON_PUBLIC_PREFIX}/${userId}/garment.${extension}`;
+}
+
+export function buildUserPngStoragePath(userId) {
+  return `${USER_PNG_PUBLIC_PREFIX}/${userId}.png`;
+}
+
+export function buildTryOnPersonProcessedStoragePath(userId) {
+  return `${TRY_ON_PUBLIC_PREFIX}/${userId}/person.png`;
 }
 
 export function extensionFromMimeType(mimeType = 'image/png') {
@@ -120,7 +129,8 @@ export function isStoredImagePath(value) {
     && (value.startsWith(AVATAR_PUBLIC_PREFIX)
       || value.startsWith(FACE_PUBLIC_PREFIX)
       || value.startsWith(BODY_PUBLIC_PREFIX)
-      || value.startsWith(TRY_ON_PUBLIC_PREFIX))
+      || value.startsWith(TRY_ON_PUBLIC_PREFIX)
+      || value.startsWith(USER_PNG_PUBLIC_PREFIX))
   );
 }
 
@@ -134,6 +144,10 @@ export function isBodyPhotoPath(value) {
 
 export function isTryOnImagePath(value) {
   return typeof value === 'string' && value.startsWith(TRY_ON_PUBLIC_PREFIX);
+}
+
+export function isUserPngPath(value) {
+  return typeof value === 'string' && value.startsWith(USER_PNG_PUBLIC_PREFIX);
 }
 
 export function toFilesystemPath(storagePath, rootDir) {

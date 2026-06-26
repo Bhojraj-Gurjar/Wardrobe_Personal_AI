@@ -12,6 +12,11 @@ import { FaceService } from '../../face/services/face.service';
 import { OrdersService } from '../../orders/services/orders.service';
 import { StoragePathResolver } from '../../../storage/services/storage-path-resolver.service';
 import { formatCatalogProduct } from '../../products/utils/product-catalog.mapper';
+import {
+  inferProductType,
+  isValidProductType,
+  resolveUiCategoryForProductType,
+} from '../../products/constants/product-type.constants';
 import { USER_ROLE } from '../../../common/constants/user-role';
 import { ORDER_STATUS } from '../../orders/validators/order.constants';
 import { normalizeDisplayStatus } from '../../orders/utils/order-status.util';
@@ -166,9 +171,17 @@ class AdminService {
     }
 
     const categoryTotals = new Map();
+    const productTypeTotals = new Map();
     for (const order of categoryOrders) {
       const category = order.product?.category || 'Other';
       categoryTotals.set(category, (categoryTotals.get(category) || 0) + order.total_amount);
+
+      const productType = order.product?.product_type
+        || inferProductType(order.product || {});
+      productTypeTotals.set(
+        productType,
+        (productTypeTotals.get(productType) || 0) + order.total_amount,
+      );
     }
 
     const salesByCategory = [...categoryTotals.entries()]
@@ -185,6 +198,10 @@ class AdminService {
       },
       revenueUsersChart,
       salesByCategory,
+      salesByProductType: [...productTypeTotals.entries()]
+        .map(([productType, value]) => ({ productType, value: Math.round(value) }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 8),
     };
   }
 
@@ -328,11 +345,16 @@ class AdminService {
   }
 
   async createProduct(payload) {
+    if (!payload.productType || !isValidProductType(payload.productType)) {
+      throw new BadRequestException('A valid product type is required.');
+    }
+
     const product = await this.adminRepository.createProduct({
       sku: payload.sku,
       name: payload.name,
       brand: payload.brand || null,
-      category: payload.category || null,
+      category: payload.category || resolveUiCategoryForProductType(payload.productType) || null,
+      product_type: payload.productType,
       price: payload.price,
       image_url: payload.imageUrl || null,
       is_active: payload.isActive !== false,
@@ -342,10 +364,15 @@ class AdminService {
   }
 
   async updateProduct(id, payload) {
+    if (payload.productType !== undefined && !isValidProductType(payload.productType)) {
+      throw new BadRequestException('Invalid product type.');
+    }
+
     const product = await this.adminRepository.updateProduct(id, {
       ...(payload.name !== undefined ? { name: payload.name } : {}),
       ...(payload.brand !== undefined ? { brand: payload.brand } : {}),
       ...(payload.category !== undefined ? { category: payload.category } : {}),
+      ...(payload.productType !== undefined ? { product_type: payload.productType } : {}),
       ...(payload.price !== undefined ? { price: payload.price } : {}),
       ...(payload.imageUrl !== undefined ? { image_url: payload.imageUrl } : {}),
       ...(payload.isActive !== undefined ? { is_active: payload.isActive } : {}),
@@ -679,6 +706,7 @@ class AdminService {
       name: product.name,
       brand: product.brand,
       category: product.category,
+      productType: product.product_type ?? inferProductType(product),
       price: product.price,
       currency: product.currency,
       stock: deriveStock(product.sku),

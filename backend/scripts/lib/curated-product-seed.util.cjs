@@ -14,7 +14,7 @@ function createCuratedProductSeeder({
   occasionTags = ['casual'],
   defaultStyleTag = 'curated',
 }) {
-  const BACKEND_ROOT = resolve(__dirname, '..');
+  const BACKEND_ROOT = resolve(__dirname, '../..');
   const ASSETS_PATH = join(BACKEND_ROOT, assetsDir);
   const UPLOADS_ROOT = join(BACKEND_ROOT, process.env.STORAGE_LOCAL_ROOT || 'uploads');
   const PRODUCT_UPLOAD_DIR = join(UPLOADS_ROOT, uploadDir);

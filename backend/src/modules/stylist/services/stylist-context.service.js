@@ -51,6 +51,7 @@ class StylistContextService {
       fashionDna: raw.fashionDna,
       faceAnalysis: raw.faceAnalysis,
       bodyAnalysis: raw.bodyAnalysis,
+      closetItems: raw.closetItems || [],
       displayName:
         raw.profile?.name
         || raw.profile?.preferences?.display_name
@@ -71,6 +72,8 @@ class StylistContextService {
       body_type: factors.body_type,
       skin_tone: factors.skin_tone,
       face_shape: factors.face_shape,
+      body_shape: context.bodyAnalysis?.body_shape || context.bodyAnalysis?.bodyShape || null,
+      style_score: context.confidenceScore,
       favorite_brands: factors.favorite_brands?.slice(0, 6) || [],
       favorite_colors: factors.favorite_colors?.slice(0, 6) || [],
       budget_avg: factors.shopping_history?.avg_order_value || null,

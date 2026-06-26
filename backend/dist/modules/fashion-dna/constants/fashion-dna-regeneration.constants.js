@@ -27,7 +27,12 @@ const REFRESH_SOURCES = {
     PURCHASE: 'purchase',
     PRODUCT_VIEW: 'product_view',
     SEARCH: 'search',
-    BROWSING_ACTIVITY: 'browsing_activity'
+    BROWSING_ACTIVITY: 'browsing_activity',
+    CART_UPDATE: 'cart_update',
+    CLOSET_UPDATE: 'closet_update',
+    TRY_ON: 'try_on',
+    SAVED_LOOK: 'saved_look',
+    STYLIST: 'stylist'
 };
 const BODY_ANALYSIS_PROFILE_FIELDS = [
     'height',

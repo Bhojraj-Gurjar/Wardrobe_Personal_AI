@@ -1,6 +1,11 @@
 #!/bin/sh
 set -e
 
+if [ "$(id -u)" = "0" ]; then
+  mkdir -p /app/uploads/products
+  chown -R nodejs:nodejs /app/uploads
+fi
+
 if [ -x ./node_modules/.bin/prisma ]; then
   echo "Applying database schema..."
   npx prisma db push --schema=prisma/schema.prisma --accept-data-loss
@@ -41,6 +46,10 @@ fi
 if [ -f ./scripts/seed-curated-footwear-products.js ]; then
   echo "Seeding curated Wardrobe AI footwear products..."
   node scripts/seed-curated-footwear-products.js || echo "Curated footwear seed skipped (non-fatal)."
+fi
+
+if [ "$(id -u)" = "0" ]; then
+  exec gosu nodejs "$@"
 fi
 
 exec "$@"

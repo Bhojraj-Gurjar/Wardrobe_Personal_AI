@@ -27,14 +27,44 @@ _export(exports, {
     get buildFaceStoragePath () {
         return buildFaceStoragePath;
     },
+    get buildTryOnGarmentObjectKey () {
+        return buildTryOnGarmentObjectKey;
+    },
+    get buildTryOnGarmentStoragePath () {
+        return buildTryOnGarmentStoragePath;
+    },
+    get buildTryOnPersonObjectKey () {
+        return buildTryOnPersonObjectKey;
+    },
+    get buildTryOnPersonProcessedStoragePath () {
+        return buildTryOnPersonProcessedStoragePath;
+    },
+    get buildTryOnPersonStoragePath () {
+        return buildTryOnPersonStoragePath;
+    },
+    get buildUserPngStoragePath () {
+        return buildUserPngStoragePath;
+    },
     get createStorageProvider () {
         return createStorageProvider;
     },
     get extensionFromMimeType () {
         return extensionFromMimeType;
     },
+    get isBodyPhotoPath () {
+        return isBodyPhotoPath;
+    },
+    get isFacePhotoPath () {
+        return isFacePhotoPath;
+    },
     get isStoredImagePath () {
         return isStoredImagePath;
+    },
+    get isTryOnImagePath () {
+        return isTryOnImagePath;
+    },
+    get isUserPngPath () {
+        return isUserPngPath;
     },
     get mimeTypeFromExtension () {
         return mimeTypeFromExtension;
@@ -70,6 +100,24 @@ function buildBodyStoragePath(userId, extension = 'jpg') {
 }
 function buildBodyObjectKey(userId, extension = 'jpg') {
     return `body/${userId}/body.${extension}`;
+}
+function buildTryOnPersonObjectKey(userId, extension = 'jpg') {
+    return `try-on/${userId}/person.${extension}`;
+}
+function buildTryOnGarmentObjectKey(userId, extension = 'jpg') {
+    return `try-on/${userId}/garment.${extension}`;
+}
+function buildTryOnPersonStoragePath(userId, extension = 'jpg') {
+    return `${_storageconstants.TRY_ON_PUBLIC_PREFIX}/${userId}/person.${extension}`;
+}
+function buildTryOnGarmentStoragePath(userId, extension = 'jpg') {
+    return `${_storageconstants.TRY_ON_PUBLIC_PREFIX}/${userId}/garment.${extension}`;
+}
+function buildUserPngStoragePath(userId) {
+    return `${_storageconstants.USER_PNG_PUBLIC_PREFIX}/${userId}.png`;
+}
+function buildTryOnPersonProcessedStoragePath(userId) {
+    return `${_storageconstants.TRY_ON_PUBLIC_PREFIX}/${userId}/person.png`;
 }
 function extensionFromMimeType(mimeType = 'image/png') {
     return mimeType.split('/')[1]?.replace('jpeg', 'jpg') || 'png';
@@ -121,7 +169,19 @@ function resolvePublicAssetUrl(storagePath, publicBaseUrl) {
     return `${base}${path}`;
 }
 function isStoredImagePath(value) {
-    return typeof value === 'string' && (value.startsWith(_storageconstants.AVATAR_PUBLIC_PREFIX) || value.startsWith(_storageconstants.FACE_PUBLIC_PREFIX) || value.startsWith(_storageconstants.BODY_PUBLIC_PREFIX));
+    return typeof value === 'string' && (value.startsWith(_storageconstants.AVATAR_PUBLIC_PREFIX) || value.startsWith(_storageconstants.FACE_PUBLIC_PREFIX) || value.startsWith(_storageconstants.BODY_PUBLIC_PREFIX) || value.startsWith(_storageconstants.TRY_ON_PUBLIC_PREFIX) || value.startsWith(_storageconstants.USER_PNG_PUBLIC_PREFIX));
+}
+function isFacePhotoPath(value) {
+    return typeof value === 'string' && value.startsWith(_storageconstants.FACE_PUBLIC_PREFIX);
+}
+function isBodyPhotoPath(value) {
+    return typeof value === 'string' && value.startsWith(_storageconstants.BODY_PUBLIC_PREFIX);
+}
+function isTryOnImagePath(value) {
+    return typeof value === 'string' && value.startsWith(_storageconstants.TRY_ON_PUBLIC_PREFIX);
+}
+function isUserPngPath(value) {
+    return typeof value === 'string' && value.startsWith(_storageconstants.USER_PNG_PUBLIC_PREFIX);
 }
 function toFilesystemPath(storagePath, rootDir) {
     const normalized = storagePath.replace(/^\/uploads\//, '');

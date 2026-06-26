@@ -1,6 +1,7 @@
 export {
   resolveProductBrand,
   resolveProductCategory,
+  resolveProductType,
   topAffinityKeys,
 } from './recommendation-scoring.util';
 export {

@@ -6,6 +6,10 @@ class FitProfileRequest(BaseModel):
     body_shape: str = Field(alias="bodyShape")
     body_type_code: str | None = Field(default=None, alias="bodyTypeCode")
     body_shape_code: str | None = Field(default=None, alias="bodyShapeCode")
+    measurements: dict | None = None
+    body_type_ratios: dict | None = Field(default=None, alias="bodyTypeRatios")
+    body_shape_ratios: dict | None = Field(default=None, alias="bodyShapeRatios")
+    width_measurements_cm: dict | None = Field(default=None, alias="widthMeasurementsCm")
 
     model_config = {"populate_by_name": True}
 

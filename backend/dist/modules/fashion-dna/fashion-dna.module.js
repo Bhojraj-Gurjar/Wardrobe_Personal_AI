@@ -24,6 +24,7 @@ const _fashiondnaregenerationservice = require("./services/fashion-dna-regenerat
 const _fashiondnahistoryrepository = require("./repositories/fashion-dna-history.repository");
 const _fashiondnahistoryservice = require("./services/fashion-dna-history.service");
 const _fashiondnavectorservice = require("./services/fashion-dna-vector.service");
+const _fashiondnaengineservice = require("./services/fashion-dna-engine.service");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -48,6 +49,7 @@ FashionDnaModule = _ts_decorate([
             _fashiondnaactivityrepository.FashionDnaActivityRepository,
             _fashiondnabehavioralservice.FashionDnaBehavioralService,
             _fashiondnacontextservice.FashionDnaContextService,
+            _fashiondnaengineservice.FashionDnaEngineService,
             _fashiondnarefreshservice.FashionDnaRefreshService,
             _fashiondnacacheservice.FashionDnaCacheService,
             _fashiondnaregenerationservice.FashionDnaRegenerationService,

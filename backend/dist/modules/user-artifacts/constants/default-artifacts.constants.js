@@ -48,13 +48,7 @@ const DEFAULT_FACE_ANALYSIS = {
         hairStyleConfidence: 94,
         hairLengthConfidence: 94,
         hairColorConfidence: 94,
-        beardTypeConfidence: 94,
-        recommendations: [
-            'V-neck tops',
-            'Structured jackets',
-            'Layered accessories',
-            'Balanced collar styles'
-        ]
+        beardTypeConfidence: 94
     }
 };
 const INCH_TO_CM = 2.54;
@@ -80,26 +74,7 @@ const DEFAULT_BODY_ANALYSIS = {
     hip: inchToCm(DEFAULT_BODY_MEASUREMENTS_INCHES.hip),
     arm_length: inchToCm(DEFAULT_BODY_MEASUREMENTS_INCHES.armLength),
     leg_length: inchToCm(DEFAULT_BODY_MEASUREMENTS_INCHES.legLength),
-    fit_profile: {
-        sections: [
-            {
-                id: 'tops',
-                fit: 'Slim fit tops'
-            },
-            {
-                id: 'bottoms',
-                fit: 'Straight trousers'
-            },
-            {
-                id: 'outerwear',
-                fit: 'Tailored jackets'
-            },
-            {
-                id: 'footwear',
-                fit: 'Minimal bulky footwear'
-            }
-        ]
-    },
+    fit_profile: null,
     raw_ai_response: {
         isDefault: true,
         bodyType: 'Athletic',
@@ -149,67 +124,34 @@ const DEFAULT_BODY_ANALYSIS = {
                 value: inchToCm(DEFAULT_BODY_MEASUREMENTS_INCHES.legLength),
                 normalized: 0.83
             }
-        },
-        recommendations: [
-            'Slim fit tops',
-            'Straight trousers',
-            'Tailored jackets',
-            'Minimal bulky footwear'
-        ]
+        }
     }
 };
 const DEFAULT_FASHION_DNA = {
-    style_type: 'SMART_CASUAL',
-    color_affinity: {
-        black: 0.92,
-        white: 0.88,
-        navy: 0.85
-    },
-    budget_range: 'MID_RANGE',
+    style_type: 'DEVELOPING',
+    color_affinity: {},
+    budget_range: 'UNKNOWN',
     brand_affinity: {},
-    fashion_confidence_score: 85,
-    face_traits: {
-        face_shape: 'Oval',
-        skin_tone: 'Medium',
-        hair_style: 'Soft Waves',
-        hair_color: 'Black'
-    },
-    body_traits: {
-        body_type: 'Athletic',
-        build: 'Lean',
-        frame: 'Broad',
-        posture: 'Upright'
-    },
+    fashion_confidence_score: 0,
+    face_traits: {},
+    body_traits: {},
     preference_traits: {
-        fashion_personality: 'Smart Casual',
-        favorite_colors: [
-            'Black',
-            'White',
-            'Navy'
-        ],
-        preferred_fits: [
-            'Slim Fit'
-        ],
-        occasions: [
-            'Casual',
-            'Office'
-        ],
-        preferred_categories: [
-            'CASUAL',
-            'FORMAL'
-        ]
+        isDefault: true
     },
     activity_traits: {
-        recommendations: [
-            'Minimal layering',
-            'Neutral palettes',
-            'Clean silhouettes'
-        ],
-        topColors: [
-            'Black',
-            'White',
-            'Navy'
-        ]
+        isDefault: true,
+        activity_volume: {
+            orders: 0,
+            wishlist: 0,
+            cart: 0,
+            closet: 0,
+            product_views: 0,
+            searches: 0,
+            try_on: 0,
+            virtual_try_on: 0,
+            saved_looks: 0,
+            stylist_sessions: 0
+        }
     }
 };
 const DEFAULT_AVATAR_METADATA = {

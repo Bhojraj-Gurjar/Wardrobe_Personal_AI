@@ -10,16 +10,29 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     liblapack-dev \
     && rm -rf /var/lib/apt/lists/*
 
-ENV CMAKE_BUILD_PARALLEL_LEVEL=2
+ENV CMAKE_BUILD_PARALLEL_LEVEL=1
+ENV MAX_JOBS=1
 ENV PIP_NO_CACHE_DIR=1
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+ENV PIP_DEFAULT_TIMEOUT=120
 
+# Install PyTorch CPU wheel first (large, isolated layer).
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 
-COPY requirements-docker.txt requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt \
-  && find /usr/local/lib/python3.11/site-packages -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true \
-  && find /usr/local/lib/python3.11/site-packages -type f -name '*.pyc' -delete 2>/dev/null || true
+COPY requirements-docker-core.txt requirements-docker-ml.txt ./
+
+# Split installs to lower peak RAM during Docker builds on Windows.
+RUN pip install --no-cache-dir -r requirements-docker-core.txt
+RUN pip install --no-cache-dir -r requirements-docker-ml.txt
+
+# Shrink site-packages before exporting the layer (avoids Docker Desktop EOF on unpack).
+RUN find /usr/local/lib/python3.11/site-packages -type d \( \
+      -name '__pycache__' -o -name 'tests' -o -name 'test' -o \
+      -name 'examples' -o -name 'docs' -o -name 'include' \
+    \) -prune -exec rm -rf {} + 2>/dev/null || true \
+  && find /usr/local/lib/python3.11/site-packages -name '*.pyc' -delete 2>/dev/null || true \
+  && rm -rf /usr/local/lib/python3.11/site-packages/tensorboard* 2>/dev/null || true \
+  && rm -rf /root/.cache /tmp/*
 
 # ── Stage 2: lean runtime (no compilers) ─────────────────────────────────────
 FROM python:3.11-slim AS runner

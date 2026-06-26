@@ -4,12 +4,12 @@ import {
   Injectable,
   Logger,
   NotFoundException,
-  ServiceUnavailableException,
 } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { FashionDnaRepository } from '../repositories/fashion-dna.repository';
 import { AiService } from '../../ai/services/ai.service';
 import { FashionDnaBehavioralService } from './fashion-dna-behavioral.service';
+import { FashionDnaEngineService } from './fashion-dna-engine.service';
 
 function resolveUserArtifacts(moduleRef) {
   const { UserArtifactsService } = require('../../user-artifacts/user-artifacts.service');
@@ -31,14 +31,8 @@ import {
 } from './fashion-dna-history.service';
 import { FashionDnaVectorService } from './fashion-dna-vector.service';
 import {
-  deriveBudgetDisplay,
-  deriveHistoryTimeline,
-  derivePercentileLabel,
   derivePersonalityDescription,
-  deriveStyleAttributes,
-  deriveStyleRadar,
   deriveWeeklyGrowth,
-  formatBrandAffinityList,
 } from '../utils/fashion-dna-analytics.util';
 
 export @Injectable()
@@ -50,6 +44,8 @@ class FashionDnaService {
     @Inject(FashionDnaCacheService) cacheService,
     @Inject(FashionDnaHistoryService) historyService,
     @Inject(FashionDnaVectorService) vectorService,
+    @Inject(FashionDnaEngineService) engineService,
+    @Inject(FashionDnaBehavioralService) behavioralService,
     @Inject(ModuleRef) moduleRef,
   ) {
     this.fashionDnaRepository = fashionDnaRepository;
@@ -58,6 +54,8 @@ class FashionDnaService {
     this.cacheService = cacheService;
     this.historyService = historyService;
     this.vectorService = vectorService;
+    this.engineService = engineService;
+    this.behavioralService = behavioralService;
     this.moduleRef = moduleRef;
     this.logger = new Logger(FashionDnaService.name);
   }
@@ -127,13 +125,15 @@ class FashionDnaService {
     }
 
     const payload = await this.analyzeWithAi(userId, context);
+    const intelligence = await this.buildIntelligenceFromContext(context, payload);
+    const mergedPayload = this.mergeIntelligenceIntoPayload(payload, intelligence);
     const existing = await this.fashionDnaRepository.findByUserId(userId);
 
     if (existing) {
       await this.historyService.archiveBeforeChange(existing, historySource);
     }
 
-    const fashionDna = await this.fashionDnaRepository.upsert(userId, payload);
+    const fashionDna = await this.fashionDnaRepository.upsert(userId, mergedPayload);
     const formatted = await this.formatFashionDna(fashionDna, userId);
 
     await this.cacheService.invalidate(userId);
@@ -193,10 +193,10 @@ class FashionDnaService {
   }
 
   async analyzeWithAi(userId, context) {
+    const fallbackPayload = this.buildEngineOnlyPayload(context);
+
     if (!this.aiService.isConfigured()) {
-      throw new ServiceUnavailableException(
-        'Fashion DNA analysis unavailable — AI service is not configured',
-      );
+      return fallbackPayload;
     }
 
     const analyzePayload = this.contextService.buildAnalyzePayload(context);
@@ -211,11 +211,85 @@ class FashionDnaService {
 
       return mapAiResponseToPayload(aiResponse, context);
     } catch (error) {
-      this.logger.error(
-        `Fashion DNA AI analysis failed for user ${userId}: ${error.message}`,
+      this.logger.warn(
+        `Fashion DNA AI analysis fallback for user ${userId}: ${error.message}`,
       );
-      throw error;
+      return fallbackPayload;
     }
+  }
+
+  buildEngineOnlyPayload(context) {
+    const { faceTraits, bodyTraits, onboarding, signals } = context;
+
+    return mapAiResponseToPayload({
+      styleType: 'developing',
+      fashionPersonality: null,
+      colorAffinity: {},
+      brandAffinity: signals?.favoriteBrandsRanked || {},
+      categoryAffinity: signals?.favoriteCategories || {},
+      budgetRange: 'MID_RANGE',
+      fashionConfidenceScore: 0,
+      activityTraits: this.behavioralService.buildHistoryPayload(signals || {}),
+    }, {
+      faceTraits,
+      bodyTraits,
+      onboarding,
+    });
+  }
+
+  async buildIntelligenceFromContext(context, payload = {}) {
+    const preferenceTraits = payload.preference_traits || {};
+    const activityTraits = payload.activity_traits || {};
+
+    return this.engineService.buildIntelligence({
+      faceTraits: context.faceTraits,
+      bodyTraits: context.bodyTraits,
+      onboarding: context.onboarding,
+      preferences: context.preferences,
+      preferenceTraits,
+      signals: context.signals,
+      colorAffinity: payload.color_affinity || {},
+      brandAffinity: payload.brand_affinity || {},
+      budgetRange: payload.budget_range,
+      currency: context.signals?.productInteractions?.[0]?.product?.currency || 'INR',
+    });
+  }
+
+  mergeIntelligenceIntoPayload(payload, intelligence) {
+    const preferenceTraits = {
+      ...(payload.preference_traits || {}),
+      fashion_personality: intelligence.fashionPersonality,
+      category_affinity: payload.preference_traits?.category_affinity || {},
+    };
+
+    const activityTraits = {
+      ...(payload.activity_traits || {}),
+      engine_version: 2,
+      confidence_breakdown: intelligence.confidenceBreakdown,
+      style_radar: intelligence.styleRadar,
+      style_attributes: intelligence.styleAttributes,
+      color_profile: intelligence.colorProfile,
+      style_evolution: intelligence.styleEvolution,
+      wardrobe_balance: intelligence.wardrobeBalance,
+      ai_insights: intelligence.aiInsights,
+      topColors: intelligence.colorProfile?.topColors || payload.activity_traits?.topColors || [],
+    };
+
+    return {
+      ...payload,
+      fashion_confidence_score: intelligence.confidenceScore,
+      preference_traits: preferenceTraits,
+      activity_traits: activityTraits,
+      brand_affinity: intelligence.brandAffinityList.length
+        ? Object.fromEntries(
+          intelligence.brandAffinityList.map((brand) => [
+            brand.key,
+            Number((brand.percentage / 100).toFixed(4)),
+          ]),
+        )
+        : payload.brand_affinity,
+      budget_range: payload.budget_range,
+    };
   }
 
   mapUpdateDtoToData(dto) {
@@ -247,33 +321,55 @@ class FashionDnaService {
   async formatFashionDna(fashionDna, userId = null) {
     const activityTraits = fashionDna.activity_traits || {};
     const preferenceTraits = fashionDna.preference_traits || {};
-    const categoryAffinity = preferenceTraits.category_affinity || {};
-    const fashionPersonality =
-      preferenceTraits.fashion_personality
-      || activityTraits.fashionPersonality
-      || null;
-    const confidenceScore = Math.round(
-      Number(fashionDna.fashion_confidence_score) || 0,
-    );
-    const averageSpending = activityTraits.average_spending ?? null;
-    const budgetDisplay = deriveBudgetDisplay(
-      fashionDna.budget_range,
-      averageSpending,
-    );
+    const isDefault = Boolean(preferenceTraits.isDefault || activityTraits.isDefault);
 
     let historyItems = [];
+    let intelligence = null;
 
     if (userId) {
       const history = await this.historyService.getHistory(userId, { limit: 50 });
       historyItems = history.items || [];
+
+      const profile = await this.fashionDnaRepository.findUserProfile(userId);
+      const preferences = profile?.preferences || {};
+      const signals = await this.behavioralService.collectSignals(userId, preferences);
+
+      intelligence = this.engineService.buildIntelligence({
+        faceTraits: fashionDna.face_traits || {},
+        bodyTraits: fashionDna.body_traits || {},
+        onboarding: extractOnboardingInputs(profile),
+        preferences,
+        preferenceTraits,
+        signals,
+        colorAffinity: fashionDna.color_affinity || {},
+        brandAffinity: fashionDna.brand_affinity || {},
+        budgetRange: fashionDna.budget_range,
+        currency: signals.productInteractions?.[0]?.product?.currency || 'INR',
+      });
     }
 
-    const styleAttributes = deriveStyleAttributes(
-      categoryAffinity,
-      fashionPersonality,
-    );
-    const styleRadar = deriveStyleRadar(categoryAffinity, fashionPersonality);
-    const historyTimeline = deriveHistoryTimeline(
+    const confidenceScore = intelligence?.confidenceScore
+      ?? Math.round(Number(fashionDna.fashion_confidence_score) || 0);
+    const fashionPersonality = intelligence?.fashionPersonality
+      || preferenceTraits.fashion_personality
+      || null;
+    const styleRadar = intelligence?.styleRadar || activityTraits.style_radar || {};
+    const styleAttributes = intelligence?.styleAttributes || activityTraits.style_attributes || {};
+    const budgetProfile = intelligence?.budgetProfile || {
+      budgetRangeLabel: null,
+      averageSpending: activityTraits.average_spending ?? null,
+      spendProgress: 0,
+      budgetType: null,
+    };
+    const brandAffinityList = intelligence?.brandAffinityList || [];
+    const colorProfile = intelligence?.colorProfile || activityTraits.color_profile || {
+      primary: [],
+      secondary: [],
+      accent: [],
+      avoid: [],
+      topColors: activityTraits.topColors || [],
+    };
+    const historyTimeline = this.engineService.deriveHistoryTimeline(
       historyItems,
       confidenceScore,
       fashionDna.updated_at,
@@ -283,25 +379,33 @@ class FashionDnaService {
     return {
       id: fashionDna.id,
       userId: fashionDna.user_id,
+      isDefault,
       styleType: fashionDna.style_type,
       fashionPersonality,
       personalityDescription: derivePersonalityDescription(fashionPersonality),
-      percentileLabel: derivePercentileLabel(confidenceScore),
       colorAffinity: fashionDna.color_affinity,
-      topColors: activityTraits.topColors || [],
+      colorProfile,
+      topColors: colorProfile.topColors || activityTraits.topColors || [],
       colorAffinityScore: activityTraits.colorAffinityScore ?? 0,
       budgetRange: fashionDna.budget_range,
-      budgetRangeLabel: budgetDisplay.budgetRangeLabel,
-      averageSpending: budgetDisplay.averageSpending,
-      spendProgress: budgetDisplay.spendProgress,
+      budgetRangeLabel: budgetProfile.budgetRangeLabel,
+      budgetType: budgetProfile.budgetType,
+      averageSpending: budgetProfile.averageSpending,
+      spendProgress: budgetProfile.spendProgress,
       brandAffinity: fashionDna.brand_affinity,
-      brandAffinityList: formatBrandAffinityList(fashionDna.brand_affinity),
+      brandAffinityList,
       fashionConfidenceScore: confidenceScore,
       confidenceScore,
+      confidenceBreakdown: intelligence?.confidenceBreakdown
+        || activityTraits.confidence_breakdown
+        || null,
       styleAttributes,
       styleRadar,
       historyTimeline,
       weeklyGrowth,
+      aiInsights: intelligence?.aiInsights || activityTraits.ai_insights || [],
+      styleEvolution: intelligence?.styleEvolution || activityTraits.style_evolution || [],
+      wardrobeBalance: intelligence?.wardrobeBalance || activityTraits.wardrobe_balance || null,
       faceTraits: fashionDna.face_traits,
       bodyTraits: fashionDna.body_traits,
       preferenceTraits: fashionDna.preference_traits,

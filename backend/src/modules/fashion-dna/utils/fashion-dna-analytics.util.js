@@ -39,11 +39,19 @@ const PERSONALITY_STYLE_WEIGHTS = {
 };
 
 const PERSONALITY_DESCRIPTIONS = {
-  'Minimal Professional': 'Clean lines · Neutral palette · Quality-driven',
-  'Business Casual': 'Polished basics · Versatile layers · Office-ready',
-  'Streetwear Enthusiast': 'Bold silhouettes · Urban edge · Trend-forward',
-  'Luxury Executive': 'Premium fabrics · Tailored fit · Statement elegance',
-  'Athletic Lifestyle': 'Performance wear · Comfort-first · Active polish',
+  Minimalist: 'Clean lines · Curated palette · Less-is-more dressing',
+  Classic: 'Timeless silhouettes · Quality fabrics · Enduring style',
+  'Smart Casual': 'Polished basics · Versatile layers · Effortless polish',
+  'Business Casual': 'Office-ready · Structured layers · Professional ease',
+  Streetwear: 'Bold silhouettes · Urban edge · Trend-forward energy',
+  Luxury: 'Premium fabrics · Elevated tailoring · Statement elegance',
+  Athleisure: 'Performance comfort · Active polish · Sport-luxe balance',
+  Contemporary: 'Modern mix · Current silhouettes · Adaptive wardrobe',
+  Creative: 'Expressive styling · Art-driven combinations · Visual impact',
+  Formal: 'Tailored precision · Occasion-ready · Elevated presentation',
+  Edgy: 'High contrast · Rule-breaking layers · Distinctive attitude',
+  Urban: 'City-ready layers · Street influence · Functional style',
+  'Developing Profile': 'Signals are building · Keep engaging to refine your DNA',
 };
 
 const BUDGET_RANGE_LABELS = {
@@ -109,9 +117,23 @@ export function deriveStyleRadar(categoryAffinity, fashionPersonality) {
 }
 
 export function derivePersonalityDescription(fashionPersonality) {
+  if (!fashionPersonality) {
+    return 'Complete face, body, and shopping signals to unlock your fashion personality.';
+  }
+
+  if (fashionPersonality.includes('+')) {
+    const [primary, secondary] = fashionPersonality.split('+').map((part) => part.trim());
+    const primaryDescription = PERSONALITY_DESCRIPTIONS[primary];
+    const secondaryDescription = PERSONALITY_DESCRIPTIONS[secondary];
+
+    if (primaryDescription && secondaryDescription) {
+      return `${primaryDescription} blended with ${secondary.toLowerCase()} influences.`;
+    }
+  }
+
   return (
     PERSONALITY_DESCRIPTIONS[fashionPersonality]
-    || 'Personalized style signals · AI-refined · Data-driven'
+    || 'Personalized style signals · Derived from your real wardrobe activity'
   );
 }
 

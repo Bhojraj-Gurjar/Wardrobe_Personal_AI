@@ -64,4 +64,17 @@ class AvatarController {
     const avatar = await this.avatarService.ensureAvatar(user.userId);
     return this.avatarOutfitService.saveOutfit(avatar.id, body || {});
   }
+
+  @Get('generation-profile')
+  @ApiOperation({ summary: 'Get avatar generation parameters from face/body/Fashion DNA' })
+  getGenerationProfile(@CurrentUser() user) {
+    return this.avatarService.getGenerationProfile(user.userId);
+  }
+
+  @Post('outfit/save-look')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Save avatar outfit to personal closet saved looks' })
+  saveLookToCloset(@CurrentUser() user, @Body() body) {
+    return this.avatarService.saveLookToCloset(user.userId, body || {});
+  }
 }

@@ -104,14 +104,23 @@ def _detect_with_movenet(rgb: np.ndarray) -> list[LandmarkPoint] | None:
 
 
 def detect_pose_landmarks(rgb: np.ndarray) -> list[LandmarkPoint] | None:
+    result = detect_pose_landmarks_with_source(rgb)
+    return result.get("landmarks") if result else None
+
+
+def detect_pose_landmarks_with_source(rgb: np.ndarray) -> dict[str, Any] | None:
     if rgb.ndim != 3 or rgb.shape[2] != 3:
         return None
 
     landmarks = _detect_with_movenet(rgb)
     if landmarks:
-        return landmarks
+        return {"landmarks": landmarks, "source": "movenet"}
 
-    return detect_pose_landmarks_heuristic(rgb)
+    heuristic = detect_pose_landmarks_heuristic(rgb)
+    if heuristic:
+        return {"landmarks": heuristic, "source": "heuristic"}
+
+    return None
 
 
 def landmark_at(

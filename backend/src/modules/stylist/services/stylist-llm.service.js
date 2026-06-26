@@ -1,6 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { formatCatalogProduct } from '../../products/utils/product-catalog.mapper';
+import { STYLIST_INTENTS } from '../constants/stylist-intents.constants';
+import { formatStylistPrice } from '../utils/stylist-price.util';
 
 const OPENAI_CHAT_URL = 'https://api.openai.com/v1/chat/completions';
 const DEFAULT_MODEL = 'gpt-4o-mini';
@@ -91,37 +93,50 @@ class StylistLlmService {
       .slice(0, 8)
       .map(
         (product) =>
-          `- id:${product.id} | ${product.name} | ${product.brand || 'Brand'} | ₹${product.price} | ${product.category || ''}`,
+          `- id:${product.id} | ${product.name} | ${product.brand || 'Brand'} | ${formatStylistPrice(product.price, product.currency)} | ${product.category || ''}`,
       )
       .join('\n');
 
-    return `You are Wardrobe AI Stylist — an expert fashion advisor for Indian users. Prices are in INR (₹).
+    const intentRules = {
+      [STYLIST_INTENTS.GREETING]: 'Respond with a friendly greeting only. product_ids must be empty.',
+      [STYLIST_INTENTS.COLOR_ADVICE]: 'Focus on colors only. Do not recommend products unless asked.',
+      [STYLIST_INTENTS.BODY_STYLE_GUIDANCE]: 'Give body-fit advice only. No product list unless relevant.',
+      [STYLIST_INTENTS.FACE_STYLE_GUIDANCE]: 'Give face-shape and color advice only.',
+    };
+
+    const intentRule = intentRules[intent?.type]
+      || 'Recommend only from the provided catalog when suggesting products.';
+
+    return `You are Wardrobe AI Stylist — an expert fashion advisor.
 
 User profile:
 ${JSON.stringify(promptContext, null, 2)}
 
-Parsed intent:
+Detected intent: ${intent?.type || 'GENERAL'}
 ${JSON.stringify(intent, null, 2)}
 
-Available catalog products (only recommend from this list):
-${catalog || 'No products loaded — give general advice.'}
+Intent rule: ${intentRule}
 
-Respond in JSON with this exact shape:
+Available catalog products (ONLY recommend from this list):
+${catalog || 'No products — give advice without inventing items.'}
+
+Respond in JSON:
 {
-  "message": "Friendly markdown response with outfit advice",
-  "product_ids": ["uuid-from-catalog"],
-  "outfit_recommendations": [{"title":"...", "description":"..."}],
-  "accessories": ["item1", "item2"],
-  "color_suggestions": ["color1", "color2"],
-  "budget_tips": ["tip1", "tip2"]
+  "message": "Markdown response tailored to the user's exact question",
+  "product_ids": ["uuid-from-catalog-only"],
+  "outfit_recommendations": [{"title":"Top","description":"..."}],
+  "accessories": ["item1"],
+  "color_suggestions": ["color1"],
+  "budget_tips": ["tip1"]
 }
 
 Rules:
-- Be warm, specific, and actionable
-- Reference user's body type, skin tone, and style when available
-- For budget queries, respect max budget in INR
-- For interview/wedding/casual queries, tailor formality appropriately
-- Keep message under 200 words`;
+- Answer the SPECIFIC user question — never give the same generic outfit block every time
+- Reference body type, skin tone, face shape when available
+- Never invent product names or prices
+- For greetings: warm intro only, empty product_ids
+- For color questions: colors and reasoning, minimal products
+- Keep message under 220 words`;
   }
 
   matchProducts(productIds, products) {

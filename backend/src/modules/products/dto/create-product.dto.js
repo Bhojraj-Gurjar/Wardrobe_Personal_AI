@@ -14,6 +14,7 @@ import {
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { AVATAR_CATEGORIES } from '../constants/avatar.constants';
+import { PRODUCT_TYPES } from '../constants/product-type.constants';
 
 const PRODUCT_GENDERS = ['MALE', 'FEMALE', 'UNISEX', 'OTHER'];
 
@@ -54,6 +55,12 @@ export class CreateProductDto {
   @IsString()
   @IsNotEmpty()
   category;
+
+  @ApiProperty({ example: 'T-Shirt', enum: PRODUCT_TYPES })
+  @IsString()
+  @IsNotEmpty()
+  @IsIn(PRODUCT_TYPES)
+  productType;
 
   @ApiPropertyOptional({ example: 'jackets' })
   @IsOptional()

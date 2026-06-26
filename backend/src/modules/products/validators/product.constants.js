@@ -5,6 +5,7 @@ export const PRODUCT_SORT_FIELDS = [
   'created_at',
   'updated_at',
   'category',
+  'product_type',
   'brand',
 ];
 

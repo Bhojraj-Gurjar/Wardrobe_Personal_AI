@@ -168,6 +168,7 @@ class AdminRepository {
         { brand: { contains: term, mode: 'insensitive' } },
         { sku: { contains: term, mode: 'insensitive' } },
         { category: { contains: term, mode: 'insensitive' } },
+        { product_type: { contains: term, mode: 'insensitive' } },
       ];
     }
 
@@ -302,7 +303,7 @@ class AdminRepository {
     return this.prisma.order.findMany({
       where: { status: { not: ORDER_STATUS.CANCELLED } },
       include: {
-        product: { select: { category: true, price: true } },
+        product: { select: { category: true, product_type: true, price: true } },
       },
     });
   }

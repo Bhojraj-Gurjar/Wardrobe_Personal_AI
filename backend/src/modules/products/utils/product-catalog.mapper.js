@@ -2,6 +2,10 @@ import {
   formatAvatarWearable,
   resolveAvatarOverlayOrder,
 } from '../constants/avatar.constants';
+import {
+  inferProductType,
+  resolveAvatarCategoryFromProductType,
+} from '../constants/product-type.constants';
 import { formatProductIntegrationProfile } from './product-integration.mapper';
 
 export function resolveThumbnailUrl(url, width = 320) {
@@ -101,6 +105,8 @@ export function formatCatalogProduct(product) {
     description: product.description ?? null,
     category,
     subcategory: product.subcategory ?? null,
+    productType: product.product_type ?? inferProductType(product),
+    product_type: product.product_type ?? inferProductType(product),
     gender: product.gender ?? null,
     brand,
     price: product.price,
@@ -162,6 +168,11 @@ export function mapCreateOrUpdateProductData(dto, options = {}) {
   }
 
   if (dto.subcategory !== undefined) data.subcategory = dto.subcategory;
+
+  if (dto.productType !== undefined) {
+    data.product_type = dto.productType;
+  }
+
   if (dto.gender !== undefined) data.gender = dto.gender;
   if (dto.currency !== undefined) data.currency = dto.currency;
   if (dto.sizeOptions !== undefined) data.size_options = dto.sizeOptions;
@@ -178,6 +189,16 @@ export function mapCreateOrUpdateProductData(dto, options = {}) {
       data.overlay_order = resolveAvatarOverlayOrder(dto.avatarCategory, {
         subcategory: dto.subcategory,
       });
+    }
+  } else if (dto.productType !== undefined) {
+    const resolvedAvatar = resolveAvatarCategoryFromProductType(dto.productType);
+    if (resolvedAvatar) {
+      data.avatar_category = resolvedAvatar;
+      if (dto.overlayOrder === undefined) {
+        data.overlay_order = resolveAvatarOverlayOrder(resolvedAvatar, {
+          subcategory: dto.subcategory,
+        });
+      }
     }
   }
 

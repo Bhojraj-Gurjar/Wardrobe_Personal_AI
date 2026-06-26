@@ -118,6 +118,21 @@ class PersonalClosetService {
     return outfits.map((outfit) => this.formatSavedOutfit(outfit));
   }
 
+  async createSavedOutfitFromAvatar(userId, payload = {}) {
+    const products = Array.isArray(payload.products) ? payload.products : [];
+    const saved = await this.repository.createSavedOutfit(userId, {
+      name: payload.name || 'Avatar Look',
+      products,
+      items: payload.items || products.map((product) => product.id).filter(Boolean),
+      preview_image: payload.previewImage || payload.thumbnail || null,
+      thumbnail: payload.thumbnail || payload.previewImage || null,
+      total_price: payload.totalPrice ?? null,
+      source: payload.source || 'digital-avatar',
+    });
+
+    return this.formatSavedOutfit(saved);
+  }
+
   async getSavedOutfit(userId, outfitId) {
     const outfit = await this.repository.findSavedOutfitById(userId, outfitId);
 

@@ -19,6 +19,12 @@ import { BodyAnalysisRepository } from './body-analysis.repository';
 import { BodyAnalysisVectorService } from './services/body-analysis-vector.service';
 
 import { BodyImageStorageService } from './services/body-image-storage.service';
+import { BodyPhotoProcessingService } from './services/body-photo-processing.service';
+import { BodyFitProductsService } from './services/body-fit-products.service';
+import {
+  resolveOriginalBodyImagePath,
+  resolveTransparentBodyImagePath,
+} from './utils/body-photo-display.util';
 
 import { StoragePathResolver } from '../../storage/services/storage-path-resolver.service';
 
@@ -62,6 +68,10 @@ class BodyAnalysisService {
 
     @Inject(BodyImageStorageService) bodyImageStorageService,
 
+    @Inject(BodyPhotoProcessingService) bodyPhotoProcessingService,
+
+    @Inject(BodyFitProductsService) bodyFitProductsService,
+
     @Inject(StoragePathResolver) storagePathResolver,
 
     @Inject(AiService) aiService,
@@ -81,6 +91,10 @@ class BodyAnalysisService {
     this.bodyAnalysisVectorService = bodyAnalysisVectorService;
 
     this.bodyImageStorageService = bodyImageStorageService;
+
+    this.bodyPhotoProcessingService = bodyPhotoProcessingService;
+
+    this.bodyFitProductsService = bodyFitProductsService;
 
     this.storagePathResolver = storagePathResolver;
 
@@ -123,6 +137,7 @@ class BodyAnalysisService {
     await resolveUserArtifacts(this.moduleRef).ensureBodyAnalysis(userId);
 
     let record = await this.bodyAnalysisRepository.findByUserId(userId);
+    const user = await this.bodyAnalysisRepository.findUserBodyImageContext(userId);
 
     const resolvedPath = await this.resolveCanonicalBodyImagePath(userId, record);
 
@@ -136,8 +151,74 @@ class BodyAnalysisService {
       );
     }
 
-    return this.formatBodyAnalysisResponse(record);
+    return this.enrichBodyAnalysisResponse(record, user);
 
+  }
+
+  buildMeasurementsPayload(record) {
+    return {
+      height: record?.height ?? null,
+      shoulderWidth: record?.shoulder_width ?? null,
+      chest: record?.chest ?? null,
+      waist: record?.waist ?? null,
+      hip: record?.hip ?? null,
+      armLength: record?.arm_length ?? null,
+      legLength: record?.leg_length ?? null,
+    };
+  }
+
+  async resolveFitProfile(record) {
+    const raw = record?.raw_ai_response || {};
+    let fitProfile = record?.fit_profile;
+
+    if (fitProfile?.schemaVersion === 2) {
+      return fitProfile;
+    }
+
+    if (!record?.body_type || !record?.body_shape || !this.aiService.isConfigured()) {
+      return fitProfile;
+    }
+
+    try {
+      const fitResponse = await this.aiService.generateFitProfile({
+        bodyType: record.body_type,
+        bodyShape: record.body_shape,
+        bodyTypeCode: raw.bodyTypeCode ?? null,
+        bodyShapeCode: raw.bodyShapeCode ?? null,
+        measurements: this.buildMeasurementsPayload(record),
+        bodyTypeRatios: raw.bodyTypeRatios ?? null,
+        bodyShapeRatios: raw.bodyShapeRatios ?? null,
+        widthMeasurementsCm: raw.widthMeasurementsCm ?? null,
+      });
+
+      return fitResponse?.fitProfile || fitProfile;
+    } catch (error) {
+      this.logger.warn(`Fit profile refresh failed: ${error.message}`);
+      return fitProfile;
+    }
+  }
+
+  async enrichBodyAnalysisResponse(record, context = {}) {
+    if (!record) {
+      return this.formatBodyAnalysisResponse(record, context);
+    }
+
+    const formatted = this.formatBodyAnalysisResponse(record, context);
+
+    if (!formatted.hasAnalysis) {
+      return formatted;
+    }
+
+    const fitProfile = await this.bodyFitProductsService.attachProductsToFitGuide(
+      record,
+      context?.profile || null,
+      await this.resolveFitProfile(record),
+    );
+
+    return {
+      ...formatted,
+      fitProfile,
+    };
   }
 
   async resolveCanonicalBodyImagePath(userId, record = null) {
@@ -204,42 +285,37 @@ class BodyAnalysisService {
 
 
 
-  formatBodyAnalysisResponse(record) {
-
+  formatBodyAnalysisResponse(record, context = {}) {
     if (!record) {
-
       return {
-
         bodyImageUrl: null,
-
         bodyPhotoUrl: null,
-
         body_image_url: null,
-
+        bodyPhotoOriginalUrl: null,
+        bodyPhotoTransparentUrl: null,
+        bodyPhotoProcessing: null,
       };
-
     }
 
-
-
-    const bodyImagePath = record.body_image_url || null;
-
-    const bodyImageUrl = this.storagePathResolver.toPublicUrl(bodyImagePath);
-
-
+    const preferences = context?.profile?.preferences || {};
+    const userId = record.user_id;
+    const originalPath = resolveOriginalBodyImagePath(record, preferences);
+    const transparentCandidate = resolveTransparentBodyImagePath(userId, preferences);
+    const transparentPath = transparentCandidate
+      && this.bodyPhotoProcessingService.transparentPngExists(userId)
+      ? transparentCandidate
+      : null;
+    const displayPath = transparentPath || originalPath;
 
     return {
-
       ...formatBodyAnalysisRecord(record),
-
-      body_image_url: bodyImagePath,
-
-      bodyImageUrl,
-
-      bodyPhotoUrl: bodyImageUrl,
-
+      body_image_url: originalPath,
+      bodyImageUrl: this.storagePathResolver.toPublicUrl(displayPath),
+      bodyPhotoUrl: this.storagePathResolver.toPublicUrl(displayPath),
+      bodyPhotoOriginalUrl: this.storagePathResolver.toPublicUrl(originalPath),
+      bodyPhotoTransparentUrl: this.storagePathResolver.toPublicUrl(transparentPath),
+      bodyPhotoProcessing: preferences.bodyPhotoProcessing || null,
     };
-
   }
 
 
@@ -283,14 +359,24 @@ class BodyAnalysisService {
       throw new ServiceUnavailableException('AI service unavailable.');
     }
 
+    const user = await this.bodyAnalysisRepository.findUserBodyImageContext(userId);
+    const height = imageDto.height ?? user?.profile?.height ?? null;
+
+    if (!height || height <= 0) {
+      throw new BadRequestException(
+        'Height is required to calibrate body measurements. Add your height in profile or onboarding.',
+      );
+    }
+
     const bodyImagePath = await this.replaceBodyPhoto(userId, imageDto);
 
     if (bodyImagePath) {
       await this.bodyAnalysisRepository.saveBodyImagePath(userId, bodyImagePath);
       await this.syncBodyPhotoToProfile(userId, bodyImagePath);
+      await this.bodyPhotoProcessingService.processAfterUpload(userId, bodyImagePath);
     }
 
-    return this.persistBodyTraitAnalysis(userId, imageDto, bodyImagePath);
+    return this.persistBodyTraitAnalysis(userId, { ...imageDto, height }, bodyImagePath);
   }
 
   async analyzeStoredBody(userId) {
@@ -318,6 +404,12 @@ class BodyAnalysisService {
 
     const user = await this.bodyAnalysisRepository.findUserBodyImageContext(userId);
     const height = record?.height ?? user?.profile?.height ?? null;
+
+    if (!height || height <= 0) {
+      throw new BadRequestException(
+        'Height is required to calibrate body measurements. Update your profile height first.',
+      );
+    }
 
     return this.persistBodyTraitAnalysis(
       userId,
@@ -367,7 +459,7 @@ class BodyAnalysisService {
       });
     });
 
-    return this.formatBodyAnalysisResponse(record);
+    return this.enrichBodyAnalysisResponse(record);
   }
 
 
@@ -438,7 +530,19 @@ class BodyAnalysisService {
 
     }
 
+    const heightChanged = profileDto.height !== undefined
+      && profileDto.height !== existing.height;
+    const bodyImagePath = await this.resolveCanonicalBodyImagePath(userId, record);
 
+    if (heightChanged && bodyImagePath && this.aiService.isConfigured()) {
+      try {
+        return await this.analyzeStoredBody(userId);
+      } catch (error) {
+        this.logger.warn(
+          `Body re-analysis after height change failed for user ${userId}: ${error.message}`,
+        );
+      }
+    }
 
     await this.bodyAnalysisVectorService.syncUserVector(userId, record);
 
@@ -495,6 +599,14 @@ class BodyAnalysisService {
           bodyTypeCode: raw.bodyTypeCode ?? null,
 
           bodyShapeCode: raw.bodyShapeCode ?? null,
+
+          measurements: this.buildMeasurementsPayload(existing),
+
+          bodyTypeRatios: raw.bodyTypeRatios ?? null,
+
+          bodyShapeRatios: raw.bodyShapeRatios ?? null,
+
+          widthMeasurementsCm: raw.widthMeasurementsCm ?? null,
 
         });
 

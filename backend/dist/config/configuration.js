@@ -63,7 +63,8 @@ const _default = ()=>({
             vectorSize: parseInt(process.env.DIGITAL_AVATAR_VECTOR_SIZE, 10) || parseInt(process.env.DNA_VECTOR_SIZE, 10) || 384
         },
         aiService: {
-            url: process.env.AI_SERVICE_URL || 'http://localhost:8000'
+            url: process.env.AI_SERVICE_URL || 'http://localhost:8000',
+            publicUrl: process.env.AI_SERVICE_PUBLIC_URL || process.env.AI_SERVICE_URL || 'http://localhost:8000'
         },
         storage: {
             provider: process.env.STORAGE_PROVIDER || 'local',
@@ -71,7 +72,8 @@ const _default = ()=>({
                 rootDir: process.env.STORAGE_LOCAL_ROOT || 'uploads',
                 publicBaseUrl: process.env.STORAGE_PUBLIC_BASE_URL || 'http://localhost:3000',
                 publicPath: process.env.STORAGE_PUBLIC_PATH || '/uploads'
-            }
+            },
+            internalBaseUrl: process.env.STORAGE_INTERNAL_BASE_URL || process.env.STORAGE_PUBLIC_BASE_URL || 'http://localhost:3000'
         }
     });
 

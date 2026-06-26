@@ -8,6 +8,10 @@ export function resolveProductCategory(product) {
   return product.category ?? product.category_id ?? product.subcategory ?? null;
 }
 
+export function resolveProductType(product) {
+  return product.productType ?? product.product_type ?? null;
+}
+
 export function topAffinityKeys(affinityMap, limit = 5) {
   if (!affinityMap || typeof affinityMap !== 'object') {
     return [];
@@ -101,6 +105,7 @@ export function scoreLegacyProduct(product, signals) {
 
   const productBrand = resolveProductBrand(product);
   const productCategory = resolveProductCategory(product);
+  const productType = resolveProductType(product);
 
   if (productBrand && signals.favoriteBrands?.includes(productBrand)) {
     score += 30;
@@ -110,6 +115,14 @@ export function scoreLegacyProduct(product, signals) {
   if (signals.favoriteColors?.length) {
     score += 10;
     matchedFactors.push(RECOMMENDATION_FACTORS.FAVORITE_COLORS);
+  }
+
+  if (
+    (productType && signals.favoriteProductTypes?.includes(productType))
+    || (productType && signals.wishlistProductTypes?.includes(productType))
+  ) {
+    score += 25;
+    matchedFactors.push(RECOMMENDATION_FACTORS.WISHLIST);
   }
 
   if (

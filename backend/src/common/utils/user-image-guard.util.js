@@ -2,6 +2,7 @@ import { ForbiddenException } from '@nestjs/common';
 import {
   isBodyPhotoPath,
   isFacePhotoPath,
+  isUserPngPath,
 } from '../../storage/utils/storage-path.util';
 
 export const IMAGE_MUTATION_SOURCES = {
@@ -42,6 +43,14 @@ export function assertBodyPhotoMutationAllowed(source, action = 'update bodyPhot
 
 export function sanitizeBodyPhotoPath(path) {
   if (!path || !isBodyPhotoPath(path)) {
+    return null;
+  }
+
+  return path;
+}
+
+export function sanitizeProcessedBodyPhotoPath(path) {
+  if (!path || !isUserPngPath(path)) {
     return null;
   }
 

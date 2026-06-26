@@ -7,7 +7,7 @@ docker compose stop frontend backend ai-service 2>$null | Out-Null
 docker compose rm -f frontend backend ai-service 2>$null | Out-Null
 
 Write-Host "Starting infrastructure (postgres, redis, qdrant)..."
-docker compose up -d --remove-orphans
+docker compose up -d --no-build postgres redis qdrant
 
 Write-Host ""
 docker compose ps

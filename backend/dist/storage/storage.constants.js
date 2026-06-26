@@ -39,6 +39,12 @@ _export(exports, {
     get STORAGE_PROVIDERS () {
         return STORAGE_PROVIDERS;
     },
+    get TRY_ON_PUBLIC_PREFIX () {
+        return TRY_ON_PUBLIC_PREFIX;
+    },
+    get TRY_ON_STORAGE_FOLDER () {
+        return TRY_ON_STORAGE_FOLDER;
+    },
     get USER_PNG_PUBLIC_PREFIX () {
         return USER_PNG_PUBLIC_PREFIX;
     },
@@ -60,6 +66,8 @@ const BODY_STORAGE_FOLDER = 'body';
 const BODY_PUBLIC_PREFIX = '/uploads/body';
 const USER_PNG_STORAGE_FOLDER = 'user-png';
 const USER_PNG_PUBLIC_PREFIX = '/uploads/user-png';
+const TRY_ON_STORAGE_FOLDER = 'try-on';
+const TRY_ON_PUBLIC_PREFIX = '/uploads/try-on';
 const AVATAR_OUTPUT_FORMATS = {
     IMAGE_2D: 'png',
     MESH_3D: 'glb',

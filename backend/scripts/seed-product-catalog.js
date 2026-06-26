@@ -5,6 +5,7 @@ const { PrismaPg } = require('@prisma/adapter-pg');
 const pg = require('pg');
 const { PRODUCT_CATALOG_SEED } = require('../src/modules/products/constants/product-catalog.seed.js');
 const { isCatalogSku } = require('./lib/product-identity.cjs');
+const { inferProductType } = require('../src/modules/products/constants/product-type.constants');
 
 loadEnv({ path: resolve(__dirname, '../.env') });
 
@@ -18,6 +19,7 @@ function mapProductData(product) {
     description: product.description ?? null,
     category,
     subcategory: product.subcategory,
+    product_type: product.productType ?? inferProductType(product),
     gender: product.gender,
     brand,
     category_id: category,

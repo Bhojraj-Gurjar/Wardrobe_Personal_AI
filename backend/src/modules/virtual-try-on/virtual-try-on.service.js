@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ProductRepository } from '../products/repositories/product.repository';
 import { TryOnService } from '../try-on/try-on.service';
+import { assessTryOnCompatibility } from '../try-on/utils/try-on-product-compatibility.util';
 import { StoragePathResolver } from '../../storage/services/storage-path-resolver.service';
 import { VirtualTryOnRepository } from './virtual-try-on.repository';
 import { BodyImageResolverService } from './services/body-image-resolver.service';
@@ -31,13 +32,17 @@ const CATEGORY_SUBCATEGORY_MAP = {
   footwear: ['shoes', 'sneakers', 'sandals', 'footwear'],
 };
 
-function formatDbProduct(product) {
+function formatDbProduct(product, storagePathResolver) {
   if (!product) {
     return null;
   }
 
   const primaryImage = product.images?.find((image) => image.is_primary)
     ?? product.images?.[0];
+  const rawImageUrl = product.try_on_image ?? primaryImage?.url ?? product.image_url;
+  const imageUrl = rawImageUrl
+    ? (storagePathResolver?.toPublicUrl(rawImageUrl) || rawImageUrl)
+    : null;
 
   return {
     id: product.id,
@@ -46,20 +51,26 @@ function formatDbProduct(product) {
     description: product.description,
     category: product.category,
     subcategory: product.subcategory,
+    productType: product.product_type,
+    product_type: product.product_type,
     brand: product.brand,
     price: product.price,
     currency: product.currency,
     color: product.color,
     fitType: product.fit_type,
     fit_type: product.fit_type,
-    imageUrl: product.try_on_image ?? primaryImage?.url ?? product.image_url,
-    image_url: product.try_on_image ?? primaryImage?.url ?? product.image_url,
+    imageUrl,
+    image_url: imageUrl,
     avatarCategory: product.avatar_category,
     avatar_category: product.avatar_category,
     overlayOrder: product.overlay_order,
     overlay_order: product.overlay_order,
-    avatarOverlayUrl: product.avatar_overlay_url,
+    avatarOverlayUrl: product.avatar_overlay_url
+      ? (storagePathResolver?.toPublicUrl(product.avatar_overlay_url) || product.avatar_overlay_url)
+      : null,
     avatar_overlay_url: product.avatar_overlay_url,
+    tryOnImage: imageUrl,
+    is_try_on_compatible: product.is_try_on_compatible,
   };
 }
 
@@ -99,23 +110,32 @@ class VirtualTryOnService {
 
     await this.bodyImageResolver.syncTryOnSessionInput(userId);
 
+    const displayPath = await this.bodyImageResolver.resolveDisplayBodyImagePath(userId);
+    const transparentPath = await this.bodyImageResolver.resolveTransparentBodyImagePath(userId);
     const session = await this.repository.findSessionByUserId(userId);
-    const hasTransparentCache = Boolean(session?.transparent_image)
+    const hasTransparentCache = Boolean(transparentPath)
+      || Boolean(session?.transparent_image)
       || this.backgroundRemovalService.transparentPngExists(userId);
-    const bodyImageUrl = this.bodyImageResolver.toPublicUrl(bodyImagePath);
+    const bodyPhotoUrl = this.bodyImageResolver.toPublicUrl(displayPath || bodyImagePath);
 
     return {
       ready: true,
       message: null,
       bodyPhoto: bodyImagePath,
-      bodyPhotoUrl: bodyImageUrl,
+      bodyPhotoUrl,
       bodyPhotoReference: bodyImagePath,
       bodyImage: bodyImagePath,
-      bodyImageUrl,
-      hasTransparentCache,
-      transparentImageUrl: session?.transparent_image
-        ? this.bodyImageResolver.toPublicUrl(session.transparent_image)
+      bodyImageUrl: bodyPhotoUrl,
+      bodyPhotoOriginalUrl: this.bodyImageResolver.toPublicUrl(bodyImagePath),
+      bodyPhotoTransparentUrl: transparentPath
+        ? this.bodyImageResolver.toPublicUrl(transparentPath)
         : null,
+      hasTransparentCache,
+      transparentImageUrl: transparentPath
+        ? this.bodyImageResolver.toPublicUrl(transparentPath)
+        : session?.transparent_image
+          ? this.bodyImageResolver.toPublicUrl(session.transparent_image)
+          : null,
     };
   }
 
@@ -132,7 +152,7 @@ class VirtualTryOnService {
       is_active: true,
     });
 
-    let formatted = products.map(formatDbProduct);
+    let formatted = products.map((product) => formatDbProduct(product, this.storagePathResolver));
 
     if (category) {
       const subcategories = CATEGORY_SUBCATEGORY_MAP[category] ?? [category];
@@ -169,17 +189,28 @@ class VirtualTryOnService {
       page,
       limit,
       total: search || category ? formatted.length : total,
-      products: paged.map((product) => ({
-        id: product.id,
-        name: product.name,
-        brand: product.brand,
-        price: product.price,
-        currency: product.currency,
-        category: product.category,
-        subcategory: product.subcategory,
-        imageUrl: product.imageUrl,
-        thumbnailUrl: product.imageUrl,
-      })),
+      products: paged.map((product) => {
+        const compatibility = assessTryOnCompatibility({
+          ...product,
+          try_on_image: product.imageUrl,
+          image_url: product.imageUrl,
+          is_try_on_compatible: product.is_try_on_compatible,
+        });
+
+        return {
+          id: product.id,
+          name: product.name,
+          brand: product.brand,
+          price: product.price,
+          currency: product.currency,
+          category: product.category,
+          subcategory: product.subcategory,
+          imageUrl: product.imageUrl,
+          thumbnailUrl: product.imageUrl,
+          isTryOnCompatible: compatibility.isTryOnCompatible,
+          compatibilityLabel: compatibility.compatibilityLabel,
+        };
+      }),
     };
   }
 
@@ -204,8 +235,15 @@ class VirtualTryOnService {
       throw new NotFoundException('Product not found');
     }
 
-    const product = formatDbProduct(record);
-    const garmentImageUrl = product.imageUrl;
+    const compatibility = assessTryOnCompatibility(record);
+
+    if (!compatibility.isTryOnCompatible || !compatibility.tryOnImage) {
+      throw new BadRequestException('Selected product is not compatible with virtual try-on.');
+    }
+
+    const product = formatDbProduct(record, this.storagePathResolver);
+    const garmentImageUrl = this.storagePathResolver.toPublicUrl(compatibility.tryOnImage)
+      || product.imageUrl;
 
     if (!garmentImageUrl) {
       throw new BadRequestException('Product has no garment image.');
@@ -214,17 +252,7 @@ class VirtualTryOnService {
     let transparentPath = null;
 
     if (!usingTemporaryBody) {
-      try {
-        const transparent = await this.backgroundRemovalService.ensureTransparentPng(
-          userId,
-          bodyPhotoPath,
-        );
-        transparentPath = transparent?.storagePath ?? null;
-      } catch (error) {
-        this.logger.warn(
-          `Transparent PNG generation failed for user ${userId}: ${error.message}`,
-        );
-      }
+      transparentPath = await this.bodyImageResolver.resolveTransparentBodyImagePath(userId);
     }
 
     if (!usingTemporaryBody) {
@@ -239,6 +267,8 @@ class VirtualTryOnService {
       : transparentPath
         ? this.storagePathResolver.toPublicUrl(transparentPath)
         : this.storagePathResolver.toPublicUrl(bodyPhotoPath);
+
+    this.logger.log(`Generating virtual try-on for user=${userId} product=${productId}`);
 
     const catvtonResult = await this.tryOnService.generateTryOn(
       userId,
@@ -262,11 +292,17 @@ class VirtualTryOnService {
       selected_products: [product],
     });
 
+    const displayBodyPath = usingTemporaryBody
+      ? null
+      : await this.bodyImageResolver.resolveDisplayBodyImagePath(userId);
+
     return {
       result: this.formatTryOnResult(resultRecord, product),
       bodyPhotoUrl: usingTemporaryBody
         ? temporaryBodyImageUrl
-        : this.storagePathResolver.toPublicUrl(bodyPhotoPath),
+        : this.storagePathResolver.toPublicUrl(
+          transparentPath || displayBodyPath || bodyPhotoPath,
+        ),
       generatedImageUrl,
     };
   }
@@ -339,7 +375,8 @@ class VirtualTryOnService {
       transparentImage: record.transparent_image,
       transparentImageUrl: this.storagePathResolver.toPublicUrl(record.transparent_image),
       generatedImage: record.generated_image,
-      generatedImageUrl: this.storagePathResolver.toPublicUrl(record.generated_image),
+      generatedImageUrl: this.storagePathResolver.toPublicUrl(record.generated_image)
+        || record.generated_image,
       product: product
         ? {
             id: product.id,
@@ -366,7 +403,7 @@ class VirtualTryOnService {
     });
 
     const filtered = products
-      .map(formatDbProduct)
+      .map((product) => formatDbProduct(product, this.storagePathResolver))
       .filter((product) => {
         const subcategory = String(product.subcategory || '').toLowerCase();
         const category = String(product.category || '').toLowerCase();
@@ -400,7 +437,7 @@ class VirtualTryOnService {
         throw new NotFoundException('Product not found');
       }
 
-      product = formatDbProduct(record);
+      product = formatDbProduct(record, this.storagePathResolver);
     }
 
     const currentSelection = context.session?.selection || {};
@@ -418,7 +455,7 @@ class VirtualTryOnService {
       const record = await this.productRepository.findById(id);
 
       if (record) {
-        productsById[id] = formatDbProduct(record);
+        productsById[id] = formatDbProduct(record, this.storagePathResolver);
       }
     }
 

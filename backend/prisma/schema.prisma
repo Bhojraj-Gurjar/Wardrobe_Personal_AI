@@ -224,6 +224,7 @@ model Product {
   description        String?
   category           String?
   subcategory        String?
+  product_type       String         @default("T-Shirt") @map("product_type")
   gender             String?
   brand              String?
   category_id        String?        @map("category_id")
@@ -255,6 +256,8 @@ model Product {
 
   @@index([category])
   @@index([subcategory])
+  @@index([product_type])
+  @@index([category, product_type])
   @@index([gender])
   @@index([brand])
   @@index([category_id])

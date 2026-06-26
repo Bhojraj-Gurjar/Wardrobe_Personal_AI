@@ -76,7 +76,7 @@ function mapSearches(searches) {
 }
 function hasBehavioralActivity(signals) {
     const volume = signals?.activityVolume || {};
-    return Number(volume.wishlist || 0) > 0 || Number(volume.orders || 0) > 0 || Number(volume.product_views || 0) > 0 || Number(volume.searches || 0) > 0;
+    return Number(volume.wishlist || 0) > 0 || Number(volume.orders || 0) > 0 || Number(volume.product_views || 0) > 0 || Number(volume.searches || 0) > 0 || Number(volume.cart || 0) > 0 || Number(volume.closet || 0) > 0 || Number(volume.try_on || 0) > 0 || Number(volume.virtual_try_on || 0) > 0 || Number(volume.saved_looks || 0) > 0;
 }
 let FashionDnaContextService = class FashionDnaContextService {
     constructor(fashionDnaRepository, faceAnalysisService, bodyAnalysisService, bodyProfileInsightsService, behavioralService){
@@ -88,11 +88,12 @@ let FashionDnaContextService = class FashionDnaContextService {
     }
     async collectContext(userId) {
         const profile = await this.fashionDnaRepository.findUserProfile(userId);
+        const preferences = profile?.preferences || {};
         const [faceTraits, visualFaceTraits, storedBodyTraits, signals] = await Promise.all([
             this.faceAnalysisService.collectBiometricTraits(userId),
             this.faceAnalysisService.getStoredTraits(userId),
             this.bodyAnalysisService.getStoredTraits(userId),
-            this.behavioralService.collectSignals(userId)
+            this.behavioralService.collectSignals(userId, preferences)
         ]);
         const profileInsights = this.bodyProfileInsightsService.analyze(profile);
         const bodyTraits = storedBodyTraits ? {
@@ -100,7 +101,6 @@ let FashionDnaContextService = class FashionDnaContextService {
             ...storedBodyTraits,
             analysis_source: 'body_analysis_record'
         } : profileInsights;
-        const preferences = profile?.preferences || {};
         const onboarding = (0, _fashiondnagenerator.extractOnboardingInputs)(profile);
         return {
             profile,

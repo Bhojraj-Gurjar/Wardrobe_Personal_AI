@@ -19,6 +19,11 @@ def _validation_http_error(exc: BodyValidationError) -> HTTPException:
     message = str(exc)
     code = getattr(exc, "code", "")
 
+    if code == "missing_height":
+        return HTTPException(
+            status_code=400,
+            detail="Height in centimeters is required to calibrate body measurements.",
+        )
     if code == "no_pose":
         return HTTPException(status_code=400, detail="No full body pose detected.")
     if code == "missing_image":
@@ -92,6 +97,10 @@ async def generate_fit_profile_route(payload: FitProfileRequest):
         payload.body_shape,
         body_type_code=payload.body_type_code,
         body_shape_code=payload.body_shape_code,
+        measurements=payload.measurements,
+        body_type_ratios=payload.body_type_ratios,
+        body_shape_ratios=payload.body_shape_ratios,
+        width_measurements=payload.width_measurements_cm,
     )
 
     if not fit_profile:

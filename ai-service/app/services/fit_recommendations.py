@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+from app.services.body_fit_insights import generate_body_fit_insights
 from app.services.body_shape_classifier import (
     BODY_SHAPE_INVERTED_TRIANGLE,
     BODY_SHAPE_LABELS,
@@ -595,12 +596,110 @@ def _build_summary(shape_code: str | None, type_code: str | None) -> str:
     return " ".join(parts) if parts else "Fit recommendations based on your body type and shape."
 
 
+def _build_measurement_adjustments(
+    measurements: dict[str, float | None] | None,
+    body_type_ratios: dict[str, float] | None,
+    body_shape_ratios: dict[str, float] | None,
+) -> dict[str, SectionContent]:
+    """Dynamic fit tweaks from measured ratios — not generic placeholders."""
+    adjustments: dict[str, SectionContent] = {}
+
+    shoulder = float(measurements.get("shoulderWidth") or 0) if measurements else 0
+    waist = float(measurements.get("waist") or 0) if measurements else 0
+    chest = float(measurements.get("chest") or 0) if measurements else 0
+    height = float(measurements.get("height") or 0) if measurements else 0
+
+    shoulder_to_waist = None
+    if body_type_ratios and body_type_ratios.get("shoulderToWaist"):
+        shoulder_to_waist = float(body_type_ratios["shoulderToWaist"])
+    elif shoulder > 0 and waist > 0:
+        shoulder_to_waist = shoulder / waist
+
+    if shoulder_to_waist and shoulder_to_waist >= 1.45:
+        adjustments["tops"] = {
+            "add_recommendations": [
+                "V-neck and open-collar shirts to balance broad shoulders",
+                "Structured shoulders with tapered waist",
+            ],
+            "add_tips": [
+                f"Your shoulder-to-waist ratio ({shoulder_to_waist:.2f}) suggests emphasizing vertical lines through the torso.",
+            ],
+        }
+        adjustments["outerwear"] = {
+            "add_recommendations": ["Structured jackets with clean shoulder lines"],
+        }
+
+    if shoulder_to_waist and shoulder_to_waist <= 1.15:
+        adjustments["tops"] = {
+            "add_recommendations": [
+                "Layered tops and horizontal detail to add upper-body structure",
+                "Boat necks and wider collars",
+            ],
+        }
+
+    if chest and waist and chest > 0:
+        chest_waist_diff = chest - waist
+        if chest_waist_diff >= 14:
+            adjustments["formal"] = {
+                "add_recommendations": ["Athletic-fit suiting sized for chest with waist suppression"],
+                "add_tips": ["Size jackets by chest measurement, then tailor the waist."],
+            }
+            adjustments["bottoms"] = {
+                "add_recommendations": ["Straight or athletic-taper jeans"],
+            }
+
+    if height and height >= 185:
+        adjustments["bottoms"] = {
+            "add_tips": ["Choose long or tall inseams to match your leg length."],
+        }
+    elif height and height <= 168:
+        adjustments["bottoms"] = {
+            "add_tips": ["Avoid excess stacking at the ankle — choose shorter inseams or tapered hems."],
+        }
+
+    shape_ratios = body_shape_ratios or {}
+    shoulder_to_hip = shape_ratios.get("shoulderToHip")
+    if shoulder_to_hip and float(shoulder_to_hip) >= 1.12:
+        adjustments.setdefault("tops", {})
+        adjustments["tops"].setdefault("add_recommendations", [])
+        adjustments["tops"]["add_recommendations"].append("Straight-fit jeans and structured overshirts for inverted-triangle balance")
+
+    return adjustments
+
+
 def generate_fit_profile(
     body_type: str | None,
     body_shape: str | None,
     *,
     body_type_code: str | None = None,
     body_shape_code: str | None = None,
+    measurements: dict[str, float | None] | None = None,
+    body_type_ratios: dict[str, float] | None = None,
+    body_shape_ratios: dict[str, float] | None = None,
+    width_measurements: dict[str, float] | None = None,
+) -> dict[str, Any] | None:
+    """Generate measurement-driven fit guide (schema v2)."""
+    return generate_body_fit_insights(
+        body_type=body_type,
+        body_shape=body_shape,
+        body_type_code=body_type_code,
+        body_shape_code=body_shape_code,
+        measurements=measurements,
+        body_type_ratios=body_type_ratios,
+        body_shape_ratios=body_shape_ratios,
+        width_measurements=width_measurements,
+    )
+
+
+def _generate_fit_profile_legacy(
+    body_type: str | None,
+    body_shape: str | None,
+    *,
+    body_type_code: str | None = None,
+    body_shape_code: str | None = None,
+    measurements: dict[str, float | None] | None = None,
+    body_type_ratios: dict[str, float] | None = None,
+    body_shape_ratios: dict[str, float] | None = None,
 ) -> dict[str, Any] | None:
     shape_code = _resolve_body_shape_code(body_shape, body_shape_code)
     type_code = _resolve_body_type_code(body_type, body_type_code)
@@ -610,6 +709,11 @@ def generate_fit_profile(
 
     shape_sections = SHAPE_SECTION_BASE[shape_code]
     type_sections = TYPE_SECTION_ADJUSTMENTS.get(type_code or "", {})
+    measurement_sections = _build_measurement_adjustments(
+        measurements,
+        body_type_ratios,
+        body_shape_ratios,
+    )
 
     sections: list[dict[str, Any]] = []
     for section_id, title in FIT_SECTION_ORDER:
@@ -618,6 +722,7 @@ def generate_fit_profile(
             continue
 
         content = _merge_section(base, type_sections.get(section_id))
+        content = _merge_section(content, measurement_sections.get(section_id))
         sections.append(
             {
                 "id": section_id,

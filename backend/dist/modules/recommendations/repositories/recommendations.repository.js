@@ -36,7 +36,7 @@ let RecommendationsRepository = class RecommendationsRepository {
         this.prisma = prismaService;
     }
     async getUserSignals(userId) {
-        const [profile, fashionDna, wishlistItems, orders] = await Promise.all([
+        const [profile, fashionDna, wishlistItems, orders, faceAnalysis, bodyAnalysis, closetItems] = await Promise.all([
             this.prisma.userProfile.findUnique({
                 where: {
                     user_id: userId
@@ -52,7 +52,15 @@ let RecommendationsRepository = class RecommendationsRepository {
                     user_id: userId
                 },
                 include: {
-                    product: true
+                    product: {
+                        include: {
+                            images: {
+                                orderBy: {
+                                    sort_order: 'asc'
+                                }
+                            }
+                        }
+                    }
                 }
             }),
             this.prisma.order.findMany({
@@ -62,13 +70,47 @@ let RecommendationsRepository = class RecommendationsRepository {
                 orderBy: {
                     created_at: 'desc'
                 }
+            }),
+            this.prisma.faceAnalysis.findUnique({
+                where: {
+                    user_id: userId
+                }
+            }),
+            this.prisma.bodyAnalysis.findUnique({
+                where: {
+                    user_id: userId
+                }
+            }),
+            this.prisma.personalClosetItem.findMany({
+                where: {
+                    user_id: userId,
+                    is_removed: false
+                },
+                include: {
+                    product: {
+                        include: {
+                            images: {
+                                orderBy: {
+                                    sort_order: 'asc'
+                                }
+                            }
+                        }
+                    }
+                },
+                take: 20,
+                orderBy: {
+                    created_at: 'desc'
+                }
             })
         ]);
         return {
             profile,
             fashionDna,
             wishlistItems,
-            orders
+            orders,
+            faceAnalysis,
+            bodyAnalysis,
+            closetItems
         };
     }
     findProductsByIds(ids) {
