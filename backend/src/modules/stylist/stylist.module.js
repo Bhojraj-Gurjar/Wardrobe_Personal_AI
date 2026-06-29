@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { RecommendationsModule } from '../recommendations/recommendations.module';
+import { FashionDnaModule } from '../fashion-dna/fashion-dna.module';
 import { StylistController } from './controllers/stylist.controller';
 import { StylistService } from './services/stylist.service';
 import { StylistRepository } from './repositories/stylist.repository';
@@ -9,7 +10,7 @@ import { StylistEngineService } from './services/stylist-engine.service';
 import { StylistLlmService } from './services/stylist-llm.service';
 
 export @Module({
-  imports: [AuthModule, RecommendationsModule],
+  imports: [AuthModule, RecommendationsModule, FashionDnaModule],
   controllers: [StylistController],
   providers: [
     StylistService,

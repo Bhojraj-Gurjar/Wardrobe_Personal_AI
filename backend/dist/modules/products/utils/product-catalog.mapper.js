@@ -29,6 +29,7 @@ _export(exports, {
     }
 });
 const _avatarconstants = require("../constants/avatar.constants");
+const _producttypeconstants = require("../constants/product-type.constants");
 const _productintegrationmapper = require("./product-integration.mapper");
 function resolveThumbnailUrl(url, width = 320) {
     if (!url || typeof url !== 'string') {
@@ -105,10 +106,12 @@ function formatCatalogProduct(product) {
         description: product.description ?? null,
         category,
         subcategory: product.subcategory ?? null,
+        productType: product.product_type ?? (0, _producttypeconstants.inferProductType)(product),
+        product_type: product.product_type ?? (0, _producttypeconstants.inferProductType)(product),
         gender: product.gender ?? null,
         brand,
         price: product.price,
-        currency: product.currency ?? 'USD',
+        currency: product.currency ?? 'INR',
         color: product.color ?? null,
         sizeOptions: product.size_options ?? [],
         fabric: product.fabric ?? null,
@@ -124,8 +127,19 @@ function formatCatalogProduct(product) {
         overlayOrder: product.overlay_order ?? null,
         avatarOverlayUrl: product.avatar_overlay_url ?? null,
         isActive: product.is_active ?? true,
+        visibility: product.visibility ?? 'PUBLISHED',
+        stockQuantity: product.stock_quantity ?? 0,
+        stock_quantity: product.stock_quantity ?? 0,
         category_id: product.category_id ?? category,
         brand_id: product.brand_id ?? brand,
+        variants: (product.variants || []).map((variant)=>({
+                id: variant.id,
+                color: variant.color,
+                size: variant.size,
+                stock: variant.stock ?? 0,
+                sku: variant.sku,
+                imageUrl: variant.image_url ?? null
+            })),
         images,
         createdAt: product.created_at,
         updatedAt: product.updated_at,
@@ -161,6 +175,9 @@ function mapCreateOrUpdateProductData(dto, options = {}) {
         data.brand = dto.brand_id;
     }
     if (dto.subcategory !== undefined) data.subcategory = dto.subcategory;
+    if (dto.productType !== undefined) {
+        data.product_type = dto.productType;
+    }
     if (dto.gender !== undefined) data.gender = dto.gender;
     if (dto.currency !== undefined) data.currency = dto.currency;
     if (dto.sizeOptions !== undefined) data.size_options = dto.sizeOptions;
@@ -176,6 +193,16 @@ function mapCreateOrUpdateProductData(dto, options = {}) {
             data.overlay_order = (0, _avatarconstants.resolveAvatarOverlayOrder)(dto.avatarCategory, {
                 subcategory: dto.subcategory
             });
+        }
+    } else if (dto.productType !== undefined) {
+        const resolvedAvatar = (0, _producttypeconstants.resolveAvatarCategoryFromProductType)(dto.productType);
+        if (resolvedAvatar) {
+            data.avatar_category = resolvedAvatar;
+            if (dto.overlayOrder === undefined) {
+                data.overlay_order = (0, _avatarconstants.resolveAvatarOverlayOrder)(resolvedAvatar, {
+                    subcategory: dto.subcategory
+                });
+            }
         }
     }
     if (dto.overlayOrder !== undefined) data.overlay_order = dto.overlayOrder;

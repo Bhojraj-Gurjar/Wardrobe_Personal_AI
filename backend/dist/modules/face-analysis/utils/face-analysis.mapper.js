@@ -12,6 +12,9 @@ _export(exports, {
     get formatFaceAnalysisRecord () {
         return formatFaceAnalysisRecord;
     },
+    get isDefaultFaceAnalysisRecord () {
+        return isDefaultFaceAnalysisRecord;
+    },
     get mapAiResponseToPersistence () {
         return mapAiResponseToPersistence;
     },
@@ -46,6 +49,9 @@ const DTO_TO_COLUMN = {
 };
 function isDefaultArtifact(raw) {
     return Boolean(raw && typeof raw === 'object' && !Array.isArray(raw) && raw.isDefault === true);
+}
+function isDefaultFaceAnalysisRecord(record) {
+    return isDefaultArtifact(record?.raw_ai_response);
 }
 function resolveFaceHasAnalysis(record) {
     if (!record?.face_shape) {

@@ -30,12 +30,12 @@ let FaceImageStorageService = class FaceImageStorageService {
         this.logger = new _common.Logger(FaceImageStorageService.name);
     }
     async replaceFaceImage(userId, buffer, mimeType, previousStoragePath = null) {
-        await this.storageService.deleteFaceImagesForUser(userId);
         const uploadResult = await this.storageService.uploadFaceImage({
             userId,
             buffer,
             mimeType
         });
+        await this.storageService.deleteFolderFilesExcept(`faces/${userId}`, uploadResult.storagePath);
         if (previousStoragePath && previousStoragePath !== uploadResult.storagePath) {
             await this.storageService.deleteStoredFile(previousStoragePath);
         }

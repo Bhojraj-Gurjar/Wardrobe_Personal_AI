@@ -222,11 +222,6 @@ def _invoke_catvton(person_path: Path, garment_path: Path) -> str:
 
     if token:
         client_kwargs["token"] = token
-        client_kwargs["httpx_kwargs"] = {
-            "headers": {
-                "Authorization": f"Bearer {token}",
-            },
-        }
 
     client = Client(CATVTON_SPACE, **client_kwargs)
     person_payload = _build_person_editor_payload(person_path)

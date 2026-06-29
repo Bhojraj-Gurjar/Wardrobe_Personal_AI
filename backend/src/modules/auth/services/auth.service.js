@@ -110,6 +110,18 @@ class AuthService {
     return { message: 'Logged out successfully' };
   }
 
+  async getMe(userId) {
+    const user = await this.authRepository.findById(userId);
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    await this.ensureActiveUser(user);
+
+    return this.sanitizeUser(user);
+  }
+
   async ensureUniqueCredentials(email, mobile) {
     const existingEmail = await this.authRepository.findByEmail(email);
 

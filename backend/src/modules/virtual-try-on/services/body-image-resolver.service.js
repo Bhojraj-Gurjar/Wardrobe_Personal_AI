@@ -57,12 +57,6 @@ class BodyImageResolverService {
       return null;
     }
 
-    const transparentPath = await this.resolveTransparentBodyImagePath(userId);
-
-    if (transparentPath) {
-      return transparentPath;
-    }
-
     const preferences = user.profile?.preferences || {};
     const originalPath = resolveOriginalBodyImagePath(
       user.body_analysis,
@@ -77,12 +71,6 @@ class BodyImageResolverService {
   }
 
   async resolveAiBodyImagePath(userId) {
-    const transparentPath = await this.resolveTransparentBodyImagePath(userId);
-
-    if (transparentPath) {
-      return transparentPath;
-    }
-
     return this.resolveBodyImagePath(userId);
   }
 
@@ -115,7 +103,7 @@ class BodyImageResolverService {
 
     await this.repository.upsertSession(userId, {
       body_image: bodyImagePath,
-      transparent_image: await this.resolveTransparentBodyImagePath(userId),
+      transparent_image: null,
     });
 
     return {

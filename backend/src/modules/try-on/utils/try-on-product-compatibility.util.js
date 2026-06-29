@@ -3,24 +3,10 @@ import {
   isTryOnCompatibleProductType,
   resolveTryOnSlotFromProductType,
 } from '../../products/constants/product-type.constants';
+import { resolveRawProductImageUrl } from '../../products/utils/resolve-product-image.util';
 
 function resolvePrimaryImageUrl(product) {
-  if (!product) {
-    return null;
-  }
-
-  if (product.try_on_image) {
-    return product.try_on_image;
-  }
-
-  if (product.image_url) {
-    return product.image_url;
-  }
-
-  const images = product.images || [];
-  const primary = images.find((image) => image.is_primary) || images[0];
-
-  return primary?.url || null;
+  return resolveRawProductImageUrl(product);
 }
 
 function hasCatalogStyleImage(imageUrl) {
@@ -104,7 +90,7 @@ export function formatTryOnCatalogProduct(product, storagePathResolver) {
     subcategory: product.subcategory,
     productType: compatibility.productType,
     price: product.price,
-    currency: product.currency || 'USD',
+    currency: product.currency || 'INR',
     imageUrl: garmentUrl,
     tryOnImage: garmentUrl,
     isTryOnCompatible: compatibility.isTryOnCompatible,

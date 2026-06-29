@@ -88,8 +88,80 @@ let StorageService = class StorageService {
             objectKey
         });
     }
+    async uploadTryOnResultImage({ userId, resultId, buffer, mimeType = 'image/png' }) {
+        const extension = (0, _storagepathutil.extensionFromMimeType)(mimeType);
+        const objectKey = (0, _storagepathutil.buildTryOnResultObjectKey)(userId, resultId, extension);
+        return this.provider.upload({
+            buffer,
+            mimeType,
+            objectKey
+        });
+    }
+    async uploadProductImage({ productId, fileId, buffer, mimeType }) {
+        const extension = (0, _storagepathutil.extensionFromMimeType)(mimeType);
+        const objectKey = (0, _storagepathutil.buildProductImageObjectKey)(productId, fileId, extension);
+        return this.provider.upload({
+            buffer,
+            mimeType,
+            objectKey
+        });
+    }
+    async uploadSupportAttachment({ ticketId, fileId, buffer, mimeType }) {
+        const extension = (0, _storagepathutil.extensionFromMimeType)(mimeType);
+        const objectKey = (0, _storagepathutil.buildSupportAttachmentObjectKey)(ticketId, fileId, extension);
+        return this.provider.upload({
+            buffer,
+            mimeType,
+            objectKey
+        });
+    }
+    async uploadOrderDocument({ orderId, fileId, buffer, mimeType }) {
+        const extension = (0, _storagepathutil.extensionFromMimeType)(mimeType);
+        const objectKey = (0, _storagepathutil.buildOrderDocumentObjectKey)(orderId, fileId, extension);
+        return this.provider.upload({
+            buffer,
+            mimeType,
+            objectKey
+        });
+    }
     async deleteStoredFile(storagePath) {
         return this.provider.deleteStoragePath(storagePath);
+    }
+    async storedFileExists(storagePath) {
+        if (!storagePath) {
+            return false;
+        }
+        const rootDir = this.configService.get('storage.local.rootDir') || 'uploads';
+        const absolutePath = (0, _storagepathutil.toFilesystemPath)(storagePath, rootDir);
+        try {
+            await (0, _promises.access)(absolutePath);
+            return true;
+        } catch (error) {
+            if (error?.code === 'ENOENT') {
+                return false;
+            }
+            throw error;
+        }
+    }
+    async deleteFolderFilesExcept(relativeFolder, keepStoragePath) {
+        const rootDir = this.configService.get('storage.local.rootDir') || 'uploads';
+        const normalizedFolder = relativeFolder.replace(/\\/g, '/').replace(/^\/+/, '');
+        const folderPath = (0, _path.join)(rootDir, normalizedFolder);
+        const keepFileName = keepStoragePath?.split('/').pop();
+        try {
+            const files = await (0, _promises.readdir)(folderPath);
+            await Promise.all(files.map(async (file)=>{
+                if (keepFileName && file === keepFileName) {
+                    return;
+                }
+                const storagePath = `/${normalizedFolder}/${file}`.replace(/\/+/g, '/');
+                await this.deleteStoredFile(storagePath.startsWith('/uploads') ? storagePath : `/uploads${storagePath}`);
+            }));
+        } catch (error) {
+            if (error?.code !== 'ENOENT') {
+                throw error;
+            }
+        }
     }
     async readStoredFile(storagePath) {
         if (!storagePath) {

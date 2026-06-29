@@ -14,33 +14,58 @@ export const PRODUCT_UI_CATEGORIES = [
 
 /** All supported product types (controlled vocabulary). */
 export const PRODUCT_TYPES = [
-  'T-Shirt',
-  'Shirt',
-  'Polo',
-  'Hoodie',
-  'Sweatshirt',
-  'Tank Top',
-  'Kurta',
-  'Jacket',
-  'Blazer',
-  'Bomber Jacket',
-  'Jeans',
-  'Chinos',
-  'Cargo Pants',
-  'Shorts',
-  'Joggers',
-  'Formal Pants',
-  'Sneakers',
-  'Running Shoes',
-  'Loafers',
-  'Boots',
-  'Sandals',
-  'Slippers',
-  'Watch',
-  'Belt',
-  'Cap',
-  'Backpack',
-  'Sunglasses',
+  ...new Set([
+    'T-Shirt',
+    'Shirt',
+    'Polo',
+    'Hoodie',
+    'Sweatshirt',
+    'Tank Top',
+    'Kurta',
+    'Jacket',
+    'Blazer',
+    'Bomber Jacket',
+    'Jeans',
+    'Chinos',
+    'Cargo Pants',
+    'Shorts',
+    'Joggers',
+    'Formal Pants',
+    'Sneakers',
+    'Running Shoes',
+    'Loafers',
+    'Boots',
+    'Sandals',
+    'Slippers',
+    'Watch',
+    'Belt',
+    'Cap',
+    'Backpack',
+    'Sunglasses',
+    'Overshirt',
+    'Sweater',
+    'Suit',
+    'Sherwani',
+    'Cargo',
+    'Trouser',
+    'Track Pant',
+    'Co-ord Set',
+    'Innerwear',
+    'Formal Shoes',
+    'Slides',
+    'Flip Flops',
+    'Wallet',
+    'Scarf',
+    'Tote Bag',
+    'Crossbody Bag',
+    'Necklace',
+    'Bracelet',
+    'Ring',
+    'Earrings',
+    'Analog Watch',
+    'Smartwatch',
+    'Eyeglasses',
+  ]),
 ];
 
 /** Product types available per UI category (admin dropdown). */
@@ -215,6 +240,10 @@ const NAME_INFERENCE_RULES = [
 ];
 
 export function isValidProductType(value) {
+  return PRODUCT_TYPES.includes(value);
+}
+
+export function isValidProductTypeOrCms(value) {
   return PRODUCT_TYPES.includes(value);
 }
 

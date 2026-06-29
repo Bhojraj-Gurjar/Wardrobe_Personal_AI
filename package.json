@@ -5,6 +5,8 @@
   "scripts": {
     "reset": "tsx scripts/reset-system.ts",
     "infra:up": "powershell -ExecutionPolicy Bypass -File scripts/infra-up.ps1",
+    "docker:local-ai": "powershell -ExecutionPolicy Bypass -File scripts/docker-apps-local-ai.ps1",
+    "docker:local-ai:up": "powershell -ExecutionPolicy Bypass -File scripts/docker-apps-local-ai.ps1 -SkipBuild",
     "dev": "powershell -ExecutionPolicy Bypass -File scripts/start-local.ps1",
     "dev:backend": "npm run start:dev --prefix backend",
     "dev:frontend": "npm run dev:3001 --prefix frontend",

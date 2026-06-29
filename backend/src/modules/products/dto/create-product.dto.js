@@ -93,7 +93,7 @@ export class CreateProductDto {
   @Min(0)
   price;
 
-  @ApiPropertyOptional({ example: 'USD', default: 'USD' })
+  @ApiPropertyOptional({ example: 'INR', default: 'INR' })
   @IsOptional()
   @IsString()
   currency;

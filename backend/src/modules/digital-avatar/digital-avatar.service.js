@@ -13,6 +13,7 @@ import { ModuleRef } from '@nestjs/core';
 import { BodyAnalysisService } from '../body-analysis/body-analysis.service';
 import { FaceAnalysisService } from '../face-analysis/face-analysis.service';
 import { UsersRepository } from '../users/repositories/users.repository';
+import { UserMediaRegistryService } from '../user-media/services/user-media-registry.service';
 import { AiService } from '../ai/services/ai.service';
 
 function resolveUserArtifacts(moduleRef) {
@@ -63,6 +64,7 @@ class DigitalAvatarService {
     @Inject(UsersRepository) usersRepository,
     @Inject(DigitalAvatarVectorService) digitalAvatarVectorService,
     @Inject(ModuleRef) moduleRef,
+    @Inject(UserMediaRegistryService) userMediaRegistryService,
   ) {
     this.digitalAvatarRepository = digitalAvatarRepository;
     this.avatarImageStorageService = avatarImageStorageService;
@@ -73,6 +75,7 @@ class DigitalAvatarService {
     this.usersRepository = usersRepository;
     this.digitalAvatarVectorService = digitalAvatarVectorService;
     this.moduleRef = moduleRef;
+    this.userMediaRegistryService = userMediaRegistryService;
     this.logger = new Logger(DigitalAvatarService.name);
   }
 
@@ -228,6 +231,14 @@ class DigitalAvatarService {
         raw_ai_response: rawAiResponse,
       },
     );
+
+    await this.userMediaRegistryService.registerAvatar(userId, storagePath, {
+      mimeType: 'image/png',
+      metadata: {
+        avatarType: canonicalType,
+        version: nextVersion,
+      },
+    });
 
     this.logger.log(
       `Digital avatar v${record.version} (${record.avatar_type}) activated for user ${userId}`,

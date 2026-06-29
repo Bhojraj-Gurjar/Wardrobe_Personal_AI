@@ -86,6 +86,16 @@ model User {
   favorite_colors FavoriteColor[]
   product_views ProductView[]
   search_history SearchHistory[]
+  support_tickets SupportTicket[] @relation("SupportTicketUser")
+  assigned_support_tickets SupportTicket[] @relation("SupportTicketAssignee")
+  support_messages SupportMessage[]
+  support_attachments SupportAttachment[]
+  support_activities SupportActivity[]
+  support_assignments SupportAssignment[]
+  support_notifications SupportNotification[]
+  addresses             UserAddress[]
+  order_notifications   OrderNotification[]
+  user_media            UserMedia[]
 
   @@map("users")
 }
@@ -218,41 +228,71 @@ model ProductCategory {
 }
 
 model Product {
-  id                 String         @id @default(uuid())
-  sku                String         @unique
-  name               String
-  description        String?
-  category           String?
-  subcategory        String?
-  product_type       String         @default("T-Shirt") @map("product_type")
-  gender             String?
-  brand              String?
-  category_id        String?        @map("category_id")
-  brand_id           String?        @map("brand_id")
-  price              Float
-  currency           String         @default("USD")
-  color              String?
-  size_options       Json?          @map("size_options")
-  fabric             String?
-  fit_type           String?        @map("fit_type")
-  style_tags         Json?          @map("style_tags")
-  occasion_tags      Json?          @map("occasion_tags")
-  image_url          String?        @map("image_url") @db.VarChar(2048)
-  product_url        String?        @map("product_url") @db.VarChar(2048)
-  avatar_category    AvatarCategory? @map("avatar_category")
-  overlay_order      Int?            @map("overlay_order")
-  avatar_overlay_url String?        @map("avatar_overlay_url") @db.VarChar(2048)
-  try_on_image       String?        @map("try_on_image") @db.VarChar(2048)
-  is_try_on_compatible Boolean?     @map("is_try_on_compatible")
-  is_active          Boolean        @default(true) @map("is_active")
-  created_at         DateTime       @default(now()) @map("created_at")
-  updated_at         DateTime       @updatedAt @map("updated_at")
-  images             ProductImage[]
-  wishlist           Wishlist[]
-  cart_items         CartItem[]
-  product_views      ProductView[]
-  orders             Order[]
-  try_on_results     TryOnResult[]
+  id                   String         @id @default(uuid())
+  sku                  String         @unique
+  name                 String
+  description          String?
+  category             String?
+  subcategory          String?
+  product_type         String         @default("T-Shirt") @map("product_type")
+  gender               String?
+  brand                String?
+  category_id          String?        @map("category_id")
+  brand_id             String?        @map("brand_id")
+  price                Float
+  mrp                  Float?
+  discount_percent     Float?         @map("discount_percent")
+  tax_percent          Float?         @map("tax_percent")
+  stock_quantity       Int            @default(0) @map("stock_quantity")
+  barcode              String?
+  visibility           String         @default("PUBLISHED") @map("visibility")
+  currency             String         @default("INR")
+  color                String?
+  size_options         Json?          @map("size_options")
+  fabric               String?
+  fit_type             String?        @map("fit_type")
+  pattern              String?
+  sleeve_type          String?        @map("sleeve_type")
+  neck_type            String?        @map("neck_type")
+  season               String?
+  care_instructions    String?        @map("care_instructions")
+  country_of_origin    String?        @map("country_of_origin")
+  material             String?
+  weight_grams         Int?           @map("weight_grams")
+  dimensions           Json?
+  tags                 Json?
+  search_keywords      Json?          @map("search_keywords")
+  cms_metadata         Json?          @map("cms_metadata")
+  style_tags           Json?          @map("style_tags")
+  occasion_tags        Json?          @map("occasion_tags")
+  is_featured          Boolean        @default(false) @map("is_featured")
+  is_trending          Boolean        @default(false) @map("is_trending")
+  is_new_arrival       Boolean        @default(false) @map("is_new_arrival")
+  is_best_seller       Boolean        @default(false) @map("is_best_seller")
+  is_limited_edition   Boolean        @default(false) @map("is_limited_edition")
+  rating_avg           Float?         @map("rating_avg")
+  review_count         Int            @default(0) @map("review_count")
+  view_count           Int            @default(0) @map("view_count")
+  wishlist_count       Int            @default(0) @map("wishlist_count")
+  image_url            String?        @map("image_url") @db.VarChar(2048)
+  product_url          String?        @map("product_url") @db.VarChar(2048)
+  avatar_category      AvatarCategory? @map("avatar_category")
+  overlay_order        Int?            @map("overlay_order")
+  avatar_overlay_url   String?        @map("avatar_overlay_url") @db.VarChar(2048)
+  try_on_image         String?        @map("try_on_image") @db.VarChar(2048)
+  is_try_on_compatible Boolean?       @map("is_try_on_compatible")
+  is_active            Boolean        @default(true) @map("is_active")
+  created_at           DateTime       @default(now()) @map("created_at")
+  updated_at           DateTime       @updatedAt @map("updated_at")
+  images               ProductImage[]
+  variants             ProductVariant[]
+  inventory_history    ProductInventoryHistory[]
+  wishlist             Wishlist[]
+  cart_items           CartItem[]
+  product_views        ProductView[]
+  orders               Order[]
+  try_on_results       TryOnResult[]
+  personal_closet_items PersonalClosetItem[]
 
   @@index([category])
   @@index([subcategory])
@@ -264,12 +304,57 @@ model Product {
   @@index([brand_id])
   @@index([price])
   @@index([is_active])
+  @@index([visibility])
+  @@index([stock_quantity])
   @@index([category, subcategory])
   @@index([gender, category])
   @@index([avatar_category])
   @@index([overlay_order])
   @@index([avatar_category, overlay_order])
   @@map("products")
+}
+
+model ProductVariant {
+  id               String   @id @default(uuid())
+  product_id       String   @map("product_id")
+  color            String
+  size             String
+  sku              String   @unique
+  stock            Int      @default(0)
+  price_override   Float?   @map("price_override")
+  image_url        String?  @map("image_url") @db.VarChar(2048)
+  barcode          String?
+  is_active        Boolean  @default(true) @map("is_active")
+  sort_order       Int      @default(0) @map("sort_order")
+  created_at       DateTime @default(now()) @map("created_at")
+  updated_at       DateTime @updatedAt @map("updated_at")
+  product          Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  inventory_history ProductInventoryHistory[]
+
+  @@unique([product_id, color, size])
+  @@index([product_id])
+  @@index([color])
+  @@index([size])
+  @@map("product_variants")
+}
+
+model ProductInventoryHistory {
+  id              String          @id @default(uuid())
+  product_id      String          @map("product_id")
+  variant_id      String?         @map("variant_id")
+  change_type     String          @map("change_type")
+  quantity_change Int             @map("quantity_change")
+  quantity_before Int             @map("quantity_before")
+  quantity_after  Int             @map("quantity_after")
+  reason          String?
+  admin_user_id   String?         @map("admin_user_id")
+  created_at      DateTime        @default(now()) @map("created_at")
+  product         Product         @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  variant         ProductVariant? @relation(fields: [variant_id], references: [id], onDelete: SetNull)
+
+  @@index([product_id])
+  @@index([variant_id])
+  @@map("product_inventory_history")
 }
 
 model ProductImage {
@@ -301,10 +386,61 @@ model Wishlist {
 enum OrderStatus {
   CREATED
   CONFIRMED
+  PACKING
   PACKED
+  READY_TO_DISPATCH
+  READY_FOR_HANDOVER
   SHIPPED
   DELIVERED
+  COMPLETED
   CANCELLED
+  RETURNED
+  REFUNDED
+  ARCHIVED
+  ON_HOLD
+}
+
+enum PaymentMethod {
+  COD
+  UPI
+  CREDIT_CARD
+  DEBIT_CARD
+  NET_BANKING
+  WALLET
+}
+
+enum AddressType {
+  HOME
+  OFFICE
+  OTHER
+}
+
+enum OrderPriority {
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum OrderDocumentType {
+  INVOICE
+  SHIPPING_LABEL
+}
+
+enum OrderNotificationType {
+  ORDER_PLACED
+  ORDER_ACCEPTED
+  INVOICE_GENERATED
+  LABEL_GENERATED
+  PACKED
+  READY_TO_DISPATCH
+  HANDED_OVER
+  SHIPPED
+  DELIVERED
+  COMPLETED
+  CANCELLED
+  RETURNED
+  REFUND_APPROVED
+  STATUS_UPDATED
 }
 
 model CartItem {
@@ -323,27 +459,129 @@ model CartItem {
 }
 
 model Order {
-  id           String      @id @default(uuid())
-  user_id      String      @map("user_id")
-  product_id   String?     @map("product_id")
-  order_number String?     @map("order_number")
-  total_amount Float       @map("total_amount")
-  subtotal     Float?
-  shipping     Float?
-  discount     Float?
-  coupon_code  String?     @map("coupon_code")
-  metadata     Json?
-  status       OrderStatus @default(CREATED)
-  created_at   DateTime    @default(now()) @map("created_at")
-  updated_at   DateTime    @updatedAt @map("updated_at")
-  user         User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  product      Product?    @relation(fields: [product_id], references: [id], onDelete: SetNull)
+  id                  String         @id @default(uuid())
+  user_id             String?        @map("user_id")
+  product_id          String?        @map("product_id")
+  order_number        String?        @unique @map("order_number")
+  invoice_number      String?        @unique @map("invoice_number")
+  total_amount        Float          @map("total_amount")
+  subtotal            Float?
+  shipping            Float?
+  discount            Float?
+  tax                 Float?
+  coupon_code         String?        @map("coupon_code")
+  payment_method      PaymentMethod? @map("payment_method")
+  payment_status      String?        @default("pending") @map("payment_status")
+  shipping_address    Json?          @map("shipping_address")
+  billing_address     Json?          @map("billing_address")
+  priority            OrderPriority  @default(NORMAL)
+  estimated_delivery  DateTime?      @map("estimated_delivery")
+  tracking_number     String?        @map("tracking_number")
+  courier_name        String?        @map("courier_name")
+  package_weight      Float?         @map("package_weight")
+  package_id          String?        @map("package_id")
+  label_generated_at  DateTime?      @map("label_generated_at")
+  invoice_generated_at DateTime?     @map("invoice_generated_at")
+  packed_at           DateTime?      @map("packed_at")
+  dispatched_at       DateTime?      @map("dispatched_at")
+  delivered_at        DateTime?      @map("delivered_at")
+  completed_at        DateTime?      @map("completed_at")
+  internal_notes      String?        @map("internal_notes")
+  metadata            Json?
+  oms_metadata        Json?          @map("oms_metadata")
+  status              OrderStatus    @default(CREATED)
+  created_at          DateTime       @default(now()) @map("created_at")
+  updated_at          DateTime       @updatedAt @map("updated_at")
+  user                User?          @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  product             Product?       @relation(fields: [product_id], references: [id], onDelete: SetNull)
+  timeline            OrderTimeline[]
+  documents           OrderDocument[]
+  notifications       OrderNotification[]
 
   @@index([user_id])
   @@index([status])
   @@index([product_id])
   @@index([order_number])
+  @@index([invoice_number])
+  @@index([tracking_number])
+  @@index([created_at])
   @@map("orders")
+}
+
+model UserAddress {
+  id              String      @id @default(uuid())
+  user_id         String      @map("user_id")
+  full_name       String      @map("full_name")
+  phone           String
+  alternate_phone String?     @map("alternate_phone")
+  country         String      @default("India")
+  state           String
+  city            String
+  pincode         String
+  house_no        String      @map("house_no")
+  landmark        String?
+  address_type    AddressType @default(HOME) @map("address_type")
+  is_default      Boolean     @default(false) @map("is_default")
+  created_at      DateTime    @default(now()) @map("created_at")
+  updated_at      DateTime    @updatedAt @map("updated_at")
+  user            User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([user_id, is_default])
+  @@map("user_addresses")
+}
+
+model OrderTimeline {
+  id          String      @id @default(uuid())
+  order_id    String      @map("order_id")
+  action      String
+  from_status OrderStatus? @map("from_status")
+  to_status   OrderStatus? @map("to_status")
+  actor_id    String?     @map("actor_id")
+  actor_role  String?     @map("actor_role")
+  notes       String?
+  metadata    Json?
+  created_at  DateTime    @default(now()) @map("created_at")
+  order       Order       @relation(fields: [order_id], references: [id], onDelete: Cascade)
+
+  @@index([order_id])
+  @@index([created_at])
+  @@map("order_timeline")
+}
+
+model OrderDocument {
+  id            String            @id @default(uuid())
+  order_id      String            @map("order_id")
+  document_type OrderDocumentType @map("document_type")
+  file_name     String            @map("file_name")
+  storage_path  String            @map("storage_path")
+  mime_type     String            @default("application/pdf") @map("mime_type")
+  version       Int               @default(1)
+  generated_by  String?           @map("generated_by")
+  created_at    DateTime          @default(now()) @map("created_at")
+  order         Order             @relation(fields: [order_id], references: [id], onDelete: Cascade)
+
+  @@index([order_id])
+  @@index([order_id, document_type])
+  @@map("order_documents")
+}
+
+model OrderNotification {
+  id         String                @id @default(uuid())
+  user_id    String                @map("user_id")
+  order_id   String                @map("order_id")
+  type       OrderNotificationType
+  title      String
+  message    String
+  is_read    Boolean               @default(false) @map("is_read")
+  metadata   Json?
+  created_at DateTime              @default(now()) @map("created_at")
+  user       User                  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  order      Order                 @relation(fields: [order_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, is_read])
+  @@index([order_id])
+  @@map("order_notifications")
 }
 
 model FashionDna {
@@ -490,6 +728,7 @@ model PersonalClosetItem {
   created_at   DateTime @default(now()) @map("created_at")
   updated_at   DateTime @updatedAt @map("updated_at")
   user         User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  product      Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
 
   @@unique([user_id, order_id, product_id])
   @@index([user_id, is_removed])
@@ -527,4 +766,251 @@ model FavoriteColor {
   @@unique([user_id, color_name])
   @@index([user_id, is_removed])
   @@map("favorite_colors")
+}
+
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_FOR_CUSTOMER
+  RESOLVED
+  CLOSED
+  REOPENED
+  ESCALATED
+  CANCELLED
+}
+
+enum SupportTicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum SupportTicketCategory {
+  GENERAL
+  TECHNICAL_ISSUE
+  FACE_LOGIN
+  VIRTUAL_TRY_ON
+  AVATAR
+  FASHION_DNA
+  ORDERS
+  PAYMENTS
+  CART
+  PRODUCTS
+  RECOMMENDATION
+  ACCOUNT
+  SUBSCRIPTION
+  BUG_REPORT
+  FEATURE_REQUEST
+  OTHER
+}
+
+enum SupportContactMethod {
+  EMAIL
+  PHONE
+  IN_APP
+}
+
+enum SupportMessageAuthorType {
+  USER
+  ADMIN
+  SYSTEM
+}
+
+enum SupportActivityType {
+  CREATED
+  UPDATED
+  REPLIED
+  ASSIGNED
+  PRIORITY_CHANGED
+  STATUS_CHANGED
+  CATEGORY_CHANGED
+  CLOSED
+  REOPENED
+  ESCALATED
+  VIEWED
+  ATTACHMENT_DOWNLOADED
+  INTERNAL_NOTE
+  DELETED
+}
+
+enum SupportNotificationType {
+  TICKET_CREATED
+  ADMIN_REPLIED
+  USER_REPLIED
+  STATUS_CHANGED
+  RESOLVED
+  CLOSED
+  REOPENED
+  ESCALATED
+  ASSIGNED
+}
+
+enum SupportAttachmentType {
+  SCREENSHOT
+  FILE
+}
+
+model SupportTicket {
+  id                 String                @id @default(uuid())
+  ticket_number      String                @unique @map("ticket_number")
+  user_id            String                @map("user_id")
+  subject            String
+  description        String                @db.Text
+  category           SupportTicketCategory
+  priority           SupportTicketPriority @default(MEDIUM)
+  status             SupportTicketStatus   @default(OPEN)
+  contact_method     SupportContactMethod? @map("contact_method")
+  callback_number    String?               @map("callback_number")
+  order_reference    String?               @map("order_reference")
+  product_reference  String?               @map("product_reference")
+  ai_feature_related Boolean?              @map("ai_feature_related")
+  assigned_to_id     String?               @map("assigned_to_id")
+  browser_info       String?               @map("browser_info")
+  device_info        String?               @map("device_info")
+  os_info            String?               @map("os_info")
+  app_version        String?               @map("app_version")
+  timezone           String?
+  page_url           String?               @map("page_url") @db.VarChar(2048)
+  metadata           Json?
+  first_response_at  DateTime?             @map("first_response_at")
+  resolved_at        DateTime?             @map("resolved_at")
+  due_date           DateTime?             @map("due_date")
+  deleted_at         DateTime?             @map("deleted_at")
+  created_at         DateTime              @default(now()) @map("created_at")
+  updated_at         DateTime              @updatedAt @map("updated_at")
+  user               User                  @relation("SupportTicketUser", fields: [user_id], references: [id], onDelete: Cascade)
+  assigned_to        User?                 @relation("SupportTicketAssignee", fields: [assigned_to_id], references: [id], onDelete: SetNull)
+  messages           SupportMessage[]
+  attachments        SupportAttachment[]
+  activities         SupportActivity[]
+  assignments        SupportAssignment[]
+  notifications      SupportNotification[]
+
+  @@index([user_id])
+  @@index([status])
+  @@index([category])
+  @@index([priority])
+  @@index([assigned_to_id])
+  @@index([ticket_number])
+  @@index([created_at])
+  @@map("support_tickets")
+}
+
+model SupportMessage {
+  id          String                   @id @default(uuid())
+  ticket_id   String                   @map("ticket_id")
+  author_id   String?                  @map("author_id")
+  author_type SupportMessageAuthorType @map("author_type")
+  body        String                   @db.Text
+  is_internal Boolean                  @default(false) @map("is_internal")
+  is_read     Boolean                  @default(false) @map("is_read")
+  read_at     DateTime?                @map("read_at")
+  created_at  DateTime                 @default(now()) @map("created_at")
+  ticket      SupportTicket            @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
+  author      User?                    @relation(fields: [author_id], references: [id], onDelete: SetNull)
+  attachments SupportAttachment[]
+
+  @@index([ticket_id])
+  @@index([author_id])
+  @@map("support_messages")
+}
+
+model SupportAttachment {
+  id              String                @id @default(uuid())
+  ticket_id       String                @map("ticket_id")
+  message_id      String?               @map("message_id")
+  file_name       String                @map("file_name")
+  mime_type       String                @map("mime_type")
+  file_size       Int                   @map("file_size")
+  storage_path    String                @map("storage_path") @db.VarChar(2048)
+  public_url      String                @map("public_url") @db.VarChar(2048)
+  attachment_type SupportAttachmentType @map("attachment_type")
+  uploaded_by_id  String?               @map("uploaded_by_id")
+  created_at      DateTime              @default(now()) @map("created_at")
+  ticket          SupportTicket         @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
+  message         SupportMessage?       @relation(fields: [message_id], references: [id], onDelete: SetNull)
+  uploaded_by     User?                 @relation(fields: [uploaded_by_id], references: [id], onDelete: SetNull)
+
+  @@index([ticket_id])
+  @@index([message_id])
+  @@map("support_attachments")
+}
+
+model SupportActivity {
+  id            String              @id @default(uuid())
+  ticket_id     String              @map("ticket_id")
+  actor_id      String?             @map("actor_id")
+  activity_type SupportActivityType @map("activity_type")
+  old_value     String?             @map("old_value")
+  new_value     String?             @map("new_value")
+  metadata      Json?
+  created_at    DateTime            @default(now()) @map("created_at")
+  ticket        SupportTicket       @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
+  actor         User?               @relation(fields: [actor_id], references: [id], onDelete: SetNull)
+
+  @@index([ticket_id])
+  @@index([activity_type])
+  @@map("support_activities")
+}
+
+model SupportAssignment {
+  id           String        @id @default(uuid())
+  ticket_id    String        @map("ticket_id")
+  assignee_id  String        @map("assignee_id")
+  assigned_by  String?       @map("assigned_by")
+  note         String?
+  is_active    Boolean       @default(true) @map("is_active")
+  created_at   DateTime      @default(now()) @map("created_at")
+  ticket       SupportTicket @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
+  assignee     User          @relation(fields: [assignee_id], references: [id], onDelete: Cascade)
+
+  @@index([ticket_id])
+  @@index([assignee_id])
+  @@map("support_assignments")
+}
+
+model SupportNotification {
+  id                String                  @id @default(uuid())
+  user_id           String                  @map("user_id")
+  ticket_id         String                  @map("ticket_id")
+  notification_type SupportNotificationType @map("notification_type")
+  title             String
+  body              String?
+  is_read           Boolean                 @default(false) @map("is_read")
+  read_at           DateTime?               @map("read_at")
+  metadata          Json?
+  created_at        DateTime                @default(now()) @map("created_at")
+  user              User                    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  ticket            SupportTicket           @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, is_read])
+  @@index([ticket_id])
+  @@map("support_notifications")
+}
+
+model UserMedia {
+  id                 String    @id @default(uuid())
+  user_id            String    @map("user_id")
+  module             String
+  original_file_name String?   @map("original_file_name")
+  stored_file_name   String?   @map("stored_file_name")
+  storage_path       String    @map("storage_path") @db.VarChar(2048)
+  public_url         String?   @map("public_url") @db.VarChar(2048)
+  thumbnail_url      String?   @map("thumbnail_url") @db.VarChar(2048)
+  file_size          Int?      @map("file_size")
+  width              Int?
+  height             Int?
+  mime_type          String?   @map("mime_type")
+  upload_source      String?   @map("upload_source")
+  status             String    @default("ACTIVE")
+  metadata           Json?
+  created_at         DateTime  @default(now()) @map("created_at")
+  updated_at         DateTime  @updatedAt @map("updated_at")
+  deleted_at         DateTime? @map("deleted_at")
+  user               User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, module, status])
+  @@index([user_id, created_at])
+  @@map("user_media")
 }

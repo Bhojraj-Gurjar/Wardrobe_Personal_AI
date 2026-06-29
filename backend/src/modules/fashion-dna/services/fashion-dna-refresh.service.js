@@ -6,6 +6,7 @@ import { FashionDnaService } from './fashion-dna.service';
 import { FashionDnaContextService } from './fashion-dna-context.service';
 import { FashionDnaCacheService } from './fashion-dna-cache.service';
 import { FashionDnaHistoryService } from './fashion-dna-history.service';
+import { isPlaceholderFashionDna } from './fashion-dna.generator';
 
 const REFRESH_DEBOUNCE_MS = 3000;
 const REFRESH_LOCK_PREFIX = 'fashion-dna:refresh:';
@@ -114,7 +115,7 @@ class FashionDnaRefreshService {
   async regenerateFashionDna(userId, source = 'activity') {
     const existing = await this.fashionDnaRepository.findByUserId(userId);
 
-    if (!existing) {
+    if (!existing || isPlaceholderFashionDna(existing)) {
       const generated = await this.fashionDnaService.generateFashionDnaIfReady(userId);
 
       if (generated) {

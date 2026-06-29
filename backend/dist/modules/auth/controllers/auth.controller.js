@@ -11,6 +11,8 @@ Object.defineProperty(exports, "AuthController", {
 const _common = require("@nestjs/common");
 const _swagger = require("@nestjs/swagger");
 const _dtovalidationpipe = require("../../../common/pipes/dto-validation.pipe");
+const _jwtauthguard = require("../../../guards/jwt-auth.guard");
+const _currentuserdecorator = require("../../../common/decorators/current-user.decorator");
 const _authservice = require("../services/auth.service");
 const _registerdto = require("../dto/register.dto");
 const _logindto = require("../dto/login.dto");
@@ -49,6 +51,9 @@ let AuthController = class AuthController {
     }
     logout(dto) {
         return this.authService.logout(dto);
+    }
+    me(user) {
+        return this.authService.getMe(user.userId);
     }
 };
 _ts_decorate([
@@ -131,6 +136,28 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", void 0)
 ], AuthController.prototype, "logout", null);
+_ts_decorate([
+    (0, _common.Get)('me'),
+    (0, _common.UseGuards)(_jwtauthguard.JwtAuthGuard),
+    (0, _swagger.ApiBearerAuth)(),
+    (0, _swagger.ApiOperation)({
+        summary: 'Get current authenticated user (role + status)'
+    }),
+    (0, _swagger.ApiResponse)({
+        status: 200,
+        description: 'Current user'
+    }),
+    (0, _swagger.ApiResponse)({
+        status: 401,
+        description: 'Unauthorized'
+    }),
+    _ts_param(0, (0, _currentuserdecorator.CurrentUser)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        void 0
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], AuthController.prototype, "me", null);
 AuthController = _ts_decorate([
     (0, _swagger.ApiTags)('auth'),
     (0, _common.Controller)('auth'),

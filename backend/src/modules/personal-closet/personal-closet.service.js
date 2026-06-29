@@ -5,6 +5,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { CartService } from '../cart/services/cart.service';
+import { REFRESH_SOURCES } from '../fashion-dna/constants/fashion-dna-regeneration.constants';
+import { FashionDnaRegenerationService } from '../fashion-dna/services/fashion-dna-regeneration.service';
 import { formatCatalogProduct } from '../products/utils/product-catalog.mapper';
 import { PersonalClosetRepository } from './personal-closet.repository';
 import {
@@ -67,9 +69,11 @@ class PersonalClosetService {
   constructor(
     @Inject(PersonalClosetRepository) repository,
     @Inject(CartService) cartService,
+    @Inject(FashionDnaRegenerationService) fashionDnaRegenerationService,
   ) {
     this.repository = repository;
     this.cartService = cartService;
+    this.fashionDnaRegenerationService = fashionDnaRegenerationService;
   }
 
   async getOverview(userId) {
@@ -129,6 +133,8 @@ class PersonalClosetService {
       total_price: payload.totalPrice ?? null,
       source: payload.source || 'digital-avatar',
     });
+
+    this.fashionDnaRegenerationService.trigger(userId, REFRESH_SOURCES.CLOSET_UPDATE);
 
     return this.formatSavedOutfit(saved);
   }
@@ -349,7 +355,7 @@ class PersonalClosetService {
           size: resolveProductSize(product, lineItem),
           color: product.color || 'Unknown',
           price: lineItem.price ?? product.price ?? 0,
-          currency: product.currency || 'USD',
+          currency: product.currency || 'INR',
           imageUrl: product.imageUrl || product.image_url,
           purchasedAt: order.updated_at || order.created_at,
           product,

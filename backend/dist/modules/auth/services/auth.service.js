@@ -136,6 +136,14 @@ let AuthService = class AuthService {
             message: 'Logged out successfully'
         };
     }
+    async getMe(userId) {
+        const user = await this.authRepository.findById(userId);
+        if (!user) {
+            throw new _common.UnauthorizedException('User not found');
+        }
+        await this.ensureActiveUser(user);
+        return this.sanitizeUser(user);
+    }
     async ensureUniqueCredentials(email, mobile) {
         const existingEmail = await this.authRepository.findByEmail(email);
         if (existingEmail) {

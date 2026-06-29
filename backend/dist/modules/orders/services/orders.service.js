@@ -9,10 +9,16 @@ Object.defineProperty(exports, "OrdersService", {
     }
 });
 const _common = require("@nestjs/common");
+const _crypto = require("crypto");
 const _fashiondnaregenerationconstants = require("../../fashion-dna/constants/fashion-dna-regeneration.constants");
 const _fashiondnaregenerationservice = require("../../fashion-dna/services/fashion-dna-regeneration.service");
-const _productcatalogmapper = require("../../products/utils/product-catalog.mapper");
+const _productservice = require("../../products/services/product.service");
+const _currencyutil = require("../../../common/utils/currency.util");
+const _inventoryutil = require("../../commerce/utils/inventory.util");
+const _commerceconstants = require("../../commerce/constants/commerce.constants");
+const _storagepathresolverservice = require("../../../storage/services/storage-path-resolver.service");
 const _ordersrepository = require("../repositories/orders.repository");
+const _ordereventservice = require("./order-event.service");
 const _orderstatusutil = require("../utils/order-status.util");
 const _orderconstants = require("../validators/order.constants");
 function _ts_decorate(decorators, target, key, desc) {
@@ -30,9 +36,12 @@ function _ts_param(paramIndex, decorator) {
     };
 }
 let OrdersService = class OrdersService {
-    constructor(ordersRepository, fashionDnaRegenerationService){
+    constructor(ordersRepository, fashionDnaRegenerationService, productService, orderEventService, storagePathResolver){
         this.ordersRepository = ordersRepository;
         this.fashionDnaRegenerationService = fashionDnaRegenerationService;
+        this.productService = productService;
+        this.orderEventService = orderEventService;
+        this.storagePathResolver = storagePathResolver;
     }
     updateExpiredOrders() {
         return this.ordersRepository.syncAutoStatuses();
@@ -44,7 +53,23 @@ let OrdersService = class OrdersService {
                 throw new _common.NotFoundException('Product not found');
             }
         }
-        const order = await this.ordersRepository.create(userId, dto);
+        let order;
+        try {
+            order = dto.product_id ? await this.ordersRepository.createWithInventoryReservation(userId, dto, [
+                {
+                    product_id: dto.product_id,
+                    quantity: 1
+                }
+            ]) : await this.ordersRepository.create(userId, dto);
+        } catch (error) {
+            if (error instanceof _inventoryutil.StockExceededError) {
+                throw new _common.BadRequestException(_inventoryutil.STOCK_EXCEEDED_ERROR);
+            }
+            throw error;
+        }
+        if (dto.product_id) {
+            await this.productService.invalidateCatalogCache(dto.product_id);
+        }
         this.fashionDnaRegenerationService.trigger(userId, _fashiondnaregenerationconstants.REFRESH_SOURCES.PURCHASE);
         return this.formatOrder(order);
     }
@@ -64,27 +89,76 @@ let OrdersService = class OrdersService {
                 product_id: item.product_id,
                 quantity: item.quantity,
                 price: item.price,
-                product: (0, _productcatalogmapper.formatCatalogProduct)(productMap.get(item.product_id))
+                product: formatCatalogProduct(productMap.get(item.product_id))
             }));
-        const order = await this.ordersRepository.create(userId, {
-            order_number: checkoutDto.order_number,
-            total_amount: checkoutDto.total_amount,
-            subtotal: checkoutDto.subtotal,
-            shipping: checkoutDto.shipping,
-            discount: checkoutDto.discount,
-            coupon_code: checkoutDto.coupon_code,
-            product_id: checkoutDto.items[0]?.product_id || null,
-            metadata: {
-                items: lineItems,
-                payment_status: 'simulated_success',
-                payment_method: checkoutDto.payment_method || 'UPI'
+        const paymentMethod = checkoutDto.payment_method || 'COD';
+        const paymentStatus = 'pending';
+        let order;
+        try {
+            order = await this.ordersRepository.checkoutWithCartClear(userId, {
+                order_number: checkoutDto.order_number,
+                total_amount: checkoutDto.total_amount,
+                subtotal: checkoutDto.subtotal,
+                shipping: checkoutDto.shipping,
+                discount: checkoutDto.discount,
+                tax: checkoutDto.tax ?? 0,
+                coupon_code: checkoutDto.coupon_code,
+                product_id: checkoutDto.items[0]?.product_id || null,
+                payment_method: paymentMethod,
+                payment_status: paymentStatus,
+                shipping_address: checkoutDto.shipping_address,
+                billing_address: checkoutDto.billing_address || checkoutDto.shipping_address,
+                estimated_delivery: checkoutDto.estimated_delivery || (0, _commerceconstants.estimateDeliveryDate)(),
+                metadata: {
+                    items: lineItems,
+                    payment_reference: checkoutDto.payment_reference || null,
+                    payment_gateway: paymentMethod === 'COD' ? null : 'pending'
+                },
+                oms_metadata: {
+                    label_generated: false,
+                    invoice_generated: false
+                }
+            }, checkoutDto.items);
+        } catch (error) {
+            if (error instanceof _inventoryutil.StockExceededError) {
+                throw new _common.BadRequestException(_inventoryutil.STOCK_EXCEEDED_ERROR);
             }
+            if (error?.message === 'CART_EMPTY') {
+                throw new _common.BadRequestException('Cart is empty');
+            }
+            throw error;
+        }
+        await this.ordersRepository.createTimelineEntry({
+            id: (0, _crypto.randomUUID)(),
+            order_id: order.id,
+            action: _orderconstants.ORDER_TIMELINE_ACTION.CREATED,
+            from_status: null,
+            to_status: _orderconstants.ORDER_STATUS.CREATED,
+            actor_id: userId,
+            actor_role: 'CUSTOMER',
+            notes: 'Order placed via checkout'
         });
+        await this.ordersRepository.createNotification({
+            id: (0, _crypto.randomUUID)(),
+            user_id: userId,
+            order_id: order.id,
+            type: _orderconstants.ORDER_NOTIFICATION_TYPE.ORDER_PLACED,
+            title: 'Order placed successfully',
+            message: `Your order ${order.order_number} has been placed.`
+        });
+        this.orderEventService.emit(_orderconstants.ORDER_EVENTS.ORDER_CREATED, {
+            userId,
+            orderId: order.id,
+            orderNumber: order.order_number,
+            status: _orderconstants.ORDER_STATUS.CREATED
+        });
+        await Promise.all([
+            ...new Set(checkoutDto.items.map((item)=>item.product_id))
+        ].map((productId)=>this.productService.invalidateCatalogCache(productId)));
         this.fashionDnaRegenerationService.trigger(userId, _fashiondnaregenerationconstants.REFRESH_SOURCES.PURCHASE);
         return this.formatOrder(order);
     }
     async findAll(userId, query) {
-        await this.ordersRepository.syncAutoStatuses();
         const [orders, total] = await this.ordersRepository.findManyByUserId(userId, query);
         return {
             items: orders.map((order)=>this.formatOrder(order)),
@@ -97,7 +171,6 @@ let OrdersService = class OrdersService {
         };
     }
     async findOne(userId, id) {
-        await this.ordersRepository.syncAutoStatuses();
         const order = await this.ordersRepository.findByIdAndUserId(id, userId);
         if (!order) {
             throw new _common.NotFoundException('Order not found');
@@ -112,8 +185,52 @@ let OrdersService = class OrdersService {
         if (!(0, _orderstatusutil.isOrderCancellable)(order.status)) {
             throw new _common.BadRequestException('Order cannot be cancelled');
         }
-        const updated = await this.ordersRepository.updateStatus(id, _orderconstants.ORDER_STATUS.CANCELLED);
+        const updated = await this.ordersRepository.cancelWithStockRestore(id, order.status);
+        if (!updated) {
+            throw new _common.BadRequestException('Order status changed concurrently. Please refresh and retry.');
+        }
+        await this.ordersRepository.createTimelineEntry({
+            id: (0, _crypto.randomUUID)(),
+            order_id: updated.id,
+            action: _orderconstants.ORDER_TIMELINE_ACTION.CANCELLED,
+            from_status: order.status,
+            to_status: _orderconstants.ORDER_STATUS.CANCELLED,
+            actor_id: userId,
+            actor_role: 'CUSTOMER',
+            notes: 'Cancelled by customer'
+        });
+        this.orderEventService.emit(_orderconstants.ORDER_EVENTS.ORDER_CANCELLED, {
+            userId,
+            orderId: updated.id,
+            orderNumber: updated.order_number
+        });
+        await Promise.all([
+            ...new Set(this.ordersRepository.getLineItemsFromOrder(updated).map((item)=>item.product_id))
+        ].map((productId)=>this.productService.invalidateCatalogCache(productId)));
         return this.formatOrder(updated);
+    }
+    async getNotifications(userId, query = {}) {
+        const items = await this.ordersRepository.findUserNotifications(userId, query);
+        return {
+            items: items.map((item)=>({
+                    id: item.id,
+                    type: item.type,
+                    title: item.title,
+                    message: item.message,
+                    is_read: item.is_read,
+                    order: item.order,
+                    created_at: item.created_at
+                }))
+        };
+    }
+    async markNotificationsRead(userId, ids = null) {
+        if (!Array.isArray(ids) || !ids.length) {
+            throw new _common.BadRequestException('Notification ids are required');
+        }
+        await this.ordersRepository.markNotificationsRead(userId, ids);
+        return {
+            success: true
+        };
     }
     formatOrder(order) {
         const metadataItems = Array.isArray(order.metadata?.items) ? order.metadata.items : null;
@@ -122,27 +239,45 @@ let OrdersService = class OrdersService {
                 product_id: item.product_id,
                 quantity: item.quantity,
                 price: item.price,
-                product: item.product || (order.product ? (0, _productcatalogmapper.formatCatalogProduct)(order.product) : null)
+                product: item.product || (order.product ? formatCatalogProduct(order.product) : null)
             })) : order.product ? [
             {
                 id: `${order.id}-0`,
                 product_id: order.product_id,
                 quantity: 1,
                 price: order.total_amount,
-                product: (0, _productcatalogmapper.formatCatalogProduct)(order.product)
+                product: formatCatalogProduct(order.product)
             }
         ] : [];
+        const omsFlags = {
+            label_generated: Boolean(order.label_generated_at || order.oms_metadata?.label_generated),
+            invoice_generated: Boolean(order.invoice_generated_at || order.oms_metadata?.invoice_generated),
+            packing_checklist: order.oms_metadata?.packing_checklist || null
+        };
         return {
             id: order.id,
             user_id: order.user_id,
             product_id: order.product_id ?? null,
             brand_id: order.product?.brand_id ?? null,
             order_number: order.order_number || `WA-${order.id.slice(0, 8).toUpperCase()}`,
+            invoice_number: order.invoice_number ?? null,
             total_amount: order.total_amount,
             subtotal: order.subtotal ?? order.total_amount,
             shipping: order.shipping ?? 0,
             discount: order.discount ?? 0,
+            tax: order.tax ?? 0,
+            currency: _currencyutil.DEFAULT_CURRENCY,
             coupon_code: order.coupon_code ?? null,
+            payment_method: order.payment_method ?? order.metadata?.payment_method ?? 'COD',
+            payment_status: order.payment_status ?? order.metadata?.payment_status ?? 'pending',
+            shipping_address: order.shipping_address ?? order.metadata?.shipping_address ?? null,
+            billing_address: order.billing_address ?? order.metadata?.billing_address ?? null,
+            priority: order.priority ?? 'NORMAL',
+            estimated_delivery: order.estimated_delivery ?? null,
+            tracking_number: order.tracking_number ?? null,
+            courier_name: order.courier_name ?? null,
+            package_weight: order.package_weight ?? null,
+            package_id: order.package_id ?? null,
             status: order.status,
             display_status: (0, _orderstatusutil.normalizeDisplayStatus)(order.status),
             can_cancel: (0, _orderstatusutil.isOrderCancellable)(order.status),
@@ -151,9 +286,35 @@ let OrdersService = class OrdersService {
             user: order.user ? {
                 id: order.user.id,
                 email: order.user.email,
-                name: order.user.profile?.name || order.user.email
+                name: order.user.profile?.name || order.user.email,
+                mobile: order.user.mobile
             } : null,
             metadata: order.metadata ?? null,
+            oms_metadata: order.oms_metadata ?? null,
+            oms_flags: omsFlags,
+            timeline: (order.timeline || []).map((entry)=>({
+                    id: entry.id,
+                    action: entry.action,
+                    from_status: entry.from_status,
+                    to_status: entry.to_status,
+                    actor_role: entry.actor_role,
+                    notes: entry.notes,
+                    created_at: entry.created_at
+                })),
+            documents: (order.documents || []).map((doc)=>({
+                    id: doc.id,
+                    document_type: doc.document_type,
+                    file_name: doc.file_name,
+                    public_url: this.storagePathResolver.toPublicUrl(doc.storage_path),
+                    version: doc.version,
+                    created_at: doc.created_at
+                })),
+            label_generated_at: order.label_generated_at,
+            invoice_generated_at: order.invoice_generated_at,
+            packed_at: order.packed_at,
+            dispatched_at: order.dispatched_at,
+            delivered_at: order.delivered_at,
+            completed_at: order.completed_at,
             created_at: order.created_at,
             updated_at: order.updated_at
         };
@@ -163,8 +324,14 @@ OrdersService = _ts_decorate([
     (0, _common.Injectable)(),
     _ts_param(0, (0, _common.Inject)(_ordersrepository.OrdersRepository)),
     _ts_param(1, (0, _common.Inject)(_fashiondnaregenerationservice.FashionDnaRegenerationService)),
+    _ts_param(2, (0, _common.Inject)(_productservice.ProductService)),
+    _ts_param(3, (0, _common.Inject)(_ordereventservice.OrderEventService)),
+    _ts_param(4, (0, _common.Inject)(_storagepathresolverservice.StoragePathResolver)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        void 0,
+        void 0,
+        void 0,
         void 0,
         void 0
     ])

@@ -11,6 +11,9 @@ from app.config import get_settings
 from app.services.face_service import FaceService
 from app.services.qdrant_service import QdrantStore
 from app.services.face_validation import FaceValidationError
+from app.services.liveness_challenge_service import liveness_challenge_service
+from app.services.embedding_service import detect_faces
+from app.utils.image import image_to_numpy
 from app.services.face_diagnostics import (
     DUPLICATE_FACE_BLOCKED,
     FACE_LOGIN_FAILED,
@@ -67,6 +70,75 @@ class FaceAuthService:
     def _embed_image(self, image) -> list[float]:
         embedding, _quality = face_service.embed_from_image(image)
         return embedding
+
+    def _embed_frames_average(
+        self,
+        images: list,
+        *,
+        challenge_type: str | None = None,
+    ) -> tuple[list[float], float, dict]:
+        if not images:
+            raise FaceValidationError("Invalid image.", "invalid_image")
+
+        rgb_frames = [image_to_numpy(image) for image in images]
+        liveness_meta = {
+            "liveness_score": None,
+            "challenge_type": None,
+            "frame_count": len(rgb_frames),
+        }
+
+        if challenge_type:
+            liveness = liveness_challenge_service.analyze_frames(
+                rgb_frames,
+                challenge_type=challenge_type,
+            )
+            liveness_meta["liveness_score"] = liveness.liveness_score
+            liveness_meta["challenge_type"] = liveness.challenge_type
+            liveness_meta["frame_count"] = liveness.frame_count
+        elif self._settings.face_liveness_required:
+            raise FaceValidationError(
+                "Liveness verification required.",
+                "liveness_failed",
+            )
+
+        vectors: list[np.ndarray] = []
+        qualities: list[float] = []
+
+        for rgb in rgb_frames:
+            try:
+                detections = detect_faces(rgb)
+            except Exception:  # noqa: BLE001
+                continue
+
+            if len(detections) != 1:
+                continue
+
+            detection = detections[0]
+            confidence = float(detection.detection_score)
+            if confidence < self._settings.face_min_embedding_confidence:
+                continue
+
+            embedding = np.asarray(detection.embedding, dtype=np.float32)
+            magnitude = float(np.linalg.norm(embedding))
+            if magnitude <= 0:
+                continue
+
+            vectors.append(embedding / magnitude)
+            qualities.append(confidence)
+
+        if not vectors:
+            raise FaceValidationError("Image quality is too low.", "low_quality")
+
+        stacked = np.stack(vectors, axis=0)
+        averaged = np.mean(stacked, axis=0)
+        magnitude = float(np.linalg.norm(averaged))
+        if magnitude <= 0:
+            raise FaceValidationError("Invalid embedding: zero vector.", "invalid_embedding")
+
+        normalized = (averaged / magnitude).tolist()
+        mean_quality = float(np.mean(qualities))
+        liveness_meta["quality_score"] = mean_quality
+        return normalized, mean_quality, liveness_meta
 
     def _validate_embedding(self, embedding: list[float]) -> None:
         expected = self._vector_size()
@@ -194,7 +266,7 @@ class FaceAuthService:
             similarity_score=top_score,
         )
 
-    def register(self, user_id: str, image) -> dict:
+    def register(self, user_id: str, image, *, challenge_type: str | None = None, images: list | None = None) -> dict:
         if not qdrant_store.enabled:
             raise RuntimeError("Qdrant is not configured")
 
@@ -204,14 +276,19 @@ class FaceAuthService:
 
         logger.info(
             "STEP 5 FastAPI register | user_id=%s | vectors_before=%s | "
-            "login_threshold=%.2f | registration_duplicate_threshold=%.2f",
+            "login_threshold=%.2f | registration_duplicate_threshold=%.2f | liveness=%s",
             user_id,
             vectors_before,
             self.success_threshold,
             self.registration_duplicate_threshold,
+            bool(challenge_type or images),
         )
 
-        embedding = self._embed_image(image)
+        frame_images = images if images else [image]
+        embedding, quality, liveness_meta = self._embed_frames_average(
+            frame_images,
+            challenge_type=challenge_type,
+        )
         self._validate_embedding(embedding)
 
         self._delete_user_vectors(user_id)
@@ -245,6 +322,8 @@ class FaceAuthService:
             user_id=user_id,
             embedding_dim=len(embedding),
             collection=collection,
+            liveness_score=liveness_meta.get("liveness_score"),
+            challenge_type=liveness_meta.get("challenge_type"),
         )
 
         return {
@@ -255,14 +334,22 @@ class FaceAuthService:
             "vectors_before": vectors_before,
             "vectors_after": vectors_after,
             "re_registered": vectors_before > 0,
+            "liveness_score": liveness_meta.get("liveness_score"),
+            "quality_score": quality,
+            "challenge_type": liveness_meta.get("challenge_type"),
+            "frame_count": liveness_meta.get("frame_count"),
         }
 
-    def login(self, image) -> FaceMatch:
+    def login(self, image, *, challenge_type: str | None = None, images: list | None = None) -> FaceMatch:
         if not qdrant_store.enabled:
             raise RuntimeError("Qdrant is not configured")
 
         with face_diagnostics.measure("login_total"):
-            embedding = self._embed_image(image)
+            frame_images = images if images else [image]
+            embedding, _quality, liveness_meta = self._embed_frames_average(
+                frame_images,
+                challenge_type=challenge_type,
+            )
             self._validate_embedding(embedding)
             matches = qdrant_store.search_vectors(
                 self._collection(),
@@ -280,11 +367,12 @@ class FaceAuthService:
         user_id = self._resolve_match_user_id(best)
 
         logger.info(
-            "Face login match | matched_vector_id=%s | matched_user_id=%s | score=%.4f | threshold=%.2f",
+            "Face login match | matched_vector_id=%s | matched_user_id=%s | score=%.4f | threshold=%.2f | liveness=%s",
             best.get("id"),
             user_id,
             score,
             self.success_threshold,
+            liveness_meta.get("challenge_type"),
         )
 
         if score < self.success_threshold:
@@ -300,6 +388,7 @@ class FaceAuthService:
             FACE_LOGIN_SUCCESS,
             user_id=user_id,
             similarity_score=f"{score:.4f}",
+            liveness_score=liveness_meta.get("liveness_score"),
         )
         return FaceMatch(user_id=user_id, score=score)
 

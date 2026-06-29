@@ -13,13 +13,16 @@ class BodyImageStorageService {
   }
 
   async replaceBodyImage(userId, buffer, mimeType, previousStoragePath = null) {
-    await this.storageService.deleteBodyImagesForUser(userId);
-
     const uploadResult = await this.storageService.uploadBodyImage({
       userId,
       buffer,
       mimeType,
     });
+
+    await this.storageService.deleteFolderFilesExcept(
+      `body/${userId}`,
+      uploadResult.storagePath,
+    );
 
     if (
       previousStoragePath

@@ -8,7 +8,14 @@ import {
 import { ProductRepository } from '../products/repositories/product.repository';
 import { TryOnService } from '../try-on/try-on.service';
 import { assessTryOnCompatibility } from '../try-on/utils/try-on-product-compatibility.util';
+import {
+  mapProductImagesForResponse,
+  resolvePublicProductImageUrl,
+} from '../products/utils/resolve-product-image.util';
 import { StoragePathResolver } from '../../storage/services/storage-path-resolver.service';
+import { FashionDnaRegenerationService } from '../fashion-dna/services/fashion-dna-regeneration.service';
+import { REFRESH_SOURCES } from '../fashion-dna/constants/fashion-dna-regeneration.constants';
+import { UserMediaRegistryService } from '../user-media/services/user-media-registry.service';
 import { VirtualTryOnRepository } from './virtual-try-on.repository';
 import { BodyImageResolverService } from './services/body-image-resolver.service';
 import { BackgroundRemovalService } from './services/background-removal.service';
@@ -37,12 +44,11 @@ function formatDbProduct(product, storagePathResolver) {
     return null;
   }
 
-  const primaryImage = product.images?.find((image) => image.is_primary)
-    ?? product.images?.[0];
-  const rawImageUrl = product.try_on_image ?? primaryImage?.url ?? product.image_url;
-  const imageUrl = rawImageUrl
-    ? (storagePathResolver?.toPublicUrl(rawImageUrl) || rawImageUrl)
-    : null;
+  const imageUrl = resolvePublicProductImageUrl(product, storagePathResolver);
+  const compatibility = assessTryOnCompatibility(product);
+  const tryOnImage = compatibility.tryOnImage
+    ? (storagePathResolver?.toPublicUrl(compatibility.tryOnImage) || compatibility.tryOnImage)
+    : imageUrl;
 
   return {
     id: product.id,
@@ -61,6 +67,9 @@ function formatDbProduct(product, storagePathResolver) {
     fit_type: product.fit_type,
     imageUrl,
     image_url: imageUrl,
+    tryOnImage,
+    try_on_image: tryOnImage,
+    images: mapProductImagesForResponse(product, storagePathResolver),
     avatarCategory: product.avatar_category,
     avatar_category: product.avatar_category,
     overlayOrder: product.overlay_order,
@@ -69,7 +78,6 @@ function formatDbProduct(product, storagePathResolver) {
       ? (storagePathResolver?.toPublicUrl(product.avatar_overlay_url) || product.avatar_overlay_url)
       : null,
     avatar_overlay_url: product.avatar_overlay_url,
-    tryOnImage: imageUrl,
     is_try_on_compatible: product.is_try_on_compatible,
   };
 }
@@ -83,6 +91,8 @@ class VirtualTryOnService {
     @Inject(ProductRepository) productRepository,
     @Inject(StoragePathResolver) storagePathResolver,
     @Inject(TryOnService) tryOnService,
+    @Inject(FashionDnaRegenerationService) fashionDnaRegenerationService,
+    @Inject(UserMediaRegistryService) userMediaRegistryService,
   ) {
     this.repository = repository;
     this.bodyImageResolver = bodyImageResolver;
@@ -90,11 +100,22 @@ class VirtualTryOnService {
     this.productRepository = productRepository;
     this.storagePathResolver = storagePathResolver;
     this.tryOnService = tryOnService;
+    this.fashionDnaRegenerationService = fashionDnaRegenerationService;
+    this.userMediaRegistryService = userMediaRegistryService;
     this.logger = new Logger(VirtualTryOnService.name);
   }
 
+  scheduleFashionDnaRefresh(userId, source = REFRESH_SOURCES.TRY_ON) {
+    this.fashionDnaRegenerationService?.trigger(userId, source);
+  }
+
   async getSetup(userId) {
-    const bodyImagePath = await this.bodyImageResolver.resolveBodyImagePath(userId);
+    const session = await this.repository.findSessionByUserId(userId);
+    const tryOnSessionPath = this.isTryOnPersonSessionPath(session?.body_image)
+      ? session.body_image
+      : null;
+    const bodyImagePath = tryOnSessionPath
+      || await this.bodyImageResolver.resolveBodyImagePath(userId);
 
     if (!bodyImagePath) {
       return {
@@ -105,18 +126,31 @@ class VirtualTryOnService {
         bodyPhotoReference: null,
         hasTransparentCache: false,
         transparentImageUrl: null,
+        sessionPhotoActive: false,
+        sessionBodyPhotoUrl: null,
       };
     }
 
-    await this.bodyImageResolver.syncTryOnSessionInput(userId);
+    if (!tryOnSessionPath) {
+      await this.bodyImageResolver.syncTryOnSessionInput(userId);
+    }
 
-    const displayPath = await this.bodyImageResolver.resolveDisplayBodyImagePath(userId);
-    const transparentPath = await this.bodyImageResolver.resolveTransparentBodyImagePath(userId);
-    const session = await this.repository.findSessionByUserId(userId);
+    const displayPath = tryOnSessionPath
+      ? tryOnSessionPath
+      : await this.bodyImageResolver.resolveDisplayBodyImagePath(userId);
+    const transparentPath = tryOnSessionPath
+      ? null
+      : await this.bodyImageResolver.resolveTransparentBodyImagePath(userId);
+    const refreshedSession = tryOnSessionPath
+      ? session
+      : await this.repository.findSessionByUserId(userId);
     const hasTransparentCache = Boolean(transparentPath)
-      || Boolean(session?.transparent_image)
+      || Boolean(refreshedSession?.transparent_image)
       || this.backgroundRemovalService.transparentPngExists(userId);
     const bodyPhotoUrl = this.bodyImageResolver.toPublicUrl(displayPath || bodyImagePath);
+    const sessionBodyPhotoUrl = tryOnSessionPath
+      ? this.bodyImageResolver.toPublicUrl(tryOnSessionPath)
+      : null;
 
     return {
       ready: true,
@@ -133,10 +167,43 @@ class VirtualTryOnService {
       hasTransparentCache,
       transparentImageUrl: transparentPath
         ? this.bodyImageResolver.toPublicUrl(transparentPath)
-        : session?.transparent_image
-          ? this.bodyImageResolver.toPublicUrl(session.transparent_image)
+        : refreshedSession?.transparent_image
+          ? this.bodyImageResolver.toPublicUrl(refreshedSession.transparent_image)
           : null,
+      sessionPhotoActive: Boolean(tryOnSessionPath),
+      sessionBodyPhotoUrl,
     };
+  }
+
+  isTryOnPersonSessionPath(storagePath) {
+    return typeof storagePath === 'string' && storagePath.includes('/uploads/try-on/');
+  }
+
+  async saveSessionPersonPhoto(userId, storagePath) {
+    if (!storagePath) {
+      return { saved: false };
+    }
+
+    await this.repository.upsertSession(userId, {
+      body_image: storagePath,
+    });
+
+    return { saved: true, storagePath };
+  }
+
+  async clearSessionPersonPhoto(userId) {
+    const session = await this.repository.findSessionByUserId(userId);
+
+    if (!this.isTryOnPersonSessionPath(session?.body_image)) {
+      return { cleared: false };
+    }
+
+    await this.repository.upsertSession(userId, {
+      body_image: null,
+      transparent_image: null,
+    });
+
+    return { cleared: true };
   }
 
   async listProducts(userId, query = {}) {
@@ -149,14 +216,47 @@ class VirtualTryOnService {
       page,
       limit: search || category ? 100 : limit,
       search: query.search,
+      category: query.category,
+      productType: query.productType ?? query.product_type,
+      gender: query.gender,
+      color: query.color,
+      size: query.size,
       is_active: true,
     });
 
-    let formatted = products.map((product) => formatDbProduct(product, this.storagePathResolver));
+    let mapped = products.map((product) => {
+      const compatibility = assessTryOnCompatibility(product);
+      const imageUrl = resolvePublicProductImageUrl(product, this.storagePathResolver);
+      const tryOnImage = compatibility.tryOnImage
+        ? (this.storagePathResolver.toPublicUrl(compatibility.tryOnImage)
+          || compatibility.tryOnImage)
+        : imageUrl;
+      const images = mapProductImagesForResponse(product, this.storagePathResolver);
+
+      return {
+        id: product.id,
+        name: product.name,
+        brand: product.brand,
+        price: product.price,
+        currency: product.currency,
+        category: product.category,
+        subcategory: product.subcategory,
+        productType: product.product_type,
+        imageUrl,
+        image: imageUrl,
+        tryOnImage,
+        thumbnailUrl: imageUrl,
+        thumbnail: imageUrl,
+        images,
+        productImages: images,
+        isTryOnCompatible: compatibility.isTryOnCompatible,
+        compatibilityLabel: compatibility.compatibilityLabel,
+      };
+    });
 
     if (category) {
       const subcategories = CATEGORY_SUBCATEGORY_MAP[category] ?? [category];
-      formatted = formatted.filter((product) => {
+      mapped = mapped.filter((product) => {
         const subcategory = String(product.subcategory || '').toLowerCase();
         const productCategory = String(product.category || '').toLowerCase();
         return subcategories.some((slug) => (
@@ -168,7 +268,7 @@ class VirtualTryOnService {
     }
 
     if (search) {
-      formatted = formatted.filter((product) => {
+      mapped = mapped.filter((product) => {
         const haystack = [
           product.name,
           product.brand,
@@ -183,34 +283,42 @@ class VirtualTryOnService {
       });
     }
 
-    const paged = formatted.slice((page - 1) * limit, page * limit);
+    const compatibleOnly = String(query.compatibleOnly || query.compatible_only || '')
+      .toLowerCase() === 'true';
+
+    let filtered = compatibleOnly
+      ? mapped.filter((product) => product.isTryOnCompatible)
+      : mapped;
+
+    let compatibleFallbackApplied = false;
+
+    if (
+      compatibleOnly
+      && filtered.length === 0
+      && !search
+      && !category
+    ) {
+      compatibleFallbackApplied = true;
+      filtered = mapped;
+    }
+
+    const paged = filtered.slice((page - 1) * limit, page * limit);
+    const resultTotal = search || category || compatibleOnly
+      ? filtered.length
+      : total;
 
     return {
       page,
       limit,
-      total: search || category ? formatted.length : total,
-      products: paged.map((product) => {
-        const compatibility = assessTryOnCompatibility({
-          ...product,
-          try_on_image: product.imageUrl,
-          image_url: product.imageUrl,
-          is_try_on_compatible: product.is_try_on_compatible,
-        });
-
-        return {
-          id: product.id,
-          name: product.name,
-          brand: product.brand,
-          price: product.price,
-          currency: product.currency,
-          category: product.category,
-          subcategory: product.subcategory,
-          imageUrl: product.imageUrl,
-          thumbnailUrl: product.imageUrl,
-          isTryOnCompatible: compatibility.isTryOnCompatible,
-          compatibilityLabel: compatibility.compatibilityLabel,
-        };
-      }),
+      total: resultTotal,
+      products: paged,
+      meta: {
+        total: resultTotal,
+        page,
+        limit,
+        totalPages: Math.ceil(resultTotal / limit) || 1,
+        compatibleFallbackApplied,
+      },
     };
   }
 
@@ -252,21 +360,15 @@ class VirtualTryOnService {
     let transparentPath = null;
 
     if (!usingTemporaryBody) {
-      transparentPath = await this.bodyImageResolver.resolveTransparentBodyImagePath(userId);
-    }
-
-    if (!usingTemporaryBody) {
       await this.repository.upsertSession(userId, {
         body_image: bodyPhotoPath,
-        transparent_image: transparentPath,
+        transparent_image: null,
       });
     }
 
     const personImageUrl = usingTemporaryBody
       ? temporaryBodyImageUrl
-      : transparentPath
-        ? this.storagePathResolver.toPublicUrl(transparentPath)
-        : this.storagePathResolver.toPublicUrl(bodyPhotoPath);
+      : this.storagePathResolver.toPublicUrl(bodyPhotoPath);
 
     this.logger.log(`Generating virtual try-on for user=${userId} product=${productId}`);
 
@@ -277,20 +379,49 @@ class VirtualTryOnService {
       { persistHistory: false },
     );
 
-    const generatedImageUrl =
+    const generatedImageUrl = this.tryOnService.toBrowserAccessibleTryOnUrl(
       catvtonResult?.resultImageUrl
       || catvtonResult?.result_image_url
-      || null;
+      || null,
+    );
+
+    const persistedGeneratedImage = await this.tryOnService.persistGeneratedResult(
+      userId,
+      generatedImageUrl,
+    );
+
+    if (persistedGeneratedImage) {
+      await this.userMediaRegistryService.registerTryOnResult(userId, persistedGeneratedImage, {
+        productId,
+        bodyPhotoReference: usingTemporaryBody ? null : bodyPhotoPath,
+      });
+    }
 
     const resultRecord = await this.repository.createTryOnResult(userId, {
       product_id: productId,
       body_photo_reference: usingTemporaryBody ? null : bodyPhotoPath,
       transparent_image: transparentPath,
       garment_image: garmentImageUrl,
-      generated_image: generatedImageUrl,
+      generated_image: persistedGeneratedImage || generatedImageUrl,
       input_image: usingTemporaryBody ? temporaryBodyImageUrl : bodyPhotoPath,
       selected_products: [product],
     });
+
+    const session = await this.repository.findSessionByUserId(userId);
+    const sessionBodyImage = usingTemporaryBody
+      ? (this.isTryOnPersonSessionPath(session?.body_image)
+        ? session.body_image
+        : null)
+      : bodyPhotoPath;
+
+    await this.repository.upsertSession(userId, {
+      body_image: sessionBodyImage || bodyPhotoPath,
+      transparent_image: usingTemporaryBody ? null : transparentPath,
+      generated_outfit_image: persistedGeneratedImage || generatedImageUrl,
+      selected_products: [product],
+    });
+
+    this.scheduleFashionDnaRefresh(userId, REFRESH_SOURCES.TRY_ON);
 
     const displayBodyPath = usingTemporaryBody
       ? null
@@ -301,9 +432,12 @@ class VirtualTryOnService {
       bodyPhotoUrl: usingTemporaryBody
         ? temporaryBodyImageUrl
         : this.storagePathResolver.toPublicUrl(
-          transparentPath || displayBodyPath || bodyPhotoPath,
+          displayBodyPath || bodyPhotoPath,
         ),
-      generatedImageUrl,
+      generatedImageUrl: this.tryOnService.toPublicTryOnUrl(
+        persistedGeneratedImage || generatedImageUrl,
+        (path) => this.storagePathResolver.toPublicUrl(path),
+      ),
     };
   }
 
@@ -347,6 +481,8 @@ class VirtualTryOnService {
       source: 'virtual-try-on',
     });
 
+    this.scheduleFashionDnaRefresh(userId, REFRESH_SOURCES.SAVED_LOOK);
+
     return this.formatSavedOutfit(saved);
   }
 
@@ -375,8 +511,10 @@ class VirtualTryOnService {
       transparentImage: record.transparent_image,
       transparentImageUrl: this.storagePathResolver.toPublicUrl(record.transparent_image),
       generatedImage: record.generated_image,
-      generatedImageUrl: this.storagePathResolver.toPublicUrl(record.generated_image)
-        || record.generated_image,
+      generatedImageUrl: this.tryOnService.toPublicTryOnUrl(
+        record.generated_image,
+        (path) => this.storagePathResolver.toPublicUrl(path),
+      ),
       product: product
         ? {
             id: product.id,
@@ -597,6 +735,8 @@ class VirtualTryOnService {
       total_price: totalPrice,
       source: source || 'virtual-try-on',
     });
+
+    this.scheduleFashionDnaRefresh(userId, REFRESH_SOURCES.SAVED_LOOK);
 
     return this.formatSavedOutfit(saved);
   }

@@ -39,7 +39,7 @@ let FaceRepository = class FaceRepository {
             user_id: userId
         }, this.vectorSize);
     }
-    upsertFaceRegistration(userId, faceImageUrl = null) {
+    upsertFaceRegistration(userId, faceImageUrl = null, livenessMeta = {}) {
         const faceEmbeddingId = userId;
         const data = {
             face_embedding_id: faceEmbeddingId,
@@ -48,6 +48,15 @@ let FaceRepository = class FaceRepository {
         };
         if (faceImageUrl) {
             data.face_image_url = faceImageUrl;
+        }
+        if (livenessMeta.livenessScore != null) {
+            data.liveness_score = livenessMeta.livenessScore;
+        }
+        if (typeof livenessMeta.blinkDetected === 'boolean') {
+            data.blink_detected = livenessMeta.blinkDetected;
+        }
+        if (typeof livenessMeta.smileDetected === 'boolean') {
+            data.smile_detected = livenessMeta.smileDetected;
         }
         return this.prisma.faceRegistration.upsert({
             where: {

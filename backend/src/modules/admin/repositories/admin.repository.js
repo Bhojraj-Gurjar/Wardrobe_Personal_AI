@@ -3,6 +3,7 @@ import { PrismaService } from '../../../database/prisma.service';
 import { USER_ROLE } from '../../../common/constants/user-role';
 import { ORDER_STATUS } from '../../orders/validators/order.constants';
 import { resolveStatusFilterValues } from '../../orders/utils/order-status.util';
+import { buildAdminProductListFilter } from '../../products/utils/catalog-visibility.util';
 
 const PRODUCT_INCLUDE = {
   images: { orderBy: { sort_order: 'asc' } },
@@ -11,6 +12,8 @@ const PRODUCT_INCLUDE = {
 const ORDER_INCLUDE = {
   product: { include: PRODUCT_INCLUDE },
   user: { include: { profile: true } },
+  documents: { orderBy: { created_at: 'desc' } },
+  timeline: { orderBy: { created_at: 'asc' } },
 };
 
 function resolvePagination(page, limit, defaultLimit = 50) {
@@ -155,11 +158,11 @@ class AdminRepository {
   }
 
   deleteUser(id) {
-    return this.prisma.user.delete({ where: { id } });
+    return this.prisma.$transaction((tx) => tx.user.delete({ where: { id } }));
   }
 
   findProducts({ search, page = 1, limit = 50 }) {
-    const where = {};
+    const where = { ...buildAdminProductListFilter() };
 
     if (search) {
       const term = search.trim();
@@ -204,10 +207,6 @@ class AdminRepository {
     });
   }
 
-  deleteProduct(id) {
-    return this.prisma.product.delete({ where: { id } });
-  }
-
   toggleProductStatus(id) {
     return this.prisma.product.findUnique({ where: { id } }).then((product) => {
       if (!product) {
@@ -234,10 +233,49 @@ class AdminRepository {
       const term = query.search.trim();
       where.OR = [
         { order_number: { contains: term, mode: 'insensitive' } },
+        { invoice_number: { contains: term, mode: 'insensitive' } },
+        { tracking_number: { contains: term, mode: 'insensitive' } },
         { user: { email: { contains: term, mode: 'insensitive' } } },
+        { user: { mobile: { contains: term, mode: 'insensitive' } } },
         { user: { profile: { name: { contains: term, mode: 'insensitive' } } } },
+        { items: { some: { product: { sku: { contains: term, mode: 'insensitive' } } } } },
       ];
     }
+
+    if (query.dateFrom || query.dateTo) {
+      where.created_at = {};
+      if (query.dateFrom) {
+        where.created_at.gte = new Date(query.dateFrom);
+      }
+      if (query.dateTo) {
+        const end = new Date(query.dateTo);
+        end.setHours(23, 59, 59, 999);
+        where.created_at.lte = end;
+      }
+    }
+
+    if (query.payment_method) {
+      where.payment_method = query.payment_method;
+    }
+
+    if (query.priority) {
+      where.priority = query.priority;
+    }
+
+    const orderBy = (() => {
+      switch (query.sort) {
+        case 'oldest':
+          return { created_at: 'asc' };
+        case 'highest_value':
+          return { total_amount: 'desc' };
+        case 'lowest_value':
+          return { total_amount: 'asc' };
+        case 'priority':
+          return { priority: 'desc' };
+        default:
+          return { created_at: 'desc' };
+      }
+    })();
 
     const { skip, limit: take } = resolvePagination(query.page, query.limit);
 
@@ -245,7 +283,7 @@ class AdminRepository {
       this.prisma.order.findMany({
         where,
         include: ORDER_INCLUDE,
-        orderBy: { created_at: 'desc' },
+        orderBy,
         skip,
         take,
       }),

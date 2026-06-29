@@ -5,6 +5,8 @@ import {
   STYLIST_INTENTS,
   THINKING_STEPS_BY_INTENT,
 } from '../constants/stylist-intents.constants';
+import { REFRESH_SOURCES } from '../../fashion-dna/constants/fashion-dna-regeneration.constants';
+import { FashionDnaRegenerationService } from '../../fashion-dna/services/fashion-dna-regeneration.service';
 import { StylistRepository } from '../repositories/stylist.repository';
 import { StylistContextService } from './stylist-context.service';
 import { StylistEngineService } from './stylist-engine.service';
@@ -28,11 +30,13 @@ class StylistService {
     @Inject(StylistContextService) stylistContextService,
     @Inject(StylistEngineService) stylistEngineService,
     @Inject(StylistLlmService) stylistLlmService,
+    @Inject(FashionDnaRegenerationService) fashionDnaRegenerationService,
   ) {
     this.stylistRepository = stylistRepository;
     this.stylistContextService = stylistContextService;
     this.stylistEngineService = stylistEngineService;
     this.stylistLlmService = stylistLlmService;
+    this.fashionDnaRegenerationService = fashionDnaRegenerationService;
   }
 
   getSuggestions() {
@@ -163,6 +167,8 @@ class StylistService {
     };
 
     session = await this.stylistRepository.appendMessage(session, assistantMessage);
+
+    this.fashionDnaRegenerationService.trigger(userId, REFRESH_SOURCES.STYLIST);
 
     return {
       session: this.formatSession(session),

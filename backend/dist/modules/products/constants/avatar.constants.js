@@ -82,6 +82,7 @@ function formatAvatarWearable(product) {
         productId: product.id,
         sku: product.sku,
         name: product.name,
+        productType: product.productType ?? product.product_type ?? null,
         avatarCategory: product.avatarCategory ?? product.avatar_category ?? null,
         overlayOrder: product.overlayOrder ?? product.overlay_order ?? null,
         avatarOverlayUrl: product.avatarOverlayUrl ?? product.avatar_overlay_url ?? null,

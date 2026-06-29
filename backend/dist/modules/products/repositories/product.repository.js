@@ -11,6 +11,7 @@ Object.defineProperty(exports, "ProductRepository", {
 const _common = require("@nestjs/common");
 const _prismaservice = require("../../../database/prisma.service");
 const _normalizeproductqueryutil = require("../utils/normalize-product-query.util");
+const _catalogvisibilityutil = require("../utils/catalog-visibility.util");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -151,7 +152,9 @@ let ProductRepository = class ProductRepository {
         });
     }
     buildWhereClause(query) {
-        const and = [];
+        const and = [
+            (0, _catalogvisibilityutil.buildCatalogVisibilityFilter)()
+        ];
         if (query.search) {
             and.push({
                 OR: [
@@ -187,6 +190,12 @@ let ProductRepository = class ProductRepository {
                     },
                     {
                         subcategory: {
+                            contains: query.search,
+                            mode: 'insensitive'
+                        }
+                    },
+                    {
+                        product_type: {
                             contains: query.search,
                             mode: 'insensitive'
                         }
@@ -252,6 +261,15 @@ let ProductRepository = class ProductRepository {
                 subcategory: query.subcategory
             });
         }
+        const productType = query.productType ?? query.product_type;
+        if (productType) {
+            and.push({
+                product_type: {
+                    equals: productType,
+                    mode: 'insensitive'
+                }
+            });
+        }
         if (query.gender) {
             and.push({
                 gender: query.gender
@@ -294,10 +312,46 @@ let ProductRepository = class ProductRepository {
         }
         if (query.color) {
             and.push({
-                color: {
-                    equals: query.color,
-                    mode: 'insensitive'
-                }
+                OR: [
+                    {
+                        color: {
+                            equals: query.color,
+                            mode: 'insensitive'
+                        }
+                    },
+                    {
+                        variants: {
+                            some: {
+                                color: {
+                                    equals: query.color,
+                                    mode: 'insensitive'
+                                }
+                            }
+                        }
+                    }
+                ]
+            });
+        }
+        const size = query.size;
+        if (size) {
+            and.push({
+                OR: [
+                    {
+                        variants: {
+                            some: {
+                                size: {
+                                    equals: size,
+                                    mode: 'insensitive'
+                                }
+                            }
+                        }
+                    },
+                    {
+                        size_options: {
+                            array_contains: size
+                        }
+                    }
+                ]
             });
         }
         if (query.avatarCategory) {
@@ -306,9 +360,10 @@ let ProductRepository = class ProductRepository {
             });
         }
         if (query.is_active !== undefined) {
-            and.push({
+            and[0] = {
+                ...and[0],
                 is_active: query.is_active
-            });
+            };
         }
         const minPrice = query.min_price ?? query.minPrice;
         const maxPrice = query.max_price ?? query.maxPrice;
@@ -324,9 +379,9 @@ let ProductRepository = class ProductRepository {
                 price
             });
         }
-        return and.length ? {
+        return {
             AND: and
-        } : {};
+        };
     }
     mapImages(images) {
         return images.map((image, index)=>({

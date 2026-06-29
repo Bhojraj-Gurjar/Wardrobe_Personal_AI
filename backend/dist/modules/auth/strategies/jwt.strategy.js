@@ -29,7 +29,10 @@ function _ts_param(paramIndex, decorator) {
 let JwtStrategy = class JwtStrategy extends (0, _passport.PassportStrategy)(_passportjwt.Strategy) {
     constructor(configService){
         super({
-            jwtFromRequest: _passportjwt.ExtractJwt.fromAuthHeaderAsBearerToken(),
+            jwtFromRequest: _passportjwt.ExtractJwt.fromExtractors([
+                _passportjwt.ExtractJwt.fromAuthHeaderAsBearerToken(),
+                _passportjwt.ExtractJwt.fromUrlQueryParameter('token')
+            ]),
             ignoreExpiration: false,
             secretOrKey: configService.get('jwt.secret')
         });

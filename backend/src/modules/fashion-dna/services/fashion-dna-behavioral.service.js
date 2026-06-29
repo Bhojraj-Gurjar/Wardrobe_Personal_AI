@@ -3,6 +3,8 @@ import { FashionDnaActivityRepository } from '../repositories/fashion-dna-activi
 import { inferProductType } from '../../products/constants/product-type.constants';
 import { normalizeKey } from '../utils/fashion-dna-product-style.util';
 
+const MAX_BRAND_AFFINITY = 8;
+
 const SOURCE_WEIGHTS = {
   order: 5,
   purchase: 5,
@@ -100,6 +102,129 @@ function extractSearchTerms(searches) {
   });
 
   return normalizeAffinity(termCounts);
+}
+
+function buildSearchBehaviour(searchHistory = []) {
+  const recentQueries = searchHistory
+    .slice(0, 8)
+    .map((entry) => String(entry.query || '').trim())
+    .filter(Boolean);
+
+  const termCounts = {};
+  searchHistory.forEach((entry) => {
+    const normalized = String(entry.query || '').trim().toLowerCase();
+    if (normalized) {
+      termCounts[normalized] = (termCounts[normalized] || 0) + 1;
+    }
+  });
+
+  const topSearches = Object.entries(termCounts)
+    .sort(([, left], [, right]) => right - left)
+    .slice(0, 6)
+    .map(([query, count]) => ({ query, count }));
+
+  return {
+    totalSearches: searchHistory.length,
+    recentQueries,
+    topSearches,
+    searchTerms: extractSearchTerms(searchHistory),
+  };
+}
+
+function buildDiscountPreference(orders = [], interactions = []) {
+  const discounts = [];
+
+  orders.forEach((order) => {
+    const product = order.product;
+    const mrp = Number(product?.mrp || product?.compare_at_price || 0);
+    const price = Number(product?.price || order.total_amount || 0);
+
+    if (mrp > price && mrp > 0) {
+      discounts.push(((mrp - price) / mrp) * 100);
+    }
+  });
+
+  interactions.forEach(({ product }) => {
+    const mrp = Number(product?.mrp || 0);
+    const price = Number(product?.price || 0);
+
+    if (mrp > price && mrp > 0) {
+      discounts.push(((mrp - price) / mrp) * 100);
+    }
+  });
+
+  if (!discounts.length) {
+    return { preference: 'neutral', averageDiscountPercent: 0 };
+  }
+
+  const averageDiscountPercent = Math.round(
+    discounts.reduce((sum, value) => sum + value, 0) / discounts.length,
+  );
+
+  return {
+    preference: averageDiscountPercent >= 25
+      ? 'deal_seeker'
+      : averageDiscountPercent >= 10
+        ? 'value_conscious'
+        : 'full_price',
+    averageDiscountPercent,
+  };
+}
+
+function buildRecentlyInfluenced(recentInteractions = []) {
+  const weighted = new Map();
+
+  recentInteractions.forEach((entry) => {
+    const product = entry.product;
+    if (!product?.id) {
+      return;
+    }
+
+    const existing = weighted.get(product.id) || {
+      product,
+      weight: 0,
+      sources: new Set(),
+    };
+
+    existing.weight += entry.weight || 1;
+    if (entry.source) {
+      existing.sources.add(entry.source);
+    }
+
+    weighted.set(product.id, existing);
+  });
+
+  return [...weighted.values()]
+    .sort((left, right) => right.weight - left.weight)
+    .slice(0, 6)
+    .map((entry) => ({
+      productId: entry.product.id,
+      name: entry.product.name,
+      brand: entry.product.brand || entry.product.brand_id,
+      category: entry.product.category || entry.product.category_id,
+      weight: entry.weight,
+      sources: [...entry.sources],
+    }));
+}
+
+function buildShoppingInfluence(signals) {
+  const volume = signals.activityVolume || {};
+
+  return {
+    productViews: volume.product_views || 0,
+    wishlistAdds: volume.wishlist || 0,
+    cartAdds: volume.cart || 0,
+    purchases: volume.orders || 0,
+    tryOns: (volume.try_on || 0) + (volume.virtual_try_on || 0),
+    savedLooks: volume.saved_looks || 0,
+    stylistSessions: volume.stylist_sessions || 0,
+    searches: volume.searches || 0,
+    favoriteCategories: signals.favoriteCategories || {},
+    favoriteBrands: signals.favoriteBrandsRanked || {},
+    priceAffinity: signals.priceAffinity || {},
+    averageSpending: signals.averageSpending,
+    cartAveragePrice: signals.cartAveragePrice,
+  };
 }
 
 function resolveBrandKey(product) {
@@ -279,17 +404,41 @@ class FashionDnaBehavioralService {
     });
 
     virtualTryOnResults.forEach((result) => {
+      const product = result.selected_products?.[0] || null;
+      addProductInteraction(productInteractions, product, 'virtual_try_on', result.created_at);
       recentInteractions.push({
-        product: result.selected_products?.[0] || null,
+        product,
         weight: SOURCE_WEIGHTS.virtual_try_on,
+        source: 'virtual_try_on',
       });
+      if (product) {
+        incrementCount(brandCounts, resolveBrandKey(product), SOURCE_WEIGHTS.virtual_try_on);
+        incrementCount(categoryCounts, product?.category_id, SOURCE_WEIGHTS.virtual_try_on);
+        incrementCount(productTypeCounts, resolveProductTypeKey(product), SOURCE_WEIGHTS.virtual_try_on);
+      }
     });
 
     savedOutfits.forEach((outfit) => {
-      recentInteractions.push({
-        product: null,
-        weight: SOURCE_WEIGHTS.saved_look,
+      const products = Array.isArray(outfit.products)
+        ? outfit.products
+        : (Array.isArray(outfit.items) ? outfit.items : []);
+
+      products.slice(0, 3).forEach((product) => {
+        addProductInteraction(productInteractions, product, 'saved_look', outfit.created_at);
+        recentInteractions.push({
+          product,
+          weight: SOURCE_WEIGHTS.saved_look,
+          source: 'saved_look',
+        });
       });
+
+      if (!products.length) {
+        recentInteractions.push({
+          product: null,
+          weight: SOURCE_WEIGHTS.saved_look,
+          source: 'saved_look',
+        });
+      }
     });
 
     favoriteBrands.forEach((brand) => {
@@ -334,6 +483,30 @@ class FashionDnaBehavioralService {
       ? Number((totalSpent / orders.length).toFixed(2))
       : null;
 
+    const searchBehaviour = buildSearchBehaviour(searchHistory);
+    const discountPreference = buildDiscountPreference(orders, productInteractions);
+    const recentlyInfluenced = buildRecentlyInfluenced(recentInteractions);
+    const activityVolume = {
+      orders: orders.length,
+      wishlist: wishlistItems.length,
+      cart: cartItems.length,
+      closet: closetItems.length,
+      product_views: productViews.length,
+      searches: searchHistory.length,
+      try_on: tryOnResults.length,
+      virtual_try_on: virtualTryOnResults.length,
+      saved_looks: savedOutfits.length,
+      stylist_sessions: stylistSessions,
+    };
+    const shoppingInfluence = buildShoppingInfluence({
+      activityVolume,
+      favoriteCategories: normalizeAffinity(categoryCounts),
+      favoriteBrandsRanked: rankTopBrandAffinity(brandCounts),
+      priceAffinity: computePriceAffinity(interactionPrices),
+      averageSpending,
+      cartAveragePrice,
+    });
+
     return {
       orders,
       wishlistItems,
@@ -359,22 +532,15 @@ class FashionDnaBehavioralService {
       averageSpending,
       cartAveragePrice,
       priceAffinity: computePriceAffinity(interactionPrices),
-      searchTerms: extractSearchTerms(searchHistory),
+      searchTerms: searchBehaviour.searchTerms,
+      searchBehaviour,
+      discountPreference,
+      recentlyInfluenced,
+      shoppingInfluence,
       productInteractions,
       recentInteractions,
       baselineInteractions,
-      activityVolume: {
-        orders: orders.length,
-        wishlist: wishlistItems.length,
-        cart: cartItems.length,
-        closet: closetItems.length,
-        product_views: productViews.length,
-        searches: searchHistory.length,
-        try_on: tryOnResults.length,
-        virtual_try_on: virtualTryOnResults.length,
-        saved_looks: savedOutfits.length,
-        stylist_sessions: stylistSessions,
-      },
+      activityVolume,
     };
   }
 
@@ -387,6 +553,10 @@ class FashionDnaBehavioralService {
       cart_average_price: signals.cartAveragePrice,
       price_affinity: signals.priceAffinity,
       search_terms: signals.searchTerms,
+      search_behaviour: signals.searchBehaviour,
+      discount_preference: signals.discountPreference,
+      recently_influenced: signals.recentlyInfluenced,
+      shopping_influence: signals.shoppingInfluence,
       activity_volume: signals.activityVolume,
       color_counts: signals.colorCounts,
     };

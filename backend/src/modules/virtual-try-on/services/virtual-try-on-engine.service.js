@@ -96,7 +96,7 @@ export function buildTryOnRenderLayers({
   scaling = DEFAULT_BODY_SCALING,
 }) {
   const layers = [];
-  const bodyUrl = transparentImageUrl || bodyImageUrl;
+  const bodyUrl = bodyImageUrl || transparentImageUrl;
 
   if (bodyUrl) {
     layers.push({

@@ -4,7 +4,6 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { spawn } from 'child_process';
 import {
-  buildTryOnPersonProcessedStoragePath,
   buildUserPngStoragePath,
 } from '../../../storage/utils/storage-path.util';
 import { StoragePathResolver } from '../../../storage/services/storage-path-resolver.service';
@@ -189,21 +188,12 @@ class BodyPhotoProcessingService {
   }
 
   async processTryOnPersonUpload(userId, originalImagePath) {
-    const outputPath = buildTryOnPersonProcessedStoragePath(userId);
-
-    try {
-      return await this.removeBackgroundToPath(userId, originalImagePath, outputPath);
-    } catch (error) {
-      this.logger.warn(
-        `Try-on person background removal failed for user ${userId}: ${error.message}`,
-      );
-
-      return {
-        storagePath: originalImagePath,
-        publicUrl: this.storagePathResolver.toPublicUrl(originalImagePath),
-        usedFallback: true,
-      };
-    }
+    return {
+      storagePath: originalImagePath,
+      publicUrl: this.storagePathResolver.toPublicUrl(originalImagePath),
+      usedFallback: false,
+      skippedBackgroundRemoval: true,
+    };
   }
 
   runLocalPythonRemoval(userId, bodyImagePath, outputPath) {

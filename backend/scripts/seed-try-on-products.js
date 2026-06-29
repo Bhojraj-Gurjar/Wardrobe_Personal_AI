@@ -34,7 +34,7 @@ function mapProductData(product) {
     category_id: category,
     brand_id: brand,
     price: product.price,
-    currency: product.currency ?? 'USD',
+    currency: product.currency ?? 'INR',
     color: product.color ?? null,
     size_options: product.sizeOptions ?? ['S', 'M', 'L', 'XL'],
     fabric: product.fabric ?? null,

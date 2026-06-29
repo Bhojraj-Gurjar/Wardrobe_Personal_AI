@@ -10,10 +10,12 @@ Object.defineProperty(exports, "OrdersController", {
 });
 const _common = require("@nestjs/common");
 const _swagger = require("@nestjs/swagger");
+const _operators = require("rxjs/operators");
 const _jwtauthguard = require("../../../guards/jwt-auth.guard");
 const _currentuserdecorator = require("../../../common/decorators/current-user.decorator");
 const _dtovalidationpipe = require("../../../common/pipes/dto-validation.pipe");
 const _ordersservice = require("../services/orders.service");
+const _ordereventservice = require("../services/order-event.service");
 const _createorderdto = require("../dto/create-order.dto");
 const _queryordersdto = require("../dto/query-orders.dto");
 function _ts_decorate(decorators, target, key, desc) {
@@ -33,8 +35,22 @@ function _ts_param(paramIndex, decorator) {
 const createOrderPipe = (0, _dtovalidationpipe.DtoValidationPipe)(_createorderdto.CreateOrderDto);
 const queryOrdersPipe = (0, _dtovalidationpipe.DtoValidationPipe)(_queryordersdto.QueryOrdersDto);
 let OrdersController = class OrdersController {
-    constructor(ordersService){
+    constructor(ordersService, orderEventService){
         this.ordersService = ordersService;
+        this.orderEventService = orderEventService;
+    }
+    streamEvents(user) {
+        return this.orderEventService.getUserStream(user.userId).pipe((0, _operators.map)((event)=>({
+                data: event
+            })));
+    }
+    getNotifications(user, unreadOnly) {
+        return this.ordersService.getNotifications(user.userId, {
+            unreadOnly: unreadOnly === 'true'
+        });
+    }
+    markNotificationsRead(user, ids) {
+        return this.ordersService.markNotificationsRead(user.userId, ids);
     }
     create(user, dto) {
         return this.ordersService.create(user.userId, dto);
@@ -49,6 +65,46 @@ let OrdersController = class OrdersController {
         return this.ordersService.cancel(user.userId, id);
     }
 };
+_ts_decorate([
+    (0, _common.Sse)('events'),
+    (0, _swagger.ApiOperation)({
+        summary: 'Subscribe to order real-time events (SSE)'
+    }),
+    _ts_param(0, (0, _currentuserdecorator.CurrentUser)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        void 0
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], OrdersController.prototype, "streamEvents", null);
+_ts_decorate([
+    (0, _common.Get)('notifications'),
+    (0, _swagger.ApiOperation)({
+        summary: 'List order notifications'
+    }),
+    _ts_param(0, (0, _currentuserdecorator.CurrentUser)()),
+    _ts_param(1, (0, _common.Query)('unreadOnly')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        void 0,
+        void 0
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], OrdersController.prototype, "getNotifications", null);
+_ts_decorate([
+    (0, _common.Patch)('notifications/read'),
+    (0, _swagger.ApiOperation)({
+        summary: 'Mark order notifications as read'
+    }),
+    _ts_param(0, (0, _currentuserdecorator.CurrentUser)()),
+    _ts_param(1, (0, _common.Body)('ids')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        void 0,
+        void 0
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], OrdersController.prototype, "markNotificationsRead", null);
 _ts_decorate([
     (0, _common.Post)(),
     (0, _common.HttpCode)(201),
@@ -157,8 +213,10 @@ OrdersController = _ts_decorate([
     (0, _common.UseGuards)(_jwtauthguard.JwtAuthGuard),
     (0, _common.Controller)('orders'),
     _ts_param(0, (0, _common.Inject)(_ordersservice.OrdersService)),
+    _ts_param(1, (0, _common.Inject)(_ordereventservice.OrderEventService)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        void 0,
         void 0
     ])
 ], OrdersController);

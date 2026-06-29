@@ -42,6 +42,7 @@ WORKDIR /app
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PIP_NO_CACHE_DIR=1
+ENV HOME=/app
 ENV INSIGHTFACE_HOME=/app/models/insightface
 ENV HF_HOME=/app/models/huggingface
 ENV TRANSFORMERS_CACHE=/app/models/huggingface
@@ -65,7 +66,7 @@ COPY app ./app
 COPY fashion_dna.py color_affinity.py fashion_personality.py ./
 
 RUN groupadd --system --gid 1001 aiservice \
-  && useradd --system --uid 1001 --gid aiservice aiservice \
+  && useradd --system --uid 1001 --gid aiservice --home-dir /app aiservice \
   && chown -R aiservice:aiservice /app
 
 USER aiservice

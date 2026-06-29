@@ -6,6 +6,7 @@ import {
   Injectable,
   Logger,
   ServiceUnavailableException,
+  TooManyRequestsException,
   UnauthorizedException,
   forwardRef,
 } from '@nestjs/common';
@@ -14,12 +15,14 @@ import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
 import { FaceRepository } from '../repositories/face.repository';
 import { FaceImageStorageService } from './face-image-storage.service';
+import { FaceRateLimitService } from './face-rate-limit.service';
 import { StoragePathResolver } from '../../../storage/services/storage-path-resolver.service';
 import { RedisService } from '../../../database/redis.service';
 import { AiService } from '../../ai/services/ai.service';
 import { REFRESH_SOURCES } from '../../fashion-dna/constants/fashion-dna-regeneration.constants';
 import { FashionDnaRegenerationService } from '../../fashion-dna/services/fashion-dna-regeneration.service';
 import { UserPipelineService } from '../../user-pipeline/user-pipeline.service';
+import { UserMediaRegistryService } from '../../user-media/services/user-media-registry.service';
 import { USER_STATUS } from '../../../common/constants/user-status';
 import { parseDurationToSeconds } from '../../../common/utils/parse-duration';
 
@@ -30,6 +33,7 @@ class FaceService {
   constructor(
     @Inject(FaceRepository) faceRepository,
     @Inject(FaceImageStorageService) faceImageStorageService,
+    @Inject(FaceRateLimitService) faceRateLimitService,
     @Inject(StoragePathResolver) storagePathResolver,
     @Inject(JwtService) jwtService,
     @Inject(ConfigService) configService,
@@ -37,9 +41,11 @@ class FaceService {
     @Inject(AiService) aiService,
     @Inject(FashionDnaRegenerationService) fashionDnaRegenerationService,
     @Inject(forwardRef(() => UserPipelineService)) userPipelineService,
+    @Inject(UserMediaRegistryService) userMediaRegistryService,
   ) {
     this.faceRepository = faceRepository;
     this.faceImageStorageService = faceImageStorageService;
+    this.faceRateLimitService = faceRateLimitService;
     this.storagePathResolver = storagePathResolver;
     this.jwtService = jwtService;
     this.configService = configService;
@@ -47,6 +53,7 @@ class FaceService {
     this.aiService = aiService;
     this.fashionDnaRegenerationService = fashionDnaRegenerationService;
     this.userPipelineService = userPipelineService;
+    this.userMediaRegistryService = userMediaRegistryService;
     this.logger = new Logger(FaceService.name);
     this.refreshTtlSeconds = parseDurationToSeconds(
       configService.get('jwt.refreshExpiresIn'),
@@ -115,20 +122,31 @@ class FaceService {
     }
 
     try {
-      await this.aiService.registerFace(userId, dto.imageBuffer, dto.imageMimeType);
+      const aiResult = await this.aiService.registerFace(userId, dto);
+      const livenessMeta = {
+        livenessScore: aiResult?.liveness_score ?? aiResult?.livenessScore ?? null,
+        blinkDetected: dto.challengeType === 'blink_once' || dto.challengeType === 'blink_twice',
+        smileDetected: dto.challengeType === 'smile',
+      };
+
+      const existing = await this.faceRepository.findFaceRegistration(userId);
+      const faceImagePath = await this.faceImageStorageService.replaceFaceImage(
+        userId,
+        dto.imageBuffer,
+        dto.imageMimeType,
+        existing?.face_image_url,
+      );
+
+      await this.userMediaRegistryService.registerFacePhoto(userId, faceImagePath, {
+        mimeType: dto.imageMimeType,
+        fileSize: dto.imageBuffer?.length,
+        uploadSource: 'face_registration',
+      });
+
+      return this.faceRepository.upsertFaceRegistration(userId, faceImagePath, livenessMeta);
     } catch (error) {
       this.rethrowAiError(error);
     }
-
-    const existing = await this.faceRepository.findFaceRegistration(userId);
-    const faceImagePath = await this.faceImageStorageService.replaceFaceImage(
-      userId,
-      dto.imageBuffer,
-      dto.imageMimeType,
-      existing?.face_image_url,
-    );
-
-    return this.faceRepository.upsertFaceRegistration(userId, faceImagePath);
   }
 
   formatRegistrationResponse(userId, registration) {
@@ -166,7 +184,7 @@ class FaceService {
     };
   }
 
-  async login(dto) {
+  async login(dto, context = {}) {
     if (!dto.imageBuffer?.length) {
       throw new BadRequestException('Provide a frontFace image upload.');
     }
@@ -175,17 +193,52 @@ class FaceService {
       throw new ServiceUnavailableException('AI service unavailable.');
     }
 
+    const rateLimitKey = context.clientIp || 'anonymous';
+
+    await this.faceRateLimitService.assertNotLocked('login', rateLimitKey);
+    this.logFaceAudit('login_attempt', {
+      clientIp: context.clientIp,
+      userAgent: context.userAgent,
+      captureSessionId: dto.captureSessionId,
+      challengeType: dto.challengeType,
+      frameCount: dto.livenessFrames?.length || 1,
+    });
+
     let result;
 
     try {
-      result = await this.aiService.loginFace(dto.imageBuffer, dto.imageMimeType);
+      result = await this.aiService.loginFace(dto);
     } catch (error) {
+      if (
+        error instanceof UnauthorizedException
+        || error instanceof BadRequestException
+      ) {
+        try {
+          await this.faceRateLimitService.recordFailure('login', rateLimitKey, {
+            reason: error.message,
+            challengeType: dto.challengeType,
+          });
+        } catch (lockError) {
+          if (lockError instanceof TooManyRequestsException) {
+            throw lockError;
+          }
+        }
+      }
+
+      this.logFaceAudit('login_failed', {
+        clientIp: context.clientIp,
+        reason: error.message,
+        challengeType: dto.challengeType,
+      });
       this.rethrowAiError(error);
     }
 
     const user = await this.faceRepository.findUserById(result.user_id);
 
     if (!user) {
+      await this.faceRateLimitService.recordFailure('login', rateLimitKey, {
+        reason: 'user_not_found',
+      });
       throw new UnauthorizedException('Face not recognized.');
     }
 
@@ -193,7 +246,14 @@ class FaceService {
       throw new ForbiddenException('Account is not active');
     }
 
-    return this.buildAuthResponse(user, result.similarity_score);
+    await this.faceRateLimitService.recordSuccess('login', rateLimitKey);
+    this.logFaceAudit('login_success', {
+      userId: user.id,
+      clientIp: context.clientIp,
+      challengeType: dto.challengeType,
+    });
+
+    return this.buildAuthResponse(user);
   }
 
   async verify(userId, dto) {
@@ -257,6 +317,7 @@ class FaceService {
       || error instanceof UnauthorizedException
       || error instanceof ConflictException
       || error instanceof ServiceUnavailableException
+      || error instanceof TooManyRequestsException
     ) {
       throw error;
     }
@@ -264,12 +325,17 @@ class FaceService {
     throw new ServiceUnavailableException('AI service unavailable.');
   }
 
-  async buildAuthResponse(user, similarityScore) {
+  logFaceAudit(event, meta = {}) {
+    this.logger.log(`FACE_AUDIT | event=${event} | ${JSON.stringify(meta)}`);
+  }
+
+  async buildAuthResponse(user) {
     const tokens = await this.generateTokens(user);
 
     return {
       user: this.sanitizeUser(user),
-      similarity_score: Number(similarityScore.toFixed(4)),
+      faceVerified: true,
+      message: 'Face verified',
       ...tokens,
     };
   }

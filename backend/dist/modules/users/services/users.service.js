@@ -19,6 +19,8 @@ const _bodyphotodisplayutil = require("../../body-analysis/utils/body-photo-disp
 const _storagepathresolverservice = require("../../../storage/services/storage-path-resolver.service");
 const _pipelineeventbus = require("../../user-pipeline/pipeline-event.bus");
 const _userartifactsservice = require("../../user-artifacts/user-artifacts.service");
+const _usermediaservice = require("../../user-media/services/user-media.service");
+const _usermediaconstants = require("../../user-media/validators/user-media.constants");
 const _usersrepository = require("../repositories/users.repository");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -35,7 +37,7 @@ function _ts_param(paramIndex, decorator) {
     };
 }
 let UsersService = class UsersService {
-    constructor(usersRepository, fashionDnaRegenerationService, bodyAnalysisService, pipelineEventBus, userArtifactsService, storagePathResolver, apiCacheService, bodyPhotoProcessingService){
+    constructor(usersRepository, fashionDnaRegenerationService, bodyAnalysisService, pipelineEventBus, userArtifactsService, storagePathResolver, apiCacheService, bodyPhotoProcessingService, userMediaService){
         this.usersRepository = usersRepository;
         this.fashionDnaRegenerationService = fashionDnaRegenerationService;
         this.bodyAnalysisService = bodyAnalysisService;
@@ -44,6 +46,7 @@ let UsersService = class UsersService {
         this.storagePathResolver = storagePathResolver;
         this.apiCacheService = apiCacheService;
         this.bodyPhotoProcessingService = bodyPhotoProcessingService;
+        this.userMediaService = userMediaService;
     }
     profileCacheKey(userId) {
         return this.apiCacheService.buildKey('users:profile', userId);
@@ -54,7 +57,7 @@ let UsersService = class UsersService {
             if (!context?.profile) {
                 throw new _common.NotFoundException('Profile not found');
             }
-            return this.formatProfile(context.profile, context);
+            return this.attachPersistentMediaUrls(userId, this.formatProfile(context.profile, context));
         });
     }
     async updateProfile(userId, dto) {
@@ -69,7 +72,32 @@ let UsersService = class UsersService {
         });
         const context = await this.usersRepository.findProfileContextByUserId(userId);
         await this.apiCacheService.invalidate(this.profileCacheKey(userId));
-        return this.formatProfile(profile, context);
+        return this.attachPersistentMediaUrls(userId, this.formatProfile(profile, context));
+    }
+    async resolveMediaUrl(userId, storagePath, module) {
+        if (storagePath) {
+            const existing = await this.userMediaService.resolvePublicUrlIfExists(storagePath);
+            if (existing) {
+                return existing;
+            }
+        }
+        const latest = await this.userMediaService.getLatestMedia(userId, module);
+        return latest?.publicUrl || null;
+    }
+    async attachPersistentMediaUrls(userId, profile) {
+        if (!profile) {
+            return profile;
+        }
+        const faceImageUrl = await this.resolveMediaUrl(userId, profile.face_image_url, _usermediaconstants.USER_MEDIA_MODULE.FACE_REGISTRATION) || profile.faceImageUrl || null;
+        const bodyPhotoOriginalUrl = await this.resolveMediaUrl(userId, profile.body_image_url || profile.body_image, _usermediaconstants.USER_MEDIA_MODULE.BODY_ANALYSIS) || profile.bodyPhotoOriginalUrl || null;
+        const bodyPhotoUrl = bodyPhotoOriginalUrl || profile.bodyPhotoTransparentUrl || profile.bodyPhotoUrl || null;
+        return {
+            ...profile,
+            faceImageUrl,
+            bodyImageUrl: bodyPhotoUrl,
+            bodyPhotoUrl,
+            bodyPhotoOriginalUrl
+        };
     }
     async ensureProfileExists(userId) {
         const profile = await this.usersRepository.findProfileByUserId(userId);
@@ -162,8 +190,10 @@ UsersService = _ts_decorate([
     _ts_param(5, (0, _common.Inject)(_storagepathresolverservice.StoragePathResolver)),
     _ts_param(6, (0, _common.Inject)(_apicacheservice.ApiCacheService)),
     _ts_param(7, (0, _common.Inject)(_bodyphotoprocessingservice.BodyPhotoProcessingService)),
+    _ts_param(8, (0, _common.Inject)(_usermediaservice.UserMediaService)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        void 0,
         void 0,
         void 0,
         void 0,

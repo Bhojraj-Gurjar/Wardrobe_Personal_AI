@@ -1,5 +1,28 @@
 import { RECOMMENDATION_FACTORS } from '../validators/recommendation.constants';
 
+function normalizeTagList(tags) {
+  if (Array.isArray(tags)) {
+    return tags.filter(Boolean).map((tag) => String(tag));
+  }
+
+  if (tags && typeof tags === 'object') {
+    return Object.values(tags).filter(Boolean).map((tag) => String(tag));
+  }
+
+  if (tags != null && tags !== '') {
+    return [String(tags)];
+  }
+
+  return [];
+}
+
+function resolveProductStyleTags(product) {
+  return [
+    ...normalizeTagList(product?.style_tags),
+    ...normalizeTagList(product?.styleTags),
+  ];
+}
+
 function topAffinityKeys(affinityMap, limit = 5) {
   if (!affinityMap || typeof affinityMap !== 'object') {
     return [];
@@ -24,6 +47,8 @@ export function buildUserSignals({
   fashionDna,
   wishlistItems,
   orders,
+  searchHistory = [],
+  productViews = [],
 }) {
   const wishlistProductIds = wishlistItems.map((item) => item.product_id);
   const wishlistBrands = [
@@ -62,15 +87,38 @@ export function buildUserSignals({
   const avgOrderValue = activityAverageSpending
     ?? (orderCount ? totalSpent / orderCount : 0);
 
+  const searchTerms = [
+    ...Object.keys(fashionDna?.activity_traits?.search_terms || {}),
+    ...searchHistory.map((entry) => String(entry.query || '').trim().toLowerCase()).filter(Boolean),
+  ];
+  const uniqueSearchTerms = [...new Set(searchTerms)].slice(0, 12);
+
+  const viewedCategories = [
+    ...new Set(
+      productViews
+        .map((view) => resolveProductCategory(view.product))
+        .filter(Boolean),
+    ),
+  ];
+  const viewedBrands = [
+    ...new Set(
+      productViews
+        .map((view) => resolveProductBrand(view.product))
+        .filter(Boolean),
+    ),
+  ];
+
   return {
     profile,
     fashionDna,
     wishlistProductIds,
     wishlistBrands,
     wishlistCategories,
-    favoriteBrands,
+    favoriteBrands: [...new Set([...favoriteBrands, ...viewedBrands])],
     favoriteColors,
-    favoriteCategories,
+    favoriteCategories: [...new Set([...favoriteCategories, ...viewedCategories])],
+    searchTerms: uniqueSearchTerms,
+    viewedProductIds: productViews.map((view) => view.product_id).filter(Boolean),
     orderStats: {
       count: orderCount,
       totalSpent,
@@ -145,6 +193,36 @@ export function scoreProduct(product, signals) {
       score += 18;
       matchedFactors.push(RECOMMENDATION_FACTORS.SHOPPING_HISTORY);
     }
+  }
+
+  if (signals.searchTerms?.length) {
+    const haystack = [
+      product.name,
+      product.brand,
+      product.brand_id,
+      product.category,
+      product.category_id,
+      product.subcategory,
+      product.product_type,
+      product.productType,
+      ...(resolveProductStyleTags(product)),
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    const matchedSearch = signals.searchTerms.some((term) => (
+      term.length >= 3 && haystack.includes(term)
+    ));
+
+    if (matchedSearch) {
+      score += 22;
+      matchedFactors.push(RECOMMENDATION_FACTORS.SEARCH_HISTORY);
+    }
+  }
+
+  if (signals.viewedProductIds?.includes(product.id)) {
+    score -= 8;
   }
 
   return {

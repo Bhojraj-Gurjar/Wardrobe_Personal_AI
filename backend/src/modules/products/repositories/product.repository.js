@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../database/prisma.service';
 import { normalizeProductQuery } from '../utils/normalize-product-query.util';
+import { buildCatalogVisibilityFilter } from '../utils/catalog-visibility.util';
 
 export @Injectable()
 class ProductRepository {
@@ -84,7 +85,7 @@ class ProductRepository {
   }
 
   buildWhereClause(query) {
-    const and = [];
+    const and = [buildCatalogVisibilityFilter()];
 
     if (query.search) {
       and.push({
@@ -149,7 +150,22 @@ class ProductRepository {
     }
 
     if (query.color) {
-      and.push({ color: { equals: query.color, mode: 'insensitive' } });
+      and.push({
+        OR: [
+          { color: { equals: query.color, mode: 'insensitive' } },
+          { variants: { some: { color: { equals: query.color, mode: 'insensitive' } } } },
+        ],
+      });
+    }
+
+    const size = query.size;
+    if (size) {
+      and.push({
+        OR: [
+          { variants: { some: { size: { equals: size, mode: 'insensitive' } } } },
+          { size_options: { array_contains: size } },
+        ],
+      });
     }
 
     if (query.avatarCategory) {
@@ -157,7 +173,7 @@ class ProductRepository {
     }
 
     if (query.is_active !== undefined) {
-      and.push({ is_active: query.is_active });
+      and[0] = { ...and[0], is_active: query.is_active };
     }
 
     const minPrice = query.min_price ?? query.minPrice;
@@ -177,7 +193,7 @@ class ProductRepository {
       and.push({ price });
     }
 
-    return and.length ? { AND: and } : {};
+    return { AND: and };
   }
 
   mapImages(images) {

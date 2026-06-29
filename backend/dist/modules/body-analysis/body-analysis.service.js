@@ -22,6 +22,7 @@ const _aiservice = require("../ai/services/ai.service");
 const _fashiondnaregenerationconstants = require("../fashion-dna/constants/fashion-dna-regeneration.constants");
 const _fashiondnaregenerationservice = require("../fashion-dna/services/fashion-dna-regeneration.service");
 const _pipelineeventbus = require("../user-pipeline/pipeline-event.bus");
+const _usermediaregistryservice = require("../user-media/services/user-media-registry.service");
 const _bodyanalysismapper = require("./utils/body-analysis.mapper");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -44,7 +45,7 @@ function resolveUserArtifacts(moduleRef) {
     });
 }
 let BodyAnalysisService = class BodyAnalysisService {
-    constructor(bodyAnalysisRepository, bodyAnalysisVectorService, bodyImageStorageService, bodyPhotoProcessingService, bodyFitProductsService, storagePathResolver, aiService, fashionDnaRegenerationService, pipelineEventBus, moduleRef){
+    constructor(bodyAnalysisRepository, bodyAnalysisVectorService, bodyImageStorageService, bodyPhotoProcessingService, bodyFitProductsService, storagePathResolver, aiService, fashionDnaRegenerationService, pipelineEventBus, moduleRef, userMediaRegistryService){
         this.bodyAnalysisRepository = bodyAnalysisRepository;
         this.bodyAnalysisVectorService = bodyAnalysisVectorService;
         this.bodyImageStorageService = bodyImageStorageService;
@@ -55,6 +56,7 @@ let BodyAnalysisService = class BodyAnalysisService {
         this.fashionDnaRegenerationService = fashionDnaRegenerationService;
         this.pipelineEventBus = pipelineEventBus;
         this.moduleRef = moduleRef;
+        this.userMediaRegistryService = userMediaRegistryService;
         this.logger = new _common.Logger(BodyAnalysisService.name);
     }
     async getStoredTraits(userId) {
@@ -223,6 +225,11 @@ let BodyAnalysisService = class BodyAnalysisService {
             await this.bodyAnalysisRepository.saveBodyImagePath(userId, bodyImagePath);
             await this.syncBodyPhotoToProfile(userId, bodyImagePath);
             await this.bodyPhotoProcessingService.processAfterUpload(userId, bodyImagePath);
+            await this.userMediaRegistryService.registerBodyPhoto(userId, bodyImagePath, {
+                mimeType: imageDto.imageMimeType,
+                fileSize: imageDto.imageBuffer?.length,
+                uploadSource: 'body_analysis'
+            });
         }
         return this.persistBodyTraitAnalysis(userId, {
             ...imageDto,
@@ -364,8 +371,10 @@ BodyAnalysisService = _ts_decorate([
     _ts_param(7, (0, _common.Inject)((0, _common.forwardRef)(()=>_fashiondnaregenerationservice.FashionDnaRegenerationService))),
     _ts_param(8, (0, _common.Inject)(_pipelineeventbus.PipelineEventBus)),
     _ts_param(9, (0, _common.Inject)(_core.ModuleRef)),
+    _ts_param(10, (0, _common.Inject)(_usermediaregistryservice.UserMediaRegistryService)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        void 0,
         void 0,
         void 0,
         void 0,

@@ -1,4 +1,5 @@
 import logging
+import os
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
@@ -10,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/virtual-tryon", tags=["virtual-tryon"])
 
-UPLOADS_ROOT = Path("uploads")
+UPLOADS_ROOT = Path(os.getenv("UPLOADS_ROOT", "uploads"))
 
 
 class RemoveBackgroundRequest(BaseModel):

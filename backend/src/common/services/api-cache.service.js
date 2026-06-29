@@ -53,6 +53,36 @@ class ApiCacheService {
     await this.redis.del(key);
   }
 
+  async invalidateByPrefix(prefix) {
+    if (!prefix) {
+      return 0;
+    }
+
+    let cursor = '0';
+    let removed = 0;
+
+    do {
+      // eslint-disable-next-line no-await-in-loop
+      const [nextCursor, keys] = await this.redis.scan(
+        cursor,
+        'MATCH',
+        `${prefix}*`,
+        'COUNT',
+        100,
+      );
+
+      cursor = nextCursor;
+
+      if (keys.length) {
+        // eslint-disable-next-line no-await-in-loop
+        await this.redis.del(...keys);
+        removed += keys.length;
+      }
+    } while (cursor !== '0');
+
+    return removed;
+  }
+
   async invalidatePattern(namespace, userId) {
     if (!userId) {
       return;

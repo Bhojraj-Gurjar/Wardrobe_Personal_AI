@@ -117,6 +117,20 @@ class ProductService {
     );
   }
 
+  async invalidateCatalogCache(productId = null) {
+    await Promise.all([
+      this.apiCacheService.invalidateByPrefix('products:list'),
+      this.apiCacheService.invalidateByPrefix('products:search'),
+      this.apiCacheService.invalidateByPrefix('recommendations'),
+    ]);
+
+    if (productId) {
+      await this.apiCacheService.invalidate(
+        this.apiCacheService.buildKey('products:detail', productId),
+      );
+    }
+  }
+
   async findBySku(sku) {
     const product = await this.productRepository.findBySku(sku);
 
@@ -147,6 +161,8 @@ class ProductService {
 
     this.scheduleEmbedding(product);
 
+    await this.invalidateCatalogCache(product.id);
+
     return this.formatProduct(product);
   }
 
@@ -167,25 +183,16 @@ class ProductService {
       images,
     );
 
+    await this.invalidateCatalogCache(id);
+
     return this.formatProduct(product);
   }
 
   async remove(id) {
-    const product = await this.ensureProductExists(id);
-    const referenceCount = await this.productRepository.countReferences(id);
-
-    if (isCatalogSku(product.sku) || referenceCount > 0) {
-      const deactivated = await this.productRepository.update(id, {
-        is_active: false,
-      });
-
-      return {
-        message: 'Product deactivated to preserve wishlist and recommendation references',
-        product: this.formatProduct(deactivated),
-      };
-    }
+    await this.ensureProductExists(id);
 
     await this.productRepository.delete(id);
+    await this.invalidateCatalogCache(id);
 
     return { message: 'Product deleted successfully' };
   }

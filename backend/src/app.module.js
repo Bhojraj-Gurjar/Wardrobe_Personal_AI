@@ -21,12 +21,15 @@ import { DigitalAvatarModule } from './modules/digital-avatar/digital-avatar.mod
 import { UserPipelineModule } from './modules/user-pipeline/user-pipeline.module';
 import { PipelineEventModule } from './modules/user-pipeline/pipeline-event.module';
 import { UserArtifactsModule } from './modules/user-artifacts/user-artifacts.module';
+import { UserMediaModule } from './modules/user-media/user-media.module';
 import { CartModule } from './modules/cart/cart.module';
 import { StylistModule } from './modules/stylist/stylist.module';
 import { AvatarModule } from './modules/avatar/avatar.module';
 import { TryOnModule } from './modules/try-on/try-on.module';
 import { VirtualTryOnModule } from './modules/virtual-try-on/virtual-try-on.module';
 import { PersonalClosetModule } from './modules/personal-closet/personal-closet.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { SupportModule } from './modules/support/support.module';
 import { AiModule } from './modules/ai/ai.module';
 import { RequestIdMiddleware } from './middleware/request-id.middleware';
 
@@ -56,9 +59,12 @@ export @Module({
     PipelineEventModule,
     UserPipelineModule,
     UserArtifactsModule,
+    UserMediaModule,
     TryOnModule,
     VirtualTryOnModule,
     PersonalClosetModule,
+    DashboardModule,
+    SupportModule,
   ],
   controllers: [AppController],
   providers: [AppService],

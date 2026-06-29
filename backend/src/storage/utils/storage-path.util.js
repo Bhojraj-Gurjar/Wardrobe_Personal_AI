@@ -6,6 +6,9 @@ import {
   DEFAULT_STORAGE_PROVIDER,
   FACE_PUBLIC_PREFIX,
   STORAGE_PROVIDERS,
+  PRODUCT_PUBLIC_PREFIX,
+  SUPPORT_PUBLIC_PREFIX,
+  ORDER_PUBLIC_PREFIX,
   TRY_ON_PUBLIC_PREFIX,
   USER_PNG_PUBLIC_PREFIX,
 } from '../storage.constants';
@@ -52,12 +55,44 @@ export function buildTryOnGarmentStoragePath(userId, extension = 'jpg') {
   return `${TRY_ON_PUBLIC_PREFIX}/${userId}/garment.${extension}`;
 }
 
+export function buildProductImageObjectKey(productId, fileId, extension = 'jpg') {
+  return `products/${productId}/${fileId}.${extension}`;
+}
+
+export function buildProductImageStoragePath(productId, fileId, extension = 'jpg') {
+  return `${PRODUCT_PUBLIC_PREFIX}/${productId}/${fileId}.${extension}`;
+}
+
+export function buildSupportAttachmentObjectKey(ticketId, fileId, extension = 'png') {
+  return `support/${ticketId}/${fileId}.${extension}`;
+}
+
+export function buildSupportAttachmentStoragePath(ticketId, fileId, extension = 'png') {
+  return `${SUPPORT_PUBLIC_PREFIX}/${ticketId}/${fileId}.${extension}`;
+}
+
+export function buildOrderDocumentObjectKey(orderId, fileId, extension = 'pdf') {
+  return `orders/${orderId}/${fileId}.${extension}`;
+}
+
+export function buildOrderDocumentStoragePath(orderId, fileId, extension = 'pdf') {
+  return `${ORDER_PUBLIC_PREFIX}/${orderId}/${fileId}.${extension}`;
+}
+
 export function buildUserPngStoragePath(userId) {
   return `${USER_PNG_PUBLIC_PREFIX}/${userId}.png`;
 }
 
 export function buildTryOnPersonProcessedStoragePath(userId) {
   return `${TRY_ON_PUBLIC_PREFIX}/${userId}/person.png`;
+}
+
+export function buildTryOnResultObjectKey(userId, resultId, extension = 'png') {
+  return `try-on/${userId}/results/${resultId}.${extension}`;
+}
+
+export function buildTryOnResultStoragePath(userId, resultId, extension = 'png') {
+  return `${TRY_ON_PUBLIC_PREFIX}/${userId}/results/${resultId}.${extension}`;
 }
 
 export function extensionFromMimeType(mimeType = 'image/png') {
@@ -129,6 +164,7 @@ export function isStoredImagePath(value) {
     && (value.startsWith(AVATAR_PUBLIC_PREFIX)
       || value.startsWith(FACE_PUBLIC_PREFIX)
       || value.startsWith(BODY_PUBLIC_PREFIX)
+      || value.startsWith(PRODUCT_PUBLIC_PREFIX)
       || value.startsWith(TRY_ON_PUBLIC_PREFIX)
       || value.startsWith(USER_PNG_PUBLIC_PREFIX))
   );

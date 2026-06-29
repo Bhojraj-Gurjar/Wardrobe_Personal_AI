@@ -57,8 +57,10 @@ services:
     environment:
       AI_SERVICE_HOST: 0.0.0.0
       AI_SERVICE_PORT: 8000
+      HOME: /app
       INSIGHTFACE_HOME: /app/models/insightface
       HF_HOME: /app/models/huggingface
+      XDG_CACHE_HOME: /app/models/cache
       TRANSFORMERS_CACHE: /app/models/huggingface
       PYTHONDONTWRITEBYTECODE: "1"
       REDIS_HOST: redis
@@ -77,6 +79,10 @@ services:
       FACE_SIMILARITY_THRESHOLD: 0.40
       FACE_REGISTRATION_DUPLICATE_THRESHOLD: 0.45
       FACE_SIMILARITY_UNCERTAIN: 0.32
+      FACE_MIN_BLUR_VARIANCE: 55
+      FACE_LIVENESS_BLUR_VARIANCE: 28
+      FACE_LIVENESS_MIN_DETECTION_SCORE: 0.38
+      FACE_MIN_EMBEDDING_CONFIDENCE: 0.38
       PRODUCT_VECTOR_SIZE: 384
       DNA_VECTOR_SIZE: 384
       FACE_ANALYSIS_VECTOR_SIZE: 384
@@ -89,6 +95,7 @@ services:
       - '8000:8000'
     volumes:
       - wardrobe_backend_uploads:/app/uploads
+      - wardrobe_tryon_results:/app/app/generated/tryon
       - wardrobe_ai_insightface:/app/models/insightface
       - wardrobe_ai_huggingface:/app/models/huggingface
     depends_on:
@@ -145,6 +152,7 @@ services:
       FACE_REGISTRATION_DUPLICATE_THRESHOLD: 0.45
       FACE_SIMILARITY_UNCERTAIN: 0.32
       AI_SERVICE_URL: http://ai-service:8000
+      AI_SERVICE_PUBLIC_URL: http://localhost:8000
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       STORAGE_PROVIDER: local
       STORAGE_LOCAL_ROOT: uploads
@@ -182,8 +190,9 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_BASE_URL: http://localhost:3000/api/v1
+        NEXT_PUBLIC_API_BASE_URL: /api/v1
         NEXT_PUBLIC_FACE_VECTOR_SIZE: 512
+        BACKEND_INTERNAL_URL: http://backend:3000
     container_name: wardrobe-frontend
     restart: unless-stopped
     init: true
@@ -213,5 +222,6 @@ volumes:
   wardrobe_postgres_data:
   wardrobe_qdrant_data:
   wardrobe_backend_uploads:
+  wardrobe_tryon_results:
   wardrobe_ai_insightface:
   wardrobe_ai_huggingface:

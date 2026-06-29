@@ -10,4 +10,6 @@ Write-Host "Starting infrastructure (postgres, redis, qdrant)..."
 docker compose up -d --no-build postgres redis qdrant
 
 Write-Host ""
+Write-Host "Hybrid mode (Docker apps + local AI): npm run docker:local-ai" -ForegroundColor Cyan
+Write-Host ""
 docker compose ps

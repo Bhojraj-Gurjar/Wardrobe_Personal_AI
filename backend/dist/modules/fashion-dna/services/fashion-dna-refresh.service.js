@@ -16,6 +16,7 @@ const _fashiondnaservice = require("./fashion-dna.service");
 const _fashiondnacontextservice = require("./fashion-dna-context.service");
 const _fashiondnacacheservice = require("./fashion-dna-cache.service");
 const _fashiondnahistoryservice = require("./fashion-dna-history.service");
+const _fashiondnagenerator = require("./fashion-dna.generator");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -93,7 +94,7 @@ let FashionDnaRefreshService = class FashionDnaRefreshService {
     }
     async regenerateFashionDna(userId, source = 'activity') {
         const existing = await this.fashionDnaRepository.findByUserId(userId);
-        if (!existing) {
+        if (!existing || (0, _fashiondnagenerator.isPlaceholderFashionDna)(existing)) {
             const generated = await this.fashionDnaService.generateFashionDnaIfReady(userId);
             if (generated) {
                 this.logger.log(`Fashion DNA initial generation from ${source} | userId=${userId}`);

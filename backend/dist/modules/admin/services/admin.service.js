@@ -13,12 +13,20 @@ const _bcryptjs = /*#__PURE__*/ _interop_require_wildcard(require("bcryptjs"));
 const _authservice = require("../../auth/services/auth.service");
 const _faceservice = require("../../face/services/face.service");
 const _ordersservice = require("../../orders/services/orders.service");
+const _orderomsservice = require("../../orders/services/order-oms.service");
+const _ordersrepository = require("../../orders/repositories/orders.repository");
+const _ordertransitionutil = require("../../orders/utils/order-transition.util");
 const _storagepathresolverservice = require("../../../storage/services/storage-path-resolver.service");
 const _productcatalogmapper = require("../../products/utils/product-catalog.mapper");
+const _producttypeconstants = require("../../products/constants/product-type.constants");
+const _cmstaxonomyconstants = require("../constants/cms-taxonomy.constants");
 const _userrole = require("../../../common/constants/user-role");
 const _orderconstants = require("../../orders/validators/order.constants");
 const _orderstatusutil = require("../../orders/utils/order-status.util");
 const _adminrepository = require("../repositories/admin.repository");
+const _adminproductcmsservice = require("./admin-product-cms.service");
+const _adminproductbulkservice = require("./admin-product-bulk.service");
+const _productservice = require("../../products/services/product.service");
 function _getRequireWildcardCache(nodeInterop) {
     if (typeof WeakMap !== "function") return null;
     var cacheBabelInterop = new WeakMap();
@@ -117,12 +125,18 @@ function deriveSoldCount(orderCount = 0, sku = '') {
     return orderCount + hash;
 }
 let AdminService = class AdminService {
-    constructor(adminRepository, authService, faceService, ordersService, storagePathResolver){
+    constructor(adminRepository, productCmsService, productBulkService, authService, faceService, ordersService, orderOmsService, ordersRepository, storagePathResolver, productService){
         this.adminRepository = adminRepository;
+        this.productCmsService = productCmsService;
+        this.productBulkService = productBulkService;
         this.authService = authService;
         this.faceService = faceService;
         this.ordersService = ordersService;
+        this.orderOmsService = orderOmsService;
+        this.ordersRepository = ordersRepository;
         this.storagePathResolver = storagePathResolver;
+        this.productService = productService;
+        this.logger = new _common.Logger(AdminService.name);
     }
     async login(dto) {
         const user = await this.adminRepository.findUserByEmail(dto.email);
@@ -151,6 +165,7 @@ let AdminService = class AdminService {
         return this.faceService.register(userId, dto);
     }
     async getDashboard() {
+        this.logger.log('Dashboard API called — syncing order statuses');
         await this.ordersService.updateExpiredOrders();
         const now = new Date();
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -209,9 +224,12 @@ let AdminService = class AdminService {
             });
         }
         const categoryTotals = new Map();
+        const productTypeTotals = new Map();
         for (const order of categoryOrders){
             const category = order.product?.category || 'Other';
             categoryTotals.set(category, (categoryTotals.get(category) || 0) + order.total_amount);
+            const productType = order.product?.product_type || (0, _producttypeconstants.inferProductType)(order.product || {});
+            productTypeTotals.set(productType, (productTypeTotals.get(productType) || 0) + order.total_amount);
         }
         const salesByCategory = [
             ...categoryTotals.entries()
@@ -219,7 +237,7 @@ let AdminService = class AdminService {
                 category,
                 value: Math.round(value)
             })).sort((a, b)=>b.value - a.value).slice(0, 6);
-        return {
+        const payload = {
             cards: {
                 revenue: {
                     value: revenue,
@@ -239,8 +257,16 @@ let AdminService = class AdminService {
                 }
             },
             revenueUsersChart,
-            salesByCategory
+            salesByCategory,
+            salesByProductType: [
+                ...productTypeTotals.entries()
+            ].map(([productType, value])=>({
+                    productType,
+                    value: Math.round(value)
+                })).sort((a, b)=>b.value - a.value).slice(0, 8)
         };
+        this.logger.log(`Dashboard query executed — users=${totalUsers} active=${activeUsers} ordersMonth=${ordersThisMonth} revenue=${revenue}`);
+        return payload;
     }
     async getAnalytics() {
         const [totalUsers, faceCount, bodyCount, dnaCount, [monthlyOrders, monthlyUsers], commerce] = await Promise.all([
@@ -358,36 +384,48 @@ let AdminService = class AdminService {
             throw new _common.BadRequestException('Cannot delete admin users');
         }
         await this.adminRepository.deleteUser(id);
+        await this.productService.invalidateCatalogCache();
         return {
             message: 'User deleted successfully'
         };
     }
     async getProducts(query) {
-        const [products, total] = await this.adminRepository.findProducts(query);
-        return {
-            items: products.map((product)=>this.formatAdminProduct(product)),
-            meta: {
-                total,
-                page: query.page || 1,
-                limit: query.limit || 50,
-                totalPages: Math.ceil(total / (query.limit || 50)) || 1
-            }
-        };
+        return this.productCmsService.listProducts(query);
     }
-    async createProduct(payload) {
-        const product = await this.adminRepository.createProduct({
+    async getProductDetail(id) {
+        return this.productCmsService.getProductDetail(id);
+    }
+    async createProduct(payload, adminUserId) {
+        if (this.isExtendedProductPayload(payload)) {
+            return this.productCmsService.createProduct(payload, adminUserId);
+        }
+        if (!payload.productType || !(0, _producttypeconstants.isValidProductType)(payload.productType) && !(0, _cmstaxonomyconstants.isValidCmsProductType)(payload.productType)) {
+            throw new _common.BadRequestException('A valid product type is required.');
+        }
+        return this.productCmsService.createProduct({
             sku: payload.sku,
             name: payload.name,
-            brand: payload.brand || null,
-            category: payload.category || null,
-            price: payload.price,
-            image_url: payload.imageUrl || null,
-            is_active: payload.isActive !== false
-        });
-        return this.formatAdminProduct(product);
+            brand: payload.brand,
+            category: payload.category || (0, _producttypeconstants.resolveUiCategoryForProductType)(payload.productType) || 'Clothing',
+            productType: payload.productType,
+            sellingPrice: payload.price,
+            stockQuantity: payload.stock,
+            imageUrl: payload.imageUrl,
+            visibility: payload.isActive === false ? 'HIDDEN' : 'PUBLISHED',
+            isActive: payload.isActive !== false
+        }, adminUserId);
     }
-    async updateProduct(id, payload) {
-        const product = await this.adminRepository.updateProduct(id, {
+    async createCmsProduct(payload, adminUserId) {
+        return this.productCmsService.createProduct(payload, adminUserId);
+    }
+    async updateProduct(id, payload, adminUserId) {
+        if (this.isExtendedProductPayload(payload)) {
+            return this.productCmsService.updateProduct(id, payload, adminUserId);
+        }
+        if (payload.productType !== undefined && !(0, _producttypeconstants.isValidProductType)(payload.productType)) {
+            throw new _common.BadRequestException('Invalid product type.');
+        }
+        return this.productCmsService.updateProduct(id, {
             ...payload.name !== undefined ? {
                 name: payload.name
             } : {},
@@ -397,25 +435,73 @@ let AdminService = class AdminService {
             ...payload.category !== undefined ? {
                 category: payload.category
             } : {},
+            ...payload.productType !== undefined ? {
+                productType: payload.productType
+            } : {},
             ...payload.price !== undefined ? {
-                price: payload.price
+                sellingPrice: payload.price
             } : {},
             ...payload.imageUrl !== undefined ? {
-                image_url: payload.imageUrl
+                images: payload.imageUrl ? [
+                    {
+                        url: payload.imageUrl,
+                        isPrimary: true
+                    }
+                ] : []
             } : {},
             ...payload.isActive !== undefined ? {
-                is_active: payload.isActive
+                isActive: payload.isActive,
+                visibility: payload.isActive ? 'PUBLISHED' : 'HIDDEN'
             } : {}
-        });
-        if (!product) {
-            throw new _common.NotFoundException('Product not found');
-        }
-        return this.formatAdminProduct(product);
+        }, adminUserId);
+    }
+    uploadProductImages(productId, files) {
+        return this.productCmsService.uploadProductImages(productId, files);
+    }
+    adjustProductInventory(productId, payload, adminUserId) {
+        return this.productCmsService.adjustInventory(productId, payload, adminUserId);
+    }
+    getProductInventoryHistory(productId) {
+        return this.productCmsService.getInventoryHistory(productId);
+    }
+    validateBulkProducts(rows) {
+        return this.productBulkService.validateRows(rows);
+    }
+    async importBulkProducts(rows, adminUserId) {
+        const result = await this.productBulkService.importRows(rows, adminUserId);
+        await this.productService.invalidateCatalogCache();
+        return result;
+    }
+    isExtendedProductPayload(payload) {
+        return Boolean(payload?.variants?.length || payload?.images?.length || payload?.mrp != null || payload?.visibility || payload?.aiAttributes || payload?.description || payload?.gender || payload?.barcode || payload?.fabric || payload?.sellingPrice != null);
     }
     async deleteProduct(id) {
-        await this.adminRepository.deleteProduct(id);
+        await this.productCmsService.getProductDetail(id);
+        try {
+            const deleted = await this.productCmsService.deleteProduct(id);
+            if (!deleted) {
+                throw new _common.NotFoundException('Product not found');
+            }
+        } catch (error) {
+            if (error instanceof _common.NotFoundException) {
+                throw error;
+            }
+            const isForeignKeyViolation = error?.code === 'P2003' || String(error?.message || '').toLowerCase().includes('foreign key');
+            if (isForeignKeyViolation) {
+                this.logger.warn(`Hard delete blocked for product ${id}; archiving to preserve order history.`);
+                const archived = await this.productCmsService.archiveProduct(id);
+                if (!archived) {
+                    throw new _common.NotFoundException('Product not found');
+                }
+            } else {
+                this.logger.error(`Product delete failed for ${id}: ${error?.message || 'Unknown error'}`, error?.stack);
+                throw new _common.BadRequestException(error?.message || 'Unable to delete product. Please try again.');
+            }
+        }
+        await this.productService.invalidateCatalogCache(id);
         return {
-            message: 'Product deleted successfully'
+            message: 'Product deleted successfully',
+            id
         };
     }
     async toggleProductStatus(id) {
@@ -423,7 +509,8 @@ let AdminService = class AdminService {
         if (!product) {
             throw new _common.NotFoundException('Product not found');
         }
-        return this.formatAdminProduct(product);
+        await this.productService.invalidateCatalogCache(id);
+        return this.productCmsService.formatLegacyProduct(product);
     }
     async getProfile(userId) {
         const user = await this.adminRepository.findUserById(userId);
@@ -519,15 +606,15 @@ let AdminService = class AdminService {
         const orders = await this.adminRepository.findOrdersWithUsers();
         const userMap = new Map();
         for (const order of orders){
-            const userId = order.user_id;
+            const userId = order.user_id ?? '__deleted__';
             const formatted = this.ordersService.formatOrder(order);
             if (!userMap.has(userId)) {
                 userMap.set(userId, {
                     userId,
-                    name: order.user?.profile?.name || order.user?.email || 'User',
-                    email: order.user?.email,
+                    name: order.user?.profile?.name || order.user?.email || '[Deleted User]',
+                    email: order.user?.email ?? null,
                     plan: order.user?.profile?.preferences?.plan || 'Free',
-                    status: (order.user?.status || 'ACTIVE').toLowerCase(),
+                    status: (order.user?.status || 'removed').toLowerCase(),
                     orders: [],
                     orderCount: 0,
                     deliveredCount: 0,
@@ -551,7 +638,7 @@ let AdminService = class AdminService {
         ];
         if (query.search) {
             const term = query.search.toLowerCase();
-            items = items.filter((row)=>row.name.toLowerCase().includes(term) || row.email.toLowerCase().includes(term));
+            items = items.filter((row)=>row.name.toLowerCase().includes(term) || (row.email || '').toLowerCase().includes(term));
         }
         return {
             items
@@ -585,11 +672,11 @@ let AdminService = class AdminService {
             if (order.status === _orderconstants.ORDER_STATUS.CANCELLED) {
                 continue;
             }
-            const customerKey = order.user_id;
+            const customerKey = order.user_id ?? '__deleted__';
             if (!customerMap.has(customerKey)) {
                 customerMap.set(customerKey, {
                     userId: customerKey,
-                    name: order.user?.profile?.name || order.user?.email,
+                    name: order.user?.profile?.name || order.user?.email || '[Deleted User]',
                     orderCount: 0,
                     totalSpent: 0
                 });
@@ -628,25 +715,26 @@ let AdminService = class AdminService {
     }
     async updateOrderStatus(id, status) {
         const normalized = status === 'PENDING' ? _orderconstants.ORDER_STATUS.CREATED : status;
-        const order = await this.adminRepository.updateOrderStatus(id, normalized);
+        const order = await this.adminRepository.findOrderById(id);
         if (!order) {
             throw new _common.NotFoundException('Order not found');
         }
-        return this.ordersService.formatOrder(order);
+        (0, _ordertransitionutil.assertValidStatusTransition)(order.status, normalized);
+        const updated = await this.ordersRepository.updateStatus(id, normalized, {}, order.status);
+        if (!updated) {
+            throw new _common.BadRequestException('Order status changed concurrently. Please refresh and retry.');
+        }
+        return this.ordersService.formatOrder(updated);
     }
-    async cancelOrder(id) {
-        const order = await this.adminRepository.updateOrderStatus(id, _orderconstants.ORDER_STATUS.CANCELLED);
-        if (!order) {
-            throw new _common.NotFoundException('Order not found');
-        }
-        return this.ordersService.formatOrder(order);
+    async cancelOrder(id, adminId) {
+        return this.orderOmsService.cancelOrder(id, adminId);
     }
     async exportOrdersCsv(query) {
         const { items } = await this.getOrders(query);
         const header = 'Order Number,Customer,Email,Status,Total,Created At\n';
         const rows = items.map((order)=>[
                 order.order_number,
-                order.user?.name || '',
+                order.user?.name || '[Deleted User]',
                 order.user?.email || '',
                 order.display_status || (0, _orderstatusutil.normalizeDisplayStatus)(order.status),
                 order.total_amount,
@@ -680,33 +768,28 @@ let AdminService = class AdminService {
         };
     }
     formatAdminProduct(product) {
-        const formatted = (0, _productcatalogmapper.formatCatalogProduct)(product);
-        return {
-            id: product.id,
-            sku: product.sku,
-            name: product.name,
-            brand: product.brand,
-            category: product.category,
-            price: product.price,
-            currency: product.currency,
-            stock: deriveStock(product.sku),
-            sold: deriveSoldCount(product.orders?.length || 0, product.sku),
-            rating: formatted.rating,
-            isActive: product.is_active,
-            status: product.is_active ? 'Active' : 'Inactive',
-            imageUrl: formatted.image_url || formatted.images?.[0]?.url || null
-        };
+        return this.productCmsService.formatLegacyProduct(product);
     }
 };
 AdminService = _ts_decorate([
     (0, _common.Injectable)(),
     _ts_param(0, (0, _common.Inject)(_adminrepository.AdminRepository)),
-    _ts_param(1, (0, _common.Inject)(_authservice.AuthService)),
-    _ts_param(2, (0, _common.Inject)(_faceservice.FaceService)),
-    _ts_param(3, (0, _common.Inject)(_ordersservice.OrdersService)),
-    _ts_param(4, (0, _common.Inject)(_storagepathresolverservice.StoragePathResolver)),
+    _ts_param(1, (0, _common.Inject)(_adminproductcmsservice.AdminProductCmsService)),
+    _ts_param(2, (0, _common.Inject)(_adminproductbulkservice.AdminProductBulkService)),
+    _ts_param(3, (0, _common.Inject)(_authservice.AuthService)),
+    _ts_param(4, (0, _common.Inject)(_faceservice.FaceService)),
+    _ts_param(5, (0, _common.Inject)(_ordersservice.OrdersService)),
+    _ts_param(6, (0, _common.Inject)(_orderomsservice.OrderOmsService)),
+    _ts_param(7, (0, _common.Inject)(_ordersrepository.OrdersRepository)),
+    _ts_param(8, (0, _common.Inject)(_storagepathresolverservice.StoragePathResolver)),
+    _ts_param(9, (0, _common.Inject)(_productservice.ProductService)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        void 0,
+        void 0,
+        void 0,
+        void 0,
+        void 0,
         void 0,
         void 0,
         void 0,

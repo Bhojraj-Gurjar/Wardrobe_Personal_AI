@@ -14,6 +14,7 @@ const _productrepository = require("../repositories/product.repository");
 const _aiservice = require("../../ai/services/ai.service");
 const _productcatalogmapper = require("../utils/product-catalog.mapper");
 const _normalizeproductqueryutil = require("../utils/normalize-product-query.util");
+const _producttypeconstants = require("../constants/product-type.constants");
 const _productidentityutil = require("../utils/product-identity.util");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -88,6 +89,16 @@ let ProductService = class ProductService {
             return this.formatProduct(product);
         });
     }
+    async invalidateCatalogCache(productId = null) {
+        await Promise.all([
+            this.apiCacheService.invalidateByPrefix('products:list'),
+            this.apiCacheService.invalidateByPrefix('products:search'),
+            this.apiCacheService.invalidateByPrefix('recommendations')
+        ]);
+        if (productId) {
+            await this.apiCacheService.invalidate(this.apiCacheService.buildKey('products:detail', productId));
+        }
+    }
     async findBySku(sku) {
         const product = await this.productRepository.findBySku(sku);
         if (!product) {
@@ -98,11 +109,15 @@ let ProductService = class ProductService {
     async create(dto) {
         await this.ensureSkuAvailable(dto.sku);
         const createData = (0, _productcatalogmapper.mapCreateOrUpdateProductData)(dto);
+        if (!createData.product_type) {
+            createData.product_type = dto.productType || (0, _producttypeconstants.inferProductType)(dto);
+        }
         if ((0, _productidentityutil.isCatalogSku)(dto.sku)) {
             createData.id = (0, _productidentityutil.resolveStableProductId)(dto.sku);
         }
         const product = await this.productRepository.create(createData, (0, _productcatalogmapper.resolveCatalogImages)(dto));
         this.scheduleEmbedding(product);
+        await this.invalidateCatalogCache(product.id);
         return this.formatProduct(product);
     }
     async update(id, dto) {
@@ -114,21 +129,13 @@ let ProductService = class ProductService {
         const product = await this.productRepository.update(id, (0, _productcatalogmapper.mapCreateOrUpdateProductData)(dto, {
             allowSku: false
         }), images);
+        await this.invalidateCatalogCache(id);
         return this.formatProduct(product);
     }
     async remove(id) {
-        const product = await this.ensureProductExists(id);
-        const referenceCount = await this.productRepository.countReferences(id);
-        if ((0, _productidentityutil.isCatalogSku)(product.sku) || referenceCount > 0) {
-            const deactivated = await this.productRepository.update(id, {
-                is_active: false
-            });
-            return {
-                message: 'Product deactivated to preserve wishlist and recommendation references',
-                product: this.formatProduct(deactivated)
-            };
-        }
+        await this.ensureProductExists(id);
         await this.productRepository.delete(id);
+        await this.invalidateCatalogCache(id);
         return {
             message: 'Product deleted successfully'
         };

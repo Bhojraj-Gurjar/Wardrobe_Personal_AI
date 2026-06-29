@@ -33,6 +33,7 @@
     "seed:curated-jackets": "node scripts/seed-curated-jackets-products.js",
     "seed:curated-footwear": "node scripts/seed-curated-footwear-products.js",
     "seed:admin": "node scripts/seed-admin.js",
+    "backfill:product-cms": "node scripts/backfill-product-cms.js",
     "backfill:body-photo-processing": "node scripts/backfill-body-photo-processing.js"
   },
   "dependencies": {

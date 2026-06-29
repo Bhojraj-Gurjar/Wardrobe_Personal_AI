@@ -194,11 +194,14 @@ let AiService = class AiService {
                 if (response.status === 409) {
                     throw new _common.ConflictException(message);
                 }
+                if (response.status === 429) {
+                    throw new _common.TooManyRequestsException(message);
+                }
                 throw new _common.ServiceUnavailableException(message);
             }
             return data;
         } catch (error) {
-            if (error instanceof _common.ServiceUnavailableException || error instanceof _common.BadRequestException || error instanceof _common.UnauthorizedException || error instanceof _common.ConflictException) {
+            if (error instanceof _common.ServiceUnavailableException || error instanceof _common.BadRequestException || error instanceof _common.UnauthorizedException || error instanceof _common.ConflictException || error instanceof _common.TooManyRequestsException) {
                 throw error;
             }
             const message = this.mapConnectionError(error, path);
@@ -228,19 +231,78 @@ let AiService = class AiService {
         });
         return formData;
     }
-    registerFace(userId, buffer, mimeType = 'image/jpeg') {
-        const formData = this.buildFaceFormData(buffer, mimeType, {
+    normalizeFaceDto(dtoOrBuffer, mimeType = 'image/jpeg') {
+        if (Buffer.isBuffer(dtoOrBuffer)) {
+            return {
+                imageBuffer: dtoOrBuffer,
+                imageMimeType: mimeType,
+                livenessFrames: [
+                    {
+                        imageBuffer: dtoOrBuffer,
+                        imageMimeType: mimeType
+                    }
+                ]
+            };
+        }
+        const frames = dtoOrBuffer.livenessFrames?.length ? dtoOrBuffer.livenessFrames : [
+            {
+                imageBuffer: dtoOrBuffer.imageBuffer,
+                imageMimeType: dtoOrBuffer.imageMimeType || 'image/jpeg'
+            }
+        ];
+        return {
+            ...dtoOrBuffer,
+            livenessFrames: frames,
+            imageBuffer: dtoOrBuffer.imageBuffer || frames[0]?.imageBuffer,
+            imageMimeType: dtoOrBuffer.imageMimeType || frames[0]?.imageMimeType || 'image/jpeg'
+        };
+    }
+    buildSecureFaceFormData(dto, extra = {}) {
+        const normalized = this.normalizeFaceDto(dto);
+        const frames = normalized.livenessFrames || [];
+        const primary = frames[0];
+        const formData = new FormData();
+        formData.append('image', new Blob([
+            primary.imageBuffer
+        ], {
+            type: primary.imageMimeType || 'image/jpeg'
+        }), 'face.jpg');
+        frames.slice(1).forEach((frame, index)=>{
+            formData.append('liveness_frames', new Blob([
+                frame.imageBuffer
+            ], {
+                type: frame.imageMimeType || 'image/jpeg'
+            }), `frame-${index + 1}.jpg`);
+        });
+        if (normalized.challengeType) {
+            formData.append('challenge_type', normalized.challengeType);
+        }
+        Object.entries(extra).forEach(([key, value])=>{
+            if (value != null) {
+                formData.append(key, value);
+            }
+        });
+        const payloadBytes = frames.reduce((total, frame)=>total + (frame.imageBuffer?.length || 0), 0);
+        return {
+            formData,
+            payloadBytes
+        };
+    }
+    registerFace(userId, dtoOrBuffer, mimeType = 'image/jpeg') {
+        const dto = this.normalizeFaceDto(dtoOrBuffer, mimeType);
+        const { formData, payloadBytes } = this.buildSecureFaceFormData(dto, {
             user_id: userId
         });
         return this.post('/face/register', formData, {}, {
-            payloadBytes: buffer.length,
+            payloadBytes,
             timeoutMs: FACE_AI_TIMEOUT_MS
         });
     }
-    loginFace(buffer, mimeType = 'image/jpeg') {
-        const formData = this.buildFaceFormData(buffer, mimeType);
+    loginFace(dtoOrBuffer, mimeType = 'image/jpeg') {
+        const dto = this.normalizeFaceDto(dtoOrBuffer, mimeType);
+        const { formData, payloadBytes } = this.buildSecureFaceFormData(dto);
         return this.post('/face/login', formData, {}, {
-            payloadBytes: buffer.length,
+            payloadBytes,
             timeoutMs: FACE_AI_TIMEOUT_MS
         });
     }

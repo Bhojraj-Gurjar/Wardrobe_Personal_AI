@@ -3,6 +3,8 @@
  * Catalog seed — 5 products × 13 categories = 65 products.
  * Image URLs verified against Unsplash / Pexels (no hotlink-blocked retailers).
  */ const { resolveStableProductId } = require('../../../../scripts/lib/product-identity.cjs');
+const LEGACY_USD_TO_INR = 83;
+const { SUBCATEGORY_TO_PRODUCT_TYPE, inferProductType } = require('./product-type.constants');
 /** Verified public image URLs — 5 per subcategory (HEAD-checked). */ const VERIFIED_IMAGE_URLS = {
     'men-t-shirts': [
         'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=900&h=1200&q=80',
@@ -1438,10 +1440,14 @@ function buildCatalogProducts() {
             description: `${line.name} by ${line.brand}. Part of the Wardrobe AI ${line.subcategory.replace(/-/g, ' ')} collection.`,
             category: meta.category,
             subcategory: line.subcategory,
+            productType: line.productType ?? SUBCATEGORY_TO_PRODUCT_TYPE[line.subcategory] ?? inferProductType({
+                name: line.name,
+                subcategory: line.subcategory
+            }),
             gender: meta.gender,
             brand: line.brand,
-            price: line.price,
-            currency: 'USD',
+            price: Math.round(line.price * LEGACY_USD_TO_INR),
+            currency: 'INR',
             color: line.color,
             fabric: line.fabric,
             fitType: line.fitType,

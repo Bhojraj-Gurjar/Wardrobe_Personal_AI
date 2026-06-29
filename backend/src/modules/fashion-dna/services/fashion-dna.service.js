@@ -22,6 +22,9 @@ import {
 import {
   extractOnboardingInputs,
   getMissingOnboardingFields,
+  hasOnboardingBodySignals,
+  hasOnboardingFaceSignals,
+  isPlaceholderFashionDna,
   mapAiResponseToPayload,
 } from './fashion-dna.generator';
 import { FashionDnaCacheService } from './fashion-dna-cache.service';
@@ -63,8 +66,24 @@ class FashionDnaService {
   async getFashionDna(userId) {
     const cached = await this.cacheService.get(userId);
 
-    if (cached) {
+    if (cached && !isPlaceholderFashionDna(cached)) {
       return cached;
+    }
+
+    const existing = await this.fashionDnaRepository.findByUserId(userId);
+
+    if (!existing || isPlaceholderFashionDna(existing)) {
+      const generated = await this.generateFashionDnaIfReady(userId);
+
+      if (generated) {
+        return generated;
+      }
+    }
+
+    if (existing) {
+      const formatted = await this.formatFashionDna(existing, userId);
+      await this.cacheService.set(userId, formatted);
+      return formatted;
     }
 
     return resolveUserArtifacts(this.moduleRef).ensureFashionDna(userId);
@@ -98,16 +117,7 @@ class FashionDnaService {
       return null;
     }
 
-    const hasFaceAnalysis = Boolean(
-      context.faceTraits?.face_shape || context.faceTraits?.faceShape,
-    );
-    const hasBodyAnalysis = Boolean(
-      context.bodyTraits?.body_type
-      || context.bodyTraits?.bodyType
-      || context.bodyTraits?.analysis_source === 'body_analysis_record',
-    );
-
-    if (!hasFaceAnalysis || !hasBodyAnalysis) {
+    if (!hasOnboardingFaceSignals(context) || !hasOnboardingBodySignals(context)) {
       return null;
     }
 
@@ -219,7 +229,7 @@ class FashionDnaService {
   }
 
   buildEngineOnlyPayload(context) {
-    const { faceTraits, bodyTraits, onboarding, signals } = context;
+    const { faceTraits, bodyTraits, onboarding, signals, preferences } = context;
 
     return mapAiResponseToPayload({
       styleType: 'developing',
@@ -227,7 +237,9 @@ class FashionDnaService {
       colorAffinity: {},
       brandAffinity: signals?.favoriteBrandsRanked || {},
       categoryAffinity: signals?.favoriteCategories || {},
-      budgetRange: 'MID_RANGE',
+      budgetRange: onboarding?.budget_preference
+        || preferences?.budget_preference
+        || 'MID_RANGE',
       fashionConfidenceScore: 0,
       activityTraits: this.behavioralService.buildHistoryPayload(signals || {}),
     }, {
@@ -325,6 +337,7 @@ class FashionDnaService {
 
     let historyItems = [];
     let intelligence = null;
+    let signals = null;
 
     if (userId) {
       const history = await this.historyService.getHistory(userId, { limit: 50 });
@@ -332,12 +345,16 @@ class FashionDnaService {
 
       const profile = await this.fashionDnaRepository.findUserProfile(userId);
       const preferences = profile?.preferences || {};
-      const signals = await this.behavioralService.collectSignals(userId, preferences);
+      signals = await this.behavioralService.collectSignals(userId, preferences);
+
+      const intelligenceContext = isDefault
+        ? await this.contextService.collectContext(userId)
+        : null;
 
       intelligence = this.engineService.buildIntelligence({
-        faceTraits: fashionDna.face_traits || {},
-        bodyTraits: fashionDna.body_traits || {},
-        onboarding: extractOnboardingInputs(profile),
+        faceTraits: intelligenceContext?.faceTraits || fashionDna.face_traits || {},
+        bodyTraits: intelligenceContext?.bodyTraits || fashionDna.body_traits || {},
+        onboarding: intelligenceContext?.onboarding || extractOnboardingInputs(profile),
         preferences,
         preferenceTraits,
         signals,
@@ -375,6 +392,29 @@ class FashionDnaService {
       fashionDna.updated_at,
     );
     const weeklyGrowth = deriveWeeklyGrowth(historyItems, confidenceScore);
+    const livingProfile = userId && signals
+      ? {
+          searchBehaviour: signals.searchBehaviour || activityTraits.search_behaviour || null,
+          shoppingInfluence: signals.shoppingInfluence || activityTraits.shopping_influence || null,
+          recentlyInfluenced: signals.recentlyInfluenced || activityTraits.recently_influenced || [],
+          discountPreference: signals.discountPreference || activityTraits.discount_preference || null,
+          currentStyleMood: intelligence?.fashionPersonality || fashionPersonality,
+          fashionJourney: historyItems.slice(0, 6).map((entry) => ({
+            styleType: entry.style_type,
+            confidenceScore: Math.round(Number(entry.fashion_confidence_score) || 0),
+            archivedAt: entry.archived_at,
+            changeReason: entry.change_reason,
+            changeSource: entry.change_source,
+          })),
+        }
+      : {
+          searchBehaviour: activityTraits.search_behaviour || null,
+          shoppingInfluence: activityTraits.shopping_influence || null,
+          recentlyInfluenced: activityTraits.recently_influenced || [],
+          discountPreference: activityTraits.discount_preference || null,
+          currentStyleMood: fashionPersonality,
+          fashionJourney: [],
+        };
 
     return {
       id: fashionDna.id,
@@ -410,6 +450,12 @@ class FashionDnaService {
       bodyTraits: fashionDna.body_traits,
       preferenceTraits: fashionDna.preference_traits,
       activityTraits: fashionDna.activity_traits,
+      searchBehaviour: livingProfile.searchBehaviour,
+      shoppingInfluence: livingProfile.shoppingInfluence,
+      recentlyInfluenced: livingProfile.recentlyInfluenced,
+      discountPreference: livingProfile.discountPreference,
+      currentStyleMood: livingProfile.currentStyleMood,
+      fashionJourney: livingProfile.fashionJourney,
       createdAt: fashionDna.created_at,
       updatedAt: fashionDna.updated_at,
     };

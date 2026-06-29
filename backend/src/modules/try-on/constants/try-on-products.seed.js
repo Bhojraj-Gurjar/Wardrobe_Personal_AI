@@ -4,6 +4,7 @@
  */
 
 const { createHash } = require('node:crypto');
+const LEGACY_USD_TO_INR = 83;
 
 const TRYON_ID_NAMESPACE = 'wardrobe-ai:tryon-catalog:v1';
 const TRYON_SKU_PREFIX = 'TRYON-';
@@ -75,8 +76,8 @@ function buildProduct(skuSuffix, meta, imageUrl) {
     subcategory: meta.subcategory,
     gender: 'MALE',
     brand: meta.brand,
-    price: meta.price,
-    currency: 'USD',
+    price: Math.round(meta.price * LEGACY_USD_TO_INR),
+    currency: 'INR',
     color: meta.color,
     imageUrl: imageUrl,
     tryOnImage: imageUrl,

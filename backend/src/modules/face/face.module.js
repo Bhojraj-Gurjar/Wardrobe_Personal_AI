@@ -6,6 +6,7 @@ import { StorageModule } from '../../storage/storage.module';
 import { FaceController } from './controllers/face.controller';
 import { FaceService } from './services/face.service';
 import { FaceImageStorageService } from './services/face-image-storage.service';
+import { FaceRateLimitService } from './services/face-rate-limit.service';
 import { FaceRepository } from './repositories/face.repository';
 
 export @Module({
@@ -16,7 +17,7 @@ export @Module({
     forwardRef(() => UserPipelineModule),
   ],
   controllers: [FaceController],
-  providers: [FaceService, FaceImageStorageService, FaceRepository],
-  exports: [FaceService, FaceRepository, FaceImageStorageService],
+  providers: [FaceService, FaceImageStorageService, FaceRateLimitService, FaceRepository],
+  exports: [FaceService, FaceRepository, FaceImageStorageService, FaceRateLimitService],
 })
 class FaceModule {}

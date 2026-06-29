@@ -18,13 +18,19 @@ import {
 
   Query,
 
+  UploadedFile,
+
   UseGuards,
+
+  UseInterceptors,
 
 } from '@nestjs/common';
 
 import {
 
   ApiBearerAuth,
+
+  ApiConsumes,
 
   ApiOperation,
 
@@ -34,11 +40,27 @@ import {
 
 } from '@nestjs/swagger';
 
+import { FileInterceptor } from '@nestjs/platform-express';
+
+import { memoryStorage } from 'multer';
+
 import { JwtAuthGuard } from '../../guards/jwt-auth.guard';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 import { VirtualTryOnService } from './virtual-try-on.service';
+
+import { TryOnUploadService } from '../try-on/try-on-upload.service';
+
+
+
+const tryOnUploadInterceptor = FileInterceptor('image', {
+
+  storage: memoryStorage(),
+
+  limits: { fileSize: 12 * 1024 * 1024 },
+
+});
 
 
 
@@ -52,9 +74,14 @@ export @ApiTags('virtual-try-on')
 
 class VirtualTryOnController {
 
-  constructor(@Inject(VirtualTryOnService) virtualTryOnService) {
+  constructor(
+    @Inject(VirtualTryOnService) virtualTryOnService,
+    @Inject(TryOnUploadService) tryOnUploadService,
+  ) {
 
     this.virtualTryOnService = virtualTryOnService;
+
+    this.tryOnUploadService = tryOnUploadService;
 
   }
 
@@ -67,6 +94,53 @@ class VirtualTryOnController {
   getSetup(@CurrentUser() user) {
 
     return this.virtualTryOnService.getSetup(user.userId);
+
+  }
+
+
+
+  @Post('upload/person')
+
+  @HttpCode(200)
+
+  @ApiConsumes('multipart/form-data')
+
+  @ApiOperation({ summary: 'Upload a temporary person image for virtual try-on' })
+
+  @UseInterceptors(tryOnUploadInterceptor)
+
+  uploadPerson(@CurrentUser() user, @UploadedFile() file) {
+
+    const dto = file?.buffer?.length
+
+      ? { imageBuffer: file.buffer, imageMimeType: file.mimetype || 'image/jpeg' }
+
+      : null;
+
+    return this.tryOnUploadService.uploadPersonImage(user.userId, dto).then(async (uploadResult) => {
+      if (uploadResult?.storagePath) {
+        await this.virtualTryOnService.saveSessionPersonPhoto(
+          user.userId,
+          uploadResult.storagePath,
+        );
+      }
+
+      return uploadResult;
+    });
+
+  }
+
+
+
+  @Post('session/person/clear')
+
+  @HttpCode(200)
+
+  @ApiOperation({ summary: 'Clear uploaded virtual try-on session photo' })
+
+  clearSessionPersonPhoto(@CurrentUser() user) {
+
+    return this.virtualTryOnService.clearSessionPersonPhoto(user.userId);
 
   }
 

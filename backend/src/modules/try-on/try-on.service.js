@@ -9,7 +9,9 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
+import { randomUUID } from 'crypto';
 import { firstValueFrom } from 'rxjs';
+import { StorageService } from '../../storage/services/storage.service';
 import { TryOnHistoryRepository } from './try-on-history.repository';
 import {
   assertTryOnImageUrl,
@@ -26,10 +28,12 @@ class TryOnService {
     @Inject(HttpService) httpService,
     @Inject(ConfigService) configService,
     @Inject(TryOnHistoryRepository) tryOnHistoryRepository,
+    @Inject(StorageService) storageService,
   ) {
     this.httpService = httpService;
     this.configService = configService;
     this.tryOnHistoryRepository = tryOnHistoryRepository;
+    this.storageService = storageService;
     this.logger = new Logger(TryOnService.name);
   }
 
@@ -62,9 +66,146 @@ class TryOnService {
     return String(
       this.configService.get('aiService.publicUrl')
       || process.env.AI_SERVICE_PUBLIC_URL
-      || this.baseUrl
       || 'http://localhost:8000',
     ).replace(/\/$/, '');
+  }
+
+  toBrowserAccessibleTryOnUrl(url) {
+    if (!url) {
+      return null;
+    }
+
+    const raw = String(url).trim();
+
+    if (!raw) {
+      return null;
+    }
+
+    const publicBase = this.aiServicePublicUrl;
+    const internalBase = this.baseUrl;
+
+    if (/^https?:\/\//i.test(raw)) {
+      if (internalBase && publicBase && raw.startsWith(internalBase)) {
+        return `${publicBase}${raw.slice(internalBase.length)}`;
+      }
+
+      const rewritten = raw.replace(
+        /^https?:\/\/ai-service:8000/i,
+        publicBase,
+      );
+
+      return rewritten;
+    }
+
+    const path = raw.startsWith('/') ? raw : `/${raw}`;
+
+    if (path.startsWith('/tryon/')) {
+      return `${publicBase}${path}`;
+    }
+
+    const storageBase = this.storagePublicBaseUrl || 'http://localhost:3000';
+    return `${storageBase}${path}`;
+  }
+
+  isDurableTryOnStoragePath(value) {
+    return typeof value === 'string'
+      && value.includes('/uploads/try-on/')
+      && value.includes('/results/');
+  }
+
+  resolveDownloadUrl(url) {
+    if (!url) {
+      return null;
+    }
+
+    const raw = String(url).trim();
+
+    if (/^https?:\/\//i.test(raw)) {
+      if (raw.includes('/tryon/results/')) {
+        const publicBase = this.aiServicePublicUrl;
+        const internalBase = this.baseUrl;
+
+        if (internalBase && publicBase && raw.startsWith(publicBase)) {
+          return `${internalBase}${raw.slice(publicBase.length)}`;
+        }
+
+        return raw.replace(/^https?:\/\/localhost:8000/i, internalBase || publicBase);
+      }
+
+      return raw;
+    }
+
+    const path = raw.startsWith('/') ? raw : `/${raw}`;
+
+    if (path.startsWith('/tryon/')) {
+      return `${this.baseUrl}${path}`;
+    }
+
+    if (path.startsWith('/uploads/')) {
+      return `${this.storageInternalBaseUrl || this.storagePublicBaseUrl}${path}`;
+    }
+
+    return raw;
+  }
+
+  async downloadImageBuffer(url) {
+    const downloadUrl = this.resolveDownloadUrl(url);
+
+    if (!downloadUrl) {
+      return null;
+    }
+
+    try {
+      const response = await fetch(downloadUrl);
+
+      if (!response.ok) {
+        this.logger.warn(`Try-on image download failed | status=${response.status} | url=${downloadUrl}`);
+        return null;
+      }
+
+      return Buffer.from(await response.arrayBuffer());
+    } catch (error) {
+      this.logger.warn(`Try-on image download error | url=${downloadUrl} | ${error?.message || error}`);
+      return null;
+    }
+  }
+
+  async persistGeneratedResult(userId, sourceUrl) {
+    if (!sourceUrl || this.isDurableTryOnStoragePath(sourceUrl)) {
+      return sourceUrl;
+    }
+
+    const buffer = await this.downloadImageBuffer(sourceUrl);
+
+    if (!buffer?.length) {
+      return sourceUrl;
+    }
+
+    const resultId = randomUUID();
+    const uploadResult = await this.storageService.uploadTryOnResultImage({
+      userId,
+      resultId,
+      buffer,
+      mimeType: 'image/png',
+    });
+
+    this.logger.log(
+      `Persisted try-on result for user ${userId} at ${uploadResult.storagePath}`,
+    );
+
+    return uploadResult.storagePath;
+  }
+
+  toPublicTryOnUrl(value, resolver) {
+    if (!value) {
+      return null;
+    }
+
+    if (this.isDurableTryOnStoragePath(value)) {
+      return resolver(value) || value;
+    }
+
+    return this.toBrowserAccessibleTryOnUrl(value);
   }
 
   resolvePublicImageUrl(url, resolver) {
@@ -141,23 +282,7 @@ class TryOnService {
       return result;
     }
 
-    if (/^https?:\/\//i.test(raw)) {
-      return {
-        ...result,
-        resultImageUrl: raw,
-        result_image_url: raw,
-      };
-    }
-
-    const path = raw.startsWith('/') ? raw : `/${raw}`;
-    const browserBase = this.storagePublicBaseUrl
-      || 'http://localhost:8000';
-
-    const aiPublicBase = this.aiServicePublicUrl;
-
-    const resolved = path.startsWith('/tryon/')
-      ? `${aiPublicBase}${path}`
-      : `${browserBase}${path}`;
+    const resolved = this.toBrowserAccessibleTryOnUrl(raw);
 
     return {
       ...result,
@@ -196,18 +321,31 @@ class TryOnService {
       this.logger.log(`Inference completed in ${elapsedSec} sec | status=${response.status}`);
 
       const result = this.normalizeTryOnResultUrl(response.data);
+      const rawResultUrl = result?.resultImageUrl || result?.result_image_url || null;
+      const persistedPath = persistHistory
+        ? await this.persistGeneratedResult(userId, rawResultUrl)
+        : rawResultUrl;
+      const resolvedResultUrl = this.toPublicTryOnUrl(
+        persistedPath,
+        (path) => this.resolvePublicImageUrl(path, (value) => value),
+      ) || rawResultUrl;
+      const normalizedResult = {
+        ...result,
+        resultImageUrl: resolvedResultUrl,
+        result_image_url: resolvedResultUrl,
+      };
 
       if (persistHistory) {
         await this.tryOnHistoryRepository.create(userId, {
           inputImage: validatedPersonUrl,
           transparentImage: validatedGarmentUrl,
-          generatedImage: result?.resultImageUrl || result?.result_image_url || null,
+          generatedImage: persistedPath || rawResultUrl,
           selectedProducts: [],
         });
       }
 
       this.logger.log('Virtual try-on generation successful.');
-      return result;
+      return normalizedResult;
     } catch (error) {
       this.handleError(error);
     }

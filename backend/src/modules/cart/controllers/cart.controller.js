@@ -63,6 +63,6 @@ class CartController {
   @Post('checkout')
   @ApiOperation({ summary: 'Checkout cart and create orders' })
   checkout(@CurrentUser() user, @Body(checkoutCartPipe) dto) {
-    return this.cartService.checkout(user.userId, dto.coupon_code || null);
+    return this.cartService.checkout(user.userId, dto);
   }
 }

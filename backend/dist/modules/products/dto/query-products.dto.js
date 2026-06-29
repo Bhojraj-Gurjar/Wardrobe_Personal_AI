@@ -26,6 +26,8 @@ let QueryProductsDto = class QueryProductsDto {
     sortOrder = 'desc';
     category;
     subcategory;
+    productType;
+    product_type;
     gender;
     brand;
     color;
@@ -90,6 +92,22 @@ _ts_decorate([
     (0, _classvalidator.IsOptional)(),
     (0, _classvalidator.IsString)()
 ], QueryProductsDto.prototype, "subcategory", void 0);
+_ts_decorate([
+    (0, _swagger.ApiPropertyOptional)({
+        example: 'T-Shirt',
+        description: 'Filter by product type'
+    }),
+    (0, _classvalidator.IsOptional)(),
+    (0, _classvalidator.IsString)()
+], QueryProductsDto.prototype, "productType", void 0);
+_ts_decorate([
+    (0, _swagger.ApiPropertyOptional)({
+        example: 'T-Shirt',
+        description: 'Alias for productType'
+    }),
+    (0, _classvalidator.IsOptional)(),
+    (0, _classvalidator.IsString)()
+], QueryProductsDto.prototype, "product_type", void 0);
 _ts_decorate([
     (0, _swagger.ApiPropertyOptional)(),
     (0, _classvalidator.IsOptional)(),

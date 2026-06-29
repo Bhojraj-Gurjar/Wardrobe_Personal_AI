@@ -13,6 +13,7 @@ const _classtransformer = require("class-transformer");
 const _swagger = require("@nestjs/swagger");
 const _createproductdto = require("./create-product.dto");
 const _avatarconstants = require("../constants/avatar.constants");
+const _producttypeconstants = require("../constants/product-type.constants");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -30,6 +31,7 @@ let UpdateProductDto = class UpdateProductDto {
     name;
     description;
     category;
+    productType;
     subcategory;
     gender;
     brand;
@@ -82,6 +84,15 @@ _ts_decorate([
 ], UpdateProductDto.prototype, "category", void 0);
 _ts_decorate([
     (0, _swagger.ApiPropertyOptional)({
+        example: 'T-Shirt',
+        enum: _producttypeconstants.PRODUCT_TYPES
+    }),
+    (0, _classvalidator.IsOptional)(),
+    (0, _classvalidator.IsString)(),
+    (0, _classvalidator.IsIn)(_producttypeconstants.PRODUCT_TYPES)
+], UpdateProductDto.prototype, "productType", void 0);
+_ts_decorate([
+    (0, _swagger.ApiPropertyOptional)({
         example: 'jackets'
     }),
     (0, _classvalidator.IsOptional)(),
@@ -124,7 +135,7 @@ _ts_decorate([
 ], UpdateProductDto.prototype, "price", void 0);
 _ts_decorate([
     (0, _swagger.ApiPropertyOptional)({
-        example: 'USD'
+        example: 'INR'
     }),
     (0, _classvalidator.IsOptional)(),
     (0, _classvalidator.IsString)()

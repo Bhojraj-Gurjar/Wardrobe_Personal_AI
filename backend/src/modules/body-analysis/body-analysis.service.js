@@ -35,6 +35,7 @@ import { REFRESH_SOURCES } from '../fashion-dna/constants/fashion-dna-regenerati
 import { FashionDnaRegenerationService } from '../fashion-dna/services/fashion-dna-regeneration.service';
 
 import { PIPELINE_SIGNALS, PipelineEventBus } from '../user-pipeline/pipeline-event.bus';
+import { UserMediaRegistryService } from '../user-media/services/user-media-registry.service';
 
 import {
 
@@ -84,6 +85,8 @@ class BodyAnalysisService {
 
     @Inject(ModuleRef) moduleRef,
 
+    @Inject(UserMediaRegistryService) userMediaRegistryService,
+
   ) {
 
     this.bodyAnalysisRepository = bodyAnalysisRepository;
@@ -105,6 +108,8 @@ class BodyAnalysisService {
     this.pipelineEventBus = pipelineEventBus;
 
     this.moduleRef = moduleRef;
+
+    this.userMediaRegistryService = userMediaRegistryService;
 
     this.logger = new Logger(BodyAnalysisService.name);
 
@@ -374,6 +379,11 @@ class BodyAnalysisService {
       await this.bodyAnalysisRepository.saveBodyImagePath(userId, bodyImagePath);
       await this.syncBodyPhotoToProfile(userId, bodyImagePath);
       await this.bodyPhotoProcessingService.processAfterUpload(userId, bodyImagePath);
+      await this.userMediaRegistryService.registerBodyPhoto(userId, bodyImagePath, {
+        mimeType: imageDto.imageMimeType,
+        fileSize: imageDto.imageBuffer?.length,
+        uploadSource: 'body_analysis',
+      });
     }
 
     return this.persistBodyTraitAnalysis(userId, { ...imageDto, height }, bodyImagePath);

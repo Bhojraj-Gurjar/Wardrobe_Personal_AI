@@ -43,7 +43,13 @@ class LivenessService:
 
         return gray[top:bottom, left:right]
 
-    def validate_frame(self, rgb: np.ndarray, detection: FaceDetection | None = None) -> float:
+    def validate_frame(
+        self,
+        rgb: np.ndarray,
+        detection: FaceDetection | None = None,
+        *,
+        relaxed: bool = False,
+    ) -> float:
         if rgb is None or rgb.size == 0:
             raise FaceValidationError("Invalid image.", "invalid_image")
 
@@ -54,9 +60,14 @@ class LivenessService:
             else gray
         )
 
+        blur_threshold = (
+            self._settings.face_liveness_blur_variance
+            if relaxed
+            else self._settings.face_min_blur_variance
+        )
         blur_score = float(cv2.Laplacian(region, cv2.CV_64F).var())
 
-        if blur_score < self._settings.face_min_blur_variance:
+        if blur_score < blur_threshold:
             raise FaceValidationError("Image quality is too low.", "blur")
 
         mean_luma = float(np.mean(region))
@@ -66,11 +77,16 @@ class LivenessService:
             raise FaceValidationError("Image quality is too low.", "too_bright")
 
         if detection is not None:
-            if detection.detection_score < self._settings.face_min_detection_score:
+            min_detection = (
+                self._settings.face_liveness_min_detection_score
+                if relaxed
+                else self._settings.face_min_detection_score
+            )
+            if detection.detection_score < min_detection:
                 raise FaceValidationError("Image quality is too low.", "low_quality")
             self._validate_landmarks(detection)
 
-        quality = min(1.0, blur_score / max(self._settings.face_min_blur_variance, 1.0))
+        quality = min(1.0, blur_score / max(blur_threshold, 1.0))
         logger.info(
             "Liveness quality passed | blur=%.2f | luma=%.2f | quality=%.2f | face_crop=%s",
             blur_score,

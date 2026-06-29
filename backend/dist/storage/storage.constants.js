@@ -36,8 +36,26 @@ _export(exports, {
     get FACE_STORAGE_FOLDER () {
         return FACE_STORAGE_FOLDER;
     },
+    get ORDER_PUBLIC_PREFIX () {
+        return ORDER_PUBLIC_PREFIX;
+    },
+    get ORDER_STORAGE_FOLDER () {
+        return ORDER_STORAGE_FOLDER;
+    },
+    get PRODUCT_PUBLIC_PREFIX () {
+        return PRODUCT_PUBLIC_PREFIX;
+    },
+    get PRODUCT_STORAGE_FOLDER () {
+        return PRODUCT_STORAGE_FOLDER;
+    },
     get STORAGE_PROVIDERS () {
         return STORAGE_PROVIDERS;
+    },
+    get SUPPORT_PUBLIC_PREFIX () {
+        return SUPPORT_PUBLIC_PREFIX;
+    },
+    get SUPPORT_STORAGE_FOLDER () {
+        return SUPPORT_STORAGE_FOLDER;
     },
     get TRY_ON_PUBLIC_PREFIX () {
         return TRY_ON_PUBLIC_PREFIX;
@@ -68,6 +86,12 @@ const USER_PNG_STORAGE_FOLDER = 'user-png';
 const USER_PNG_PUBLIC_PREFIX = '/uploads/user-png';
 const TRY_ON_STORAGE_FOLDER = 'try-on';
 const TRY_ON_PUBLIC_PREFIX = '/uploads/try-on';
+const PRODUCT_STORAGE_FOLDER = 'products';
+const PRODUCT_PUBLIC_PREFIX = '/uploads/products';
+const SUPPORT_STORAGE_FOLDER = 'support';
+const SUPPORT_PUBLIC_PREFIX = '/uploads/support';
+const ORDER_STORAGE_FOLDER = 'orders';
+const ORDER_PUBLIC_PREFIX = '/uploads/orders';
 const AVATAR_OUTPUT_FORMATS = {
     IMAGE_2D: 'png',
     MESH_3D: 'glb',

@@ -13,6 +13,7 @@ import {
   Query,
   Res,
   UploadedFile,
+  UploadedFiles,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -22,7 +23,7 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { JwtAuthGuard } from '../../../guards/jwt-auth.guard';
 import { AdminRoleGuard } from '../../../guards/admin-role.guard';
@@ -40,6 +41,11 @@ const loginPipe = DtoValidationPipe(AdminLoginDto);
 const faceUploadInterceptor = FileInterceptor(FACE_UPLOAD_FIELD, {
   storage: memoryStorage(),
   limits: { fileSize: FACE_UPLOAD_MAX_BYTES },
+});
+
+const productImagesInterceptor = FilesInterceptor('images', 12, {
+  storage: memoryStorage(),
+  limits: { fileSize: 8 * 1024 * 1024 },
 });
 
 const adminGuards = [JwtAuthGuard, AdminRoleGuard];
@@ -136,19 +142,75 @@ class AdminController {
     return this.adminService.getProducts(query);
   }
 
+  @Post('products/bulk/validate')
+  @UseGuards(...adminGuards)
+  @ApiBearerAuth()
+  validateBulkProducts(@Body('rows') rows) {
+    return this.adminService.validateBulkProducts(rows);
+  }
+
+  @Post('products/bulk/import')
+  @HttpCode(201)
+  @UseGuards(...adminGuards)
+  @ApiBearerAuth()
+  importBulkProducts(@CurrentUser() user, @Body('rows') rows) {
+    return this.adminService.importBulkProducts(rows, user?.userId);
+  }
+
+  @Post('products/cms')
+  @HttpCode(201)
+  @UseGuards(...adminGuards)
+  @ApiBearerAuth()
+  createCmsProduct(@CurrentUser() user, @Body() payload) {
+    return this.adminService.createCmsProduct(payload, user?.userId);
+  }
+
   @Post('products')
   @HttpCode(201)
   @UseGuards(...adminGuards)
   @ApiBearerAuth()
-  createProduct(@Body() payload) {
-    return this.adminService.createProduct(payload);
+  createProduct(@CurrentUser() user, @Body() payload) {
+    return this.adminService.createProduct(payload, user?.userId);
+  }
+
+  @Get('products/:id/inventory/history')
+  @UseGuards(...adminGuards)
+  @ApiBearerAuth()
+  getProductInventoryHistory(@Param('id') id) {
+    return this.adminService.getProductInventoryHistory(id);
+  }
+
+  @Get('products/:id')
+  @UseGuards(...adminGuards)
+  @ApiBearerAuth()
+  getProductById(@Param('id') id) {
+    const productId = String(id ?? '').trim();
+    return this.adminService.getProductDetail(productId);
   }
 
   @Put('products/:id')
   @UseGuards(...adminGuards)
   @ApiBearerAuth()
-  updateProduct(@Param('id') id, @Body() payload) {
-    return this.adminService.updateProduct(id, payload);
+  updateProduct(@CurrentUser() user, @Param('id') id, @Body() payload) {
+    return this.adminService.updateProduct(id, payload, user?.userId);
+  }
+
+  @Post('products/:id/images')
+  @HttpCode(201)
+  @UseGuards(...adminGuards)
+  @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(productImagesInterceptor)
+  uploadProductImages(@Param('id') id, @UploadedFiles() files) {
+    const fileList = Array.isArray(files) ? files : files ? [files] : [];
+    return this.adminService.uploadProductImages(id, fileList);
+  }
+
+  @Patch('products/:id/inventory')
+  @UseGuards(...adminGuards)
+  @ApiBearerAuth()
+  adjustProductInventory(@CurrentUser() user, @Param('id') id, @Body() payload) {
+    return this.adminService.adjustProductInventory(id, payload, user?.userId);
   }
 
   @Delete('products/:id')
@@ -241,7 +303,7 @@ class AdminController {
   @Post('orders/:id/cancel')
   @UseGuards(...adminGuards)
   @ApiBearerAuth()
-  cancelOrder(@Param('id') id) {
-    return this.adminService.cancelOrder(id);
+  cancelOrder(@CurrentUser() admin, @Param('id') id) {
+    return this.adminService.cancelOrder(id, admin.userId);
   }
 }

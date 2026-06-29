@@ -40,6 +40,12 @@ const faceUploadInterceptor = (0, _platformexpress.FileInterceptor)(_faceuploadu
         fileSize: _faceuploadutil.FACE_UPLOAD_MAX_BYTES
     }
 });
+const productImagesInterceptor = (0, _platformexpress.FilesInterceptor)('images', 12, {
+    storage: (0, _multer.memoryStorage)(),
+    limits: {
+        fileSize: 8 * 1024 * 1024
+    }
+});
 const adminGuards = [
     _jwtauthguard.JwtAuthGuard,
     _adminroleguard.AdminRoleGuard
@@ -83,11 +89,36 @@ let AdminController = class AdminController {
     getProducts(query) {
         return this.adminService.getProducts(query);
     }
-    createProduct(payload) {
-        return this.adminService.createProduct(payload);
+    validateBulkProducts(rows) {
+        return this.adminService.validateBulkProducts(rows);
     }
-    updateProduct(id, payload) {
-        return this.adminService.updateProduct(id, payload);
+    importBulkProducts(user, rows) {
+        return this.adminService.importBulkProducts(rows, user?.userId);
+    }
+    createCmsProduct(user, payload) {
+        return this.adminService.createCmsProduct(payload, user?.userId);
+    }
+    createProduct(user, payload) {
+        return this.adminService.createProduct(payload, user?.userId);
+    }
+    getProductInventoryHistory(id) {
+        return this.adminService.getProductInventoryHistory(id);
+    }
+    getProductById(id) {
+        const productId = String(id ?? '').trim();
+        return this.adminService.getProductDetail(productId);
+    }
+    updateProduct(user, id, payload) {
+        return this.adminService.updateProduct(id, payload, user?.userId);
+    }
+    uploadProductImages(id, files) {
+        const fileList = Array.isArray(files) ? files : files ? [
+            files
+        ] : [];
+        return this.adminService.uploadProductImages(id, fileList);
+    }
+    adjustProductInventory(user, id, payload) {
+        return this.adminService.adjustProductInventory(id, payload, user?.userId);
     }
     deleteProduct(id) {
         return this.adminService.deleteProduct(id);
@@ -127,8 +158,8 @@ let AdminController = class AdminController {
     updateOrderStatus(id, status) {
         return this.adminService.updateOrderStatus(id, status);
     }
-    cancelOrder(id) {
-        return this.adminService.cancelOrder(id);
+    cancelOrder(admin, id) {
+        return this.adminService.cancelOrder(id, admin.userId);
     }
 };
 _ts_decorate([
@@ -267,22 +298,36 @@ _ts_decorate([
     _ts_metadata("design:returntype", void 0)
 ], AdminController.prototype, "getProducts", null);
 _ts_decorate([
-    (0, _common.Post)('products'),
-    (0, _common.HttpCode)(201),
+    (0, _common.Post)('products/bulk/validate'),
     (0, _common.UseGuards)(...adminGuards),
     (0, _swagger.ApiBearerAuth)(),
-    _ts_param(0, (0, _common.Body)()),
+    _ts_param(0, (0, _common.Body)('rows')),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         void 0
     ]),
     _ts_metadata("design:returntype", void 0)
-], AdminController.prototype, "createProduct", null);
+], AdminController.prototype, "validateBulkProducts", null);
 _ts_decorate([
-    (0, _common.Put)('products/:id'),
+    (0, _common.Post)('products/bulk/import'),
+    (0, _common.HttpCode)(201),
     (0, _common.UseGuards)(...adminGuards),
     (0, _swagger.ApiBearerAuth)(),
-    _ts_param(0, (0, _common.Param)('id')),
+    _ts_param(0, (0, _currentuserdecorator.CurrentUser)()),
+    _ts_param(1, (0, _common.Body)('rows')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        void 0,
+        void 0
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], AdminController.prototype, "importBulkProducts", null);
+_ts_decorate([
+    (0, _common.Post)('products/cms'),
+    (0, _common.HttpCode)(201),
+    (0, _common.UseGuards)(...adminGuards),
+    (0, _swagger.ApiBearerAuth)(),
+    _ts_param(0, (0, _currentuserdecorator.CurrentUser)()),
     _ts_param(1, (0, _common.Body)()),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
@@ -290,7 +335,89 @@ _ts_decorate([
         void 0
     ]),
     _ts_metadata("design:returntype", void 0)
+], AdminController.prototype, "createCmsProduct", null);
+_ts_decorate([
+    (0, _common.Post)('products'),
+    (0, _common.HttpCode)(201),
+    (0, _common.UseGuards)(...adminGuards),
+    (0, _swagger.ApiBearerAuth)(),
+    _ts_param(0, (0, _currentuserdecorator.CurrentUser)()),
+    _ts_param(1, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        void 0,
+        void 0
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], AdminController.prototype, "createProduct", null);
+_ts_decorate([
+    (0, _common.Get)('products/:id/inventory/history'),
+    (0, _common.UseGuards)(...adminGuards),
+    (0, _swagger.ApiBearerAuth)(),
+    _ts_param(0, (0, _common.Param)('id')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        void 0
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], AdminController.prototype, "getProductInventoryHistory", null);
+_ts_decorate([
+    (0, _common.Get)('products/:id'),
+    (0, _common.UseGuards)(...adminGuards),
+    (0, _swagger.ApiBearerAuth)(),
+    _ts_param(0, (0, _common.Param)('id')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        void 0
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], AdminController.prototype, "getProductById", null);
+_ts_decorate([
+    (0, _common.Put)('products/:id'),
+    (0, _common.UseGuards)(...adminGuards),
+    (0, _swagger.ApiBearerAuth)(),
+    _ts_param(0, (0, _currentuserdecorator.CurrentUser)()),
+    _ts_param(1, (0, _common.Param)('id')),
+    _ts_param(2, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        void 0,
+        void 0,
+        void 0
+    ]),
+    _ts_metadata("design:returntype", void 0)
 ], AdminController.prototype, "updateProduct", null);
+_ts_decorate([
+    (0, _common.Post)('products/:id/images'),
+    (0, _common.HttpCode)(201),
+    (0, _common.UseGuards)(...adminGuards),
+    (0, _swagger.ApiBearerAuth)(),
+    (0, _swagger.ApiConsumes)('multipart/form-data'),
+    (0, _common.UseInterceptors)(productImagesInterceptor),
+    _ts_param(0, (0, _common.Param)('id')),
+    _ts_param(1, (0, _common.UploadedFiles)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        void 0,
+        void 0
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], AdminController.prototype, "uploadProductImages", null);
+_ts_decorate([
+    (0, _common.Patch)('products/:id/inventory'),
+    (0, _common.UseGuards)(...adminGuards),
+    (0, _swagger.ApiBearerAuth)(),
+    _ts_param(0, (0, _currentuserdecorator.CurrentUser)()),
+    _ts_param(1, (0, _common.Param)('id')),
+    _ts_param(2, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        void 0,
+        void 0,
+        void 0
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], AdminController.prototype, "adjustProductInventory", null);
 _ts_decorate([
     (0, _common.Delete)('products/:id'),
     (0, _common.UseGuards)(...adminGuards),
@@ -430,9 +557,11 @@ _ts_decorate([
     (0, _common.Post)('orders/:id/cancel'),
     (0, _common.UseGuards)(...adminGuards),
     (0, _swagger.ApiBearerAuth)(),
-    _ts_param(0, (0, _common.Param)('id')),
+    _ts_param(0, (0, _currentuserdecorator.CurrentUser)()),
+    _ts_param(1, (0, _common.Param)('id')),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        void 0,
         void 0
     ]),
     _ts_metadata("design:returntype", void 0)

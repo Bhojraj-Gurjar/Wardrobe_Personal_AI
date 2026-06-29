@@ -14,12 +14,14 @@ const _config = require("@nestjs/config");
 const _crypto = require("crypto");
 const _facerepository = require("../repositories/face.repository");
 const _faceimagestorageservice = require("./face-image-storage.service");
+const _faceratelimitservice = require("./face-rate-limit.service");
 const _storagepathresolverservice = require("../../../storage/services/storage-path-resolver.service");
 const _redisservice = require("../../../database/redis.service");
 const _aiservice = require("../../ai/services/ai.service");
 const _fashiondnaregenerationconstants = require("../../fashion-dna/constants/fashion-dna-regeneration.constants");
 const _fashiondnaregenerationservice = require("../../fashion-dna/services/fashion-dna-regeneration.service");
 const _userpipelineservice = require("../../user-pipeline/user-pipeline.service");
+const _usermediaregistryservice = require("../../user-media/services/user-media-registry.service");
 const _userstatus = require("../../../common/constants/user-status");
 const _parseduration = require("../../../common/utils/parse-duration");
 function _ts_decorate(decorators, target, key, desc) {
@@ -38,9 +40,10 @@ function _ts_param(paramIndex, decorator) {
 }
 const REFRESH_TOKEN_PREFIX = 'auth:refresh:';
 let FaceService = class FaceService {
-    constructor(faceRepository, faceImageStorageService, storagePathResolver, jwtService, configService, redisService, aiService, fashionDnaRegenerationService, userPipelineService){
+    constructor(faceRepository, faceImageStorageService, faceRateLimitService, storagePathResolver, jwtService, configService, redisService, aiService, fashionDnaRegenerationService, userPipelineService, userMediaRegistryService){
         this.faceRepository = faceRepository;
         this.faceImageStorageService = faceImageStorageService;
+        this.faceRateLimitService = faceRateLimitService;
         this.storagePathResolver = storagePathResolver;
         this.jwtService = jwtService;
         this.configService = configService;
@@ -48,6 +51,7 @@ let FaceService = class FaceService {
         this.aiService = aiService;
         this.fashionDnaRegenerationService = fashionDnaRegenerationService;
         this.userPipelineService = userPipelineService;
+        this.userMediaRegistryService = userMediaRegistryService;
         this.logger = new _common.Logger(FaceService.name);
         this.refreshTtlSeconds = (0, _parseduration.parseDurationToSeconds)(configService.get('jwt.refreshExpiresIn'));
     }
@@ -90,13 +94,23 @@ let FaceService = class FaceService {
             this.logger.warn(`Removed ${staleCleanup.deleted} stale face vector(s) referencing deleted users`);
         }
         try {
-            await this.aiService.registerFace(userId, dto.imageBuffer, dto.imageMimeType);
+            const aiResult = await this.aiService.registerFace(userId, dto);
+            const livenessMeta = {
+                livenessScore: aiResult?.liveness_score ?? aiResult?.livenessScore ?? null,
+                blinkDetected: dto.challengeType === 'blink_once' || dto.challengeType === 'blink_twice',
+                smileDetected: dto.challengeType === 'smile'
+            };
+            const existing = await this.faceRepository.findFaceRegistration(userId);
+            const faceImagePath = await this.faceImageStorageService.replaceFaceImage(userId, dto.imageBuffer, dto.imageMimeType, existing?.face_image_url);
+            await this.userMediaRegistryService.registerFacePhoto(userId, faceImagePath, {
+                mimeType: dto.imageMimeType,
+                fileSize: dto.imageBuffer?.length,
+                uploadSource: 'face_registration'
+            });
+            return this.faceRepository.upsertFaceRegistration(userId, faceImagePath, livenessMeta);
         } catch (error) {
             this.rethrowAiError(error);
         }
-        const existing = await this.faceRepository.findFaceRegistration(userId);
-        const faceImagePath = await this.faceImageStorageService.replaceFaceImage(userId, dto.imageBuffer, dto.imageMimeType, existing?.face_image_url);
-        return this.faceRepository.upsertFaceRegistration(userId, faceImagePath);
     }
     formatRegistrationResponse(userId, registration) {
         const faceImagePath = registration?.face_image_url || null;
@@ -128,27 +142,62 @@ let FaceService = class FaceService {
             updated_at: registration.updated_at
         };
     }
-    async login(dto) {
+    async login(dto, context = {}) {
         if (!dto.imageBuffer?.length) {
             throw new _common.BadRequestException('Provide a frontFace image upload.');
         }
         if (!this.aiService.isConfigured()) {
             throw new _common.ServiceUnavailableException('AI service unavailable.');
         }
+        const rateLimitKey = context.clientIp || 'anonymous';
+        await this.faceRateLimitService.assertNotLocked('login', rateLimitKey);
+        this.logFaceAudit('login_attempt', {
+            clientIp: context.clientIp,
+            userAgent: context.userAgent,
+            captureSessionId: dto.captureSessionId,
+            challengeType: dto.challengeType,
+            frameCount: dto.livenessFrames?.length || 1
+        });
         let result;
         try {
-            result = await this.aiService.loginFace(dto.imageBuffer, dto.imageMimeType);
+            result = await this.aiService.loginFace(dto);
         } catch (error) {
+            if (error instanceof _common.UnauthorizedException || error instanceof _common.BadRequestException) {
+                try {
+                    await this.faceRateLimitService.recordFailure('login', rateLimitKey, {
+                        reason: error.message,
+                        challengeType: dto.challengeType
+                    });
+                } catch (lockError) {
+                    if (lockError instanceof _common.TooManyRequestsException) {
+                        throw lockError;
+                    }
+                }
+            }
+            this.logFaceAudit('login_failed', {
+                clientIp: context.clientIp,
+                reason: error.message,
+                challengeType: dto.challengeType
+            });
             this.rethrowAiError(error);
         }
         const user = await this.faceRepository.findUserById(result.user_id);
         if (!user) {
+            await this.faceRateLimitService.recordFailure('login', rateLimitKey, {
+                reason: 'user_not_found'
+            });
             throw new _common.UnauthorizedException('Face not recognized.');
         }
         if (user.status !== _userstatus.USER_STATUS.ACTIVE) {
             throw new _common.ForbiddenException('Account is not active');
         }
-        return this.buildAuthResponse(user, result.similarity_score);
+        await this.faceRateLimitService.recordSuccess('login', rateLimitKey);
+        this.logFaceAudit('login_success', {
+            userId: user.id,
+            clientIp: context.clientIp,
+            challengeType: dto.challengeType
+        });
+        return this.buildAuthResponse(user);
     }
     async verify(userId, dto) {
         if (!dto.imageBuffer?.length) {
@@ -190,16 +239,20 @@ let FaceService = class FaceService {
         };
     }
     rethrowAiError(error) {
-        if (error instanceof _common.BadRequestException || error instanceof _common.UnauthorizedException || error instanceof _common.ConflictException || error instanceof _common.ServiceUnavailableException) {
+        if (error instanceof _common.BadRequestException || error instanceof _common.UnauthorizedException || error instanceof _common.ConflictException || error instanceof _common.ServiceUnavailableException || error instanceof _common.TooManyRequestsException) {
             throw error;
         }
         throw new _common.ServiceUnavailableException('AI service unavailable.');
     }
-    async buildAuthResponse(user, similarityScore) {
+    logFaceAudit(event, meta = {}) {
+        this.logger.log(`FACE_AUDIT | event=${event} | ${JSON.stringify(meta)}`);
+    }
+    async buildAuthResponse(user) {
         const tokens = await this.generateTokens(user);
         return {
             user: this.sanitizeUser(user),
-            similarity_score: Number(similarityScore.toFixed(4)),
+            faceVerified: true,
+            message: 'Face verified',
             ...tokens
         };
     }
@@ -233,15 +286,19 @@ FaceService = _ts_decorate([
     (0, _common.Injectable)(),
     _ts_param(0, (0, _common.Inject)(_facerepository.FaceRepository)),
     _ts_param(1, (0, _common.Inject)(_faceimagestorageservice.FaceImageStorageService)),
-    _ts_param(2, (0, _common.Inject)(_storagepathresolverservice.StoragePathResolver)),
-    _ts_param(3, (0, _common.Inject)(_jwt.JwtService)),
-    _ts_param(4, (0, _common.Inject)(_config.ConfigService)),
-    _ts_param(5, (0, _common.Inject)(_redisservice.RedisService)),
-    _ts_param(6, (0, _common.Inject)(_aiservice.AiService)),
-    _ts_param(7, (0, _common.Inject)(_fashiondnaregenerationservice.FashionDnaRegenerationService)),
-    _ts_param(8, (0, _common.Inject)((0, _common.forwardRef)(()=>_userpipelineservice.UserPipelineService))),
+    _ts_param(2, (0, _common.Inject)(_faceratelimitservice.FaceRateLimitService)),
+    _ts_param(3, (0, _common.Inject)(_storagepathresolverservice.StoragePathResolver)),
+    _ts_param(4, (0, _common.Inject)(_jwt.JwtService)),
+    _ts_param(5, (0, _common.Inject)(_config.ConfigService)),
+    _ts_param(6, (0, _common.Inject)(_redisservice.RedisService)),
+    _ts_param(7, (0, _common.Inject)(_aiservice.AiService)),
+    _ts_param(8, (0, _common.Inject)(_fashiondnaregenerationservice.FashionDnaRegenerationService)),
+    _ts_param(9, (0, _common.Inject)((0, _common.forwardRef)(()=>_userpipelineservice.UserPipelineService))),
+    _ts_param(10, (0, _common.Inject)(_usermediaregistryservice.UserMediaRegistryService)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        void 0,
+        void 0,
         void 0,
         void 0,
         void 0,

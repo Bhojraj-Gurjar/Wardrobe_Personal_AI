@@ -46,6 +46,7 @@ export function calculateCartTotals(items = [], couponCode = null) {
     shipping,
     discount,
     total,
+    currency: 'INR',
     appliedCoupon: coupon?.code || null,
     couponLabel: coupon?.label || null,
     estimatedDelivery: ESTIMATED_DELIVERY_LABEL,
@@ -58,4 +59,26 @@ export function generateOrderNumber() {
   const year = new Date().getFullYear();
   const suffix = Math.floor(1000 + Math.random() * 9000);
   return `WA-${year}-${suffix}`;
+}
+
+/** OMS order number format: WAI-ORD-000123 */
+export function generateOmsOrderNumber(sequence = null) {
+  const suffix = sequence != null
+    ? String(sequence).padStart(6, '0')
+    : String(Math.floor(100000 + Math.random() * 900000));
+  return `WAI-ORD-${suffix}`;
+}
+
+/** OMS invoice number format: WAI-INV-000123 */
+export function generateOmsInvoiceNumber(sequence = null) {
+  const suffix = sequence != null
+    ? String(sequence).padStart(6, '0')
+    : String(Math.floor(100000 + Math.random() * 900000));
+  return `WAI-INV-${suffix}`;
+}
+
+export function estimateDeliveryDate(daysFromNow = 5) {
+  const date = new Date();
+  date.setDate(date.getDate() + daysFromNow);
+  return date;
 }

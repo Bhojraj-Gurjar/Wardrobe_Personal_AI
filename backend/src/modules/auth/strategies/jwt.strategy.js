@@ -7,7 +7,10 @@ export @Injectable()
 class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(@Inject(ConfigService) configService) {
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
+        ExtractJwt.fromUrlQueryParameter('token'),
+      ]),
       ignoreExpiration: false,
       secretOrKey: configService.get('jwt.secret'),
     });

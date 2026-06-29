@@ -48,6 +48,54 @@ export function buildPreferenceTraitsFromOnboarding(inputs) {
   };
 }
 
+export function isPlaceholderFashionDna(record) {
+  if (!record) {
+    return true;
+  }
+
+  const preferenceTraits = record.preference_traits || record.preferenceTraits || {};
+  const activityTraits = record.activity_traits || record.activityTraits || {};
+
+  if (preferenceTraits.isDefault || activityTraits.isDefault) {
+    return true;
+  }
+
+  const styleType = String(record.style_type || record.styleType || '').toUpperCase();
+  const confidence = Number(
+    record.fashion_confidence_score ?? record.fashionConfidenceScore ?? 0,
+  );
+
+  return styleType === 'DEVELOPING' && confidence <= 0;
+}
+
+export function hasOnboardingFaceSignals(context) {
+  const { faceTraits, profile } = context || {};
+
+  return Boolean(
+    faceTraits?.face_shape
+    || faceTraits?.faceShape
+    || faceTraits?.is_face_registered
+    || profile?.skin_tone,
+  );
+}
+
+export function hasOnboardingBodySignals(context) {
+  const { bodyTraits, profile } = context || {};
+
+  if (
+    bodyTraits?.body_type
+    || bodyTraits?.bodyType
+    || bodyTraits?.analysis_source === 'body_analysis_record'
+  ) {
+    return true;
+  }
+
+  const height = bodyTraits?.height ?? profile?.height;
+  const weight = bodyTraits?.weight ?? profile?.weight;
+
+  return Boolean(height && weight);
+}
+
 export function mapAiResponseToPayload(aiResponse, context) {
   const { faceTraits, bodyTraits, onboarding } = context;
 

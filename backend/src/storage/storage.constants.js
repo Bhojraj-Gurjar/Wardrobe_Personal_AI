@@ -26,6 +26,18 @@ export const TRY_ON_STORAGE_FOLDER = 'try-on';
 
 export const TRY_ON_PUBLIC_PREFIX = '/uploads/try-on';
 
+export const PRODUCT_STORAGE_FOLDER = 'products';
+
+export const PRODUCT_PUBLIC_PREFIX = '/uploads/products';
+
+export const SUPPORT_STORAGE_FOLDER = 'support';
+
+export const SUPPORT_PUBLIC_PREFIX = '/uploads/support';
+
+export const ORDER_STORAGE_FOLDER = 'orders';
+
+export const ORDER_PUBLIC_PREFIX = '/uploads/orders';
+
 /** Future 3D twin assets will use mesh formats instead of raster images. */
 export const AVATAR_OUTPUT_FORMATS = {
   IMAGE_2D: 'png',

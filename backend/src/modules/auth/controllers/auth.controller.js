@@ -1,6 +1,8 @@
-import { Inject, Body, Controller, HttpCode, Post } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Inject, Body, Controller, Get, HttpCode, Post, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { DtoValidationPipe } from '../../../common/pipes/dto-validation.pipe';
+import { JwtAuthGuard } from '../../../guards/jwt-auth.guard';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { AuthService } from '../services/auth.service';
 import { RegisterDto } from '../dto/register.dto';
 import { LoginDto } from '../dto/login.dto';
@@ -52,5 +54,15 @@ class AuthController {
   @ApiResponse({ status: 200, description: 'Logout successful' })
   logout(@Body(logoutPipe) dto) {
     return this.authService.logout(dto);
+  }
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get current authenticated user (role + status)' })
+  @ApiResponse({ status: 200, description: 'Current user' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  me(@CurrentUser() user) {
+    return this.authService.getMe(user.userId);
   }
 }

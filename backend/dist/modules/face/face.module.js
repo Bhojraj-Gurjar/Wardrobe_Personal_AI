@@ -16,6 +16,7 @@ const _storagemodule = require("../../storage/storage.module");
 const _facecontroller = require("./controllers/face.controller");
 const _faceservice = require("./services/face.service");
 const _faceimagestorageservice = require("./services/face-image-storage.service");
+const _faceratelimitservice = require("./services/face-rate-limit.service");
 const _facerepository = require("./repositories/face.repository");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -39,12 +40,14 @@ FaceModule = _ts_decorate([
         providers: [
             _faceservice.FaceService,
             _faceimagestorageservice.FaceImageStorageService,
+            _faceratelimitservice.FaceRateLimitService,
             _facerepository.FaceRepository
         ],
         exports: [
             _faceservice.FaceService,
             _facerepository.FaceRepository,
-            _faceimagestorageservice.FaceImageStorageService
+            _faceimagestorageservice.FaceImageStorageService,
+            _faceratelimitservice.FaceRateLimitService
         ]
     })
 ], FaceModule);

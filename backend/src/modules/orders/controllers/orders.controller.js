@@ -5,8 +5,10 @@ import {
   Get,
   HttpCode,
   Param,
+  Patch,
   Post,
   Query,
+  Sse,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -16,10 +18,12 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { map } from 'rxjs/operators';
 import { JwtAuthGuard } from '../../../guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { DtoValidationPipe } from '../../../common/pipes/dto-validation.pipe';
 import { OrdersService } from '../services/orders.service';
+import { OrderEventService } from '../services/order-event.service';
 import { CreateOrderDto } from '../dto/create-order.dto';
 import { QueryOrdersDto } from '../dto/query-orders.dto';
 
@@ -31,8 +35,34 @@ export @ApiTags('orders')
 @UseGuards(JwtAuthGuard)
 @Controller('orders')
 class OrdersController {
-  constructor(@Inject(OrdersService) ordersService) {
+  constructor(
+    @Inject(OrdersService) ordersService,
+    @Inject(OrderEventService) orderEventService,
+  ) {
     this.ordersService = ordersService;
+    this.orderEventService = orderEventService;
+  }
+
+  @Sse('events')
+  @ApiOperation({ summary: 'Subscribe to order real-time events (SSE)' })
+  streamEvents(@CurrentUser() user) {
+    return this.orderEventService.getUserStream(user.userId).pipe(
+      map((event) => ({ data: event })),
+    );
+  }
+
+  @Get('notifications')
+  @ApiOperation({ summary: 'List order notifications' })
+  getNotifications(@CurrentUser() user, @Query('unreadOnly') unreadOnly) {
+    return this.ordersService.getNotifications(user.userId, {
+      unreadOnly: unreadOnly === 'true',
+    });
+  }
+
+  @Patch('notifications/read')
+  @ApiOperation({ summary: 'Mark order notifications as read' })
+  markNotificationsRead(@CurrentUser() user, @Body('ids') ids) {
+    return this.ordersService.markNotificationsRead(user.userId, ids);
   }
 
   @Post()

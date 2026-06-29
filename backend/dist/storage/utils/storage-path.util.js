@@ -27,6 +27,24 @@ _export(exports, {
     get buildFaceStoragePath () {
         return buildFaceStoragePath;
     },
+    get buildOrderDocumentObjectKey () {
+        return buildOrderDocumentObjectKey;
+    },
+    get buildOrderDocumentStoragePath () {
+        return buildOrderDocumentStoragePath;
+    },
+    get buildProductImageObjectKey () {
+        return buildProductImageObjectKey;
+    },
+    get buildProductImageStoragePath () {
+        return buildProductImageStoragePath;
+    },
+    get buildSupportAttachmentObjectKey () {
+        return buildSupportAttachmentObjectKey;
+    },
+    get buildSupportAttachmentStoragePath () {
+        return buildSupportAttachmentStoragePath;
+    },
     get buildTryOnGarmentObjectKey () {
         return buildTryOnGarmentObjectKey;
     },
@@ -41,6 +59,12 @@ _export(exports, {
     },
     get buildTryOnPersonStoragePath () {
         return buildTryOnPersonStoragePath;
+    },
+    get buildTryOnResultObjectKey () {
+        return buildTryOnResultObjectKey;
+    },
+    get buildTryOnResultStoragePath () {
+        return buildTryOnResultStoragePath;
     },
     get buildUserPngStoragePath () {
         return buildUserPngStoragePath;
@@ -113,11 +137,35 @@ function buildTryOnPersonStoragePath(userId, extension = 'jpg') {
 function buildTryOnGarmentStoragePath(userId, extension = 'jpg') {
     return `${_storageconstants.TRY_ON_PUBLIC_PREFIX}/${userId}/garment.${extension}`;
 }
+function buildProductImageObjectKey(productId, fileId, extension = 'jpg') {
+    return `products/${productId}/${fileId}.${extension}`;
+}
+function buildProductImageStoragePath(productId, fileId, extension = 'jpg') {
+    return `${_storageconstants.PRODUCT_PUBLIC_PREFIX}/${productId}/${fileId}.${extension}`;
+}
+function buildSupportAttachmentObjectKey(ticketId, fileId, extension = 'png') {
+    return `support/${ticketId}/${fileId}.${extension}`;
+}
+function buildSupportAttachmentStoragePath(ticketId, fileId, extension = 'png') {
+    return `${_storageconstants.SUPPORT_PUBLIC_PREFIX}/${ticketId}/${fileId}.${extension}`;
+}
+function buildOrderDocumentObjectKey(orderId, fileId, extension = 'pdf') {
+    return `orders/${orderId}/${fileId}.${extension}`;
+}
+function buildOrderDocumentStoragePath(orderId, fileId, extension = 'pdf') {
+    return `${_storageconstants.ORDER_PUBLIC_PREFIX}/${orderId}/${fileId}.${extension}`;
+}
 function buildUserPngStoragePath(userId) {
     return `${_storageconstants.USER_PNG_PUBLIC_PREFIX}/${userId}.png`;
 }
 function buildTryOnPersonProcessedStoragePath(userId) {
     return `${_storageconstants.TRY_ON_PUBLIC_PREFIX}/${userId}/person.png`;
+}
+function buildTryOnResultObjectKey(userId, resultId, extension = 'png') {
+    return `try-on/${userId}/results/${resultId}.${extension}`;
+}
+function buildTryOnResultStoragePath(userId, resultId, extension = 'png') {
+    return `${_storageconstants.TRY_ON_PUBLIC_PREFIX}/${userId}/results/${resultId}.${extension}`;
 }
 function extensionFromMimeType(mimeType = 'image/png') {
     return mimeType.split('/')[1]?.replace('jpeg', 'jpg') || 'png';
@@ -169,7 +217,7 @@ function resolvePublicAssetUrl(storagePath, publicBaseUrl) {
     return `${base}${path}`;
 }
 function isStoredImagePath(value) {
-    return typeof value === 'string' && (value.startsWith(_storageconstants.AVATAR_PUBLIC_PREFIX) || value.startsWith(_storageconstants.FACE_PUBLIC_PREFIX) || value.startsWith(_storageconstants.BODY_PUBLIC_PREFIX) || value.startsWith(_storageconstants.TRY_ON_PUBLIC_PREFIX) || value.startsWith(_storageconstants.USER_PNG_PUBLIC_PREFIX));
+    return typeof value === 'string' && (value.startsWith(_storageconstants.AVATAR_PUBLIC_PREFIX) || value.startsWith(_storageconstants.FACE_PUBLIC_PREFIX) || value.startsWith(_storageconstants.BODY_PUBLIC_PREFIX) || value.startsWith(_storageconstants.PRODUCT_PUBLIC_PREFIX) || value.startsWith(_storageconstants.TRY_ON_PUBLIC_PREFIX) || value.startsWith(_storageconstants.USER_PNG_PUBLIC_PREFIX));
 }
 function isFacePhotoPath(value) {
     return typeof value === 'string' && value.startsWith(_storageconstants.FACE_PUBLIC_PREFIX);

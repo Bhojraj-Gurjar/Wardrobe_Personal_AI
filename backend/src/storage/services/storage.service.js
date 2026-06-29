@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { readdir, readFile } from 'fs/promises';
+import { access, readdir, readFile } from 'fs/promises';
 import { join, extname } from 'path';
 import { ConfigService } from '@nestjs/config';
 import { DEFAULT_STORAGE_PROVIDER } from '../storage.constants';
@@ -8,8 +8,12 @@ import {
   buildAvatarObjectKey,
   buildBodyObjectKey,
   buildFaceObjectKey,
+  buildProductImageObjectKey,
+  buildSupportAttachmentObjectKey,
+  buildOrderDocumentObjectKey,
   buildTryOnGarmentObjectKey,
   buildTryOnPersonObjectKey,
+  buildTryOnResultObjectKey,
   extensionFromMimeType,
   mimeTypeFromExtension,
   toFilesystemPath,
@@ -98,8 +102,98 @@ class StorageService {
     });
   }
 
+  async uploadTryOnResultImage({ userId, resultId, buffer, mimeType = 'image/png' }) {
+    const extension = extensionFromMimeType(mimeType);
+    const objectKey = buildTryOnResultObjectKey(userId, resultId, extension);
+
+    return this.provider.upload({
+      buffer,
+      mimeType,
+      objectKey,
+    });
+  }
+
+  async uploadProductImage({ productId, fileId, buffer, mimeType }) {
+    const extension = extensionFromMimeType(mimeType);
+    const objectKey = buildProductImageObjectKey(productId, fileId, extension);
+
+    return this.provider.upload({
+      buffer,
+      mimeType,
+      objectKey,
+    });
+  }
+
+  async uploadSupportAttachment({ ticketId, fileId, buffer, mimeType }) {
+    const extension = extensionFromMimeType(mimeType);
+    const objectKey = buildSupportAttachmentObjectKey(ticketId, fileId, extension);
+
+    return this.provider.upload({
+      buffer,
+      mimeType,
+      objectKey,
+    });
+  }
+
+  async uploadOrderDocument({ orderId, fileId, buffer, mimeType }) {
+    const extension = extensionFromMimeType(mimeType);
+    const objectKey = buildOrderDocumentObjectKey(orderId, fileId, extension);
+
+    return this.provider.upload({
+      buffer,
+      mimeType,
+      objectKey,
+    });
+  }
+
   async deleteStoredFile(storagePath) {
     return this.provider.deleteStoragePath(storagePath);
+  }
+
+  async storedFileExists(storagePath) {
+    if (!storagePath) {
+      return false;
+    }
+
+    const rootDir = this.configService.get('storage.local.rootDir') || 'uploads';
+    const absolutePath = toFilesystemPath(storagePath, rootDir);
+
+    try {
+      await access(absolutePath);
+      return true;
+    } catch (error) {
+      if (error?.code === 'ENOENT') {
+        return false;
+      }
+
+      throw error;
+    }
+  }
+
+  async deleteFolderFilesExcept(relativeFolder, keepStoragePath) {
+    const rootDir = this.configService.get('storage.local.rootDir') || 'uploads';
+    const normalizedFolder = relativeFolder.replace(/\\/g, '/').replace(/^\/+/, '');
+    const folderPath = join(rootDir, normalizedFolder);
+    const keepFileName = keepStoragePath?.split('/').pop();
+
+    try {
+      const files = await readdir(folderPath);
+
+      await Promise.all(files.map(async (file) => {
+        if (keepFileName && file === keepFileName) {
+          return;
+        }
+
+        const storagePath = `/${normalizedFolder}/${file}`.replace(/\/+/g, '/');
+        await this.deleteStoredFile(storagePath.startsWith('/uploads')
+          ? storagePath
+          : `/uploads${storagePath}`);
+      }));
+    } catch (error) {
+      if (error?.code !== 'ENOENT') {
+        throw error;
+      }
+    }
   }
 
   async readStoredFile(storagePath) {

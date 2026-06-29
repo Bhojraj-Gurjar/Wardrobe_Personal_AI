@@ -42,9 +42,14 @@ const _default = ()=>({
         face: {
             collection: process.env.QDRANT_FACE_COLLECTION || 'users_face_vectors',
             vectorSize: parseInt(process.env.FACE_VECTOR_SIZE, 10) || 512,
-            similarityThreshold: parseFloat(process.env.FACE_SIMILARITY_THRESHOLD) || 0.40,
+            similarityThreshold: parseFloat(process.env.FACE_SIMILARITY_THRESHOLD) || 0.42,
             registrationDuplicateThreshold: parseFloat(process.env.FACE_REGISTRATION_DUPLICATE_THRESHOLD) || 0.45,
-            similarityUncertain: parseFloat(process.env.FACE_SIMILARITY_UNCERTAIN) || 0.32
+            similarityUncertain: parseFloat(process.env.FACE_SIMILARITY_UNCERTAIN) || 0.32,
+            livenessRequired: process.env.FACE_LIVENESS_REQUIRED !== 'false',
+            minLivenessFrames: parseInt(process.env.FACE_MIN_LIVENESS_FRAMES, 10) || 3,
+            maxFailedAttempts: parseInt(process.env.FACE_MAX_FAILED_ATTEMPTS, 10) || 5,
+            lockoutSeconds: parseInt(process.env.FACE_LOCKOUT_SECONDS, 10) || 900,
+            attemptWindowSeconds: parseInt(process.env.FACE_ATTEMPT_WINDOW_SECONDS, 10) || 3600
         },
         fashionDna: {
             collection: process.env.QDRANT_DNA_COLLECTION || 'fashion_dna_vectors',
@@ -64,7 +69,7 @@ const _default = ()=>({
         },
         aiService: {
             url: process.env.AI_SERVICE_URL || 'http://localhost:8000',
-            publicUrl: process.env.AI_SERVICE_PUBLIC_URL || process.env.AI_SERVICE_URL || 'http://localhost:8000'
+            publicUrl: process.env.AI_SERVICE_PUBLIC_URL || 'http://localhost:8000'
         },
         storage: {
             provider: process.env.STORAGE_PROVIDER || 'local',

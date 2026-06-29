@@ -13,6 +13,7 @@ const _prismaservice = require("../../../database/prisma.service");
 const _userrole = require("../../../common/constants/user-role");
 const _orderconstants = require("../../orders/validators/order.constants");
 const _orderstatusutil = require("../../orders/utils/order-status.util");
+const _catalogvisibilityutil = require("../../products/utils/catalog-visibility.util");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -41,6 +42,16 @@ const ORDER_INCLUDE = {
     user: {
         include: {
             profile: true
+        }
+    },
+    documents: {
+        orderBy: {
+            created_at: 'desc'
+        }
+    },
+    timeline: {
+        orderBy: {
+            created_at: 'asc'
         }
     }
 };
@@ -213,14 +224,16 @@ let AdminRepository = class AdminRepository {
         });
     }
     deleteUser(id) {
-        return this.prisma.user.delete({
-            where: {
-                id
-            }
-        });
+        return this.prisma.$transaction((tx)=>tx.user.delete({
+                where: {
+                    id
+                }
+            }));
     }
     findProducts({ search, page = 1, limit = 50 }) {
-        const where = {};
+        const where = {
+            ...(0, _catalogvisibilityutil.buildAdminProductListFilter)()
+        };
         if (search) {
             const term = search.trim();
             where.OR = [
@@ -244,6 +257,12 @@ let AdminRepository = class AdminRepository {
                 },
                 {
                     category: {
+                        contains: term,
+                        mode: 'insensitive'
+                    }
+                },
+                {
+                    product_type: {
                         contains: term,
                         mode: 'insensitive'
                     }
@@ -292,13 +311,6 @@ let AdminRepository = class AdminRepository {
             include: PRODUCT_INCLUDE
         });
     }
-    deleteProduct(id) {
-        return this.prisma.product.delete({
-            where: {
-                id
-            }
-        });
-    }
     toggleProductStatus(id) {
         return this.prisma.product.findUnique({
             where: {
@@ -337,8 +349,28 @@ let AdminRepository = class AdminRepository {
                     }
                 },
                 {
+                    invoice_number: {
+                        contains: term,
+                        mode: 'insensitive'
+                    }
+                },
+                {
+                    tracking_number: {
+                        contains: term,
+                        mode: 'insensitive'
+                    }
+                },
+                {
                     user: {
                         email: {
+                            contains: term,
+                            mode: 'insensitive'
+                        }
+                    }
+                },
+                {
+                    user: {
+                        mobile: {
                             contains: term,
                             mode: 'insensitive'
                         }
@@ -353,17 +385,68 @@ let AdminRepository = class AdminRepository {
                             }
                         }
                     }
+                },
+                {
+                    items: {
+                        some: {
+                            product: {
+                                sku: {
+                                    contains: term,
+                                    mode: 'insensitive'
+                                }
+                            }
+                        }
+                    }
                 }
             ];
         }
+        if (query.dateFrom || query.dateTo) {
+            where.created_at = {};
+            if (query.dateFrom) {
+                where.created_at.gte = new Date(query.dateFrom);
+            }
+            if (query.dateTo) {
+                const end = new Date(query.dateTo);
+                end.setHours(23, 59, 59, 999);
+                where.created_at.lte = end;
+            }
+        }
+        if (query.payment_method) {
+            where.payment_method = query.payment_method;
+        }
+        if (query.priority) {
+            where.priority = query.priority;
+        }
+        const orderBy = (()=>{
+            switch(query.sort){
+                case 'oldest':
+                    return {
+                        created_at: 'asc'
+                    };
+                case 'highest_value':
+                    return {
+                        total_amount: 'desc'
+                    };
+                case 'lowest_value':
+                    return {
+                        total_amount: 'asc'
+                    };
+                case 'priority':
+                    return {
+                        priority: 'desc'
+                    };
+                default:
+                    return {
+                        created_at: 'desc'
+                    };
+            }
+        })();
         const { skip, limit: take } = resolvePagination(query.page, query.limit);
         return this.prisma.$transaction([
             this.prisma.order.findMany({
                 where,
                 include: ORDER_INCLUDE,
-                orderBy: {
-                    created_at: 'desc'
-                },
+                orderBy,
                 skip,
                 take
             }),
@@ -445,6 +528,7 @@ let AdminRepository = class AdminRepository {
                 product: {
                     select: {
                         category: true,
+                        product_type: true,
                         price: true
                     }
                 }

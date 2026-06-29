@@ -12,6 +12,12 @@ _export(exports, {
     get formatBodyAnalysisRecord () {
         return formatBodyAnalysisRecord;
     },
+    get hasRealBodyAnalysis () {
+        return hasRealBodyAnalysis;
+    },
+    get isDefaultBodyAnalysisRecord () {
+        return isDefaultBodyAnalysisRecord;
+    },
     get mapAiResponseToPersistence () {
         return mapAiResponseToPersistence;
     },
@@ -93,6 +99,12 @@ function mapUpdateDtoToPersistence(dto) {
 }
 function isDefaultArtifact(raw) {
     return Boolean(raw && typeof raw === 'object' && !Array.isArray(raw) && raw.isDefault === true);
+}
+function isDefaultBodyAnalysisRecord(record) {
+    return isDefaultArtifact(record?.raw_ai_response);
+}
+function hasRealBodyAnalysis(record) {
+    return resolveBodyHasAnalysis(record);
 }
 function resolveBodyHasAnalysis(record) {
     if (!record?.body_type) {

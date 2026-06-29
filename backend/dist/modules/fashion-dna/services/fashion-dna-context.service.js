@@ -106,7 +106,10 @@ let FashionDnaContextService = class FashionDnaContextService {
             profile,
             faceTraits: {
                 ...faceTraits,
-                ...visualFaceTraits || {}
+                ...visualFaceTraits || {},
+                ...profile?.skin_tone && !visualFaceTraits?.skin_tone ? {
+                    skin_tone: profile.skin_tone
+                } : {}
             },
             bodyTraits,
             preferences,

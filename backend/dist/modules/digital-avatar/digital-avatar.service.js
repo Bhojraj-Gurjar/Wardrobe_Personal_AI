@@ -13,6 +13,7 @@ const _core = require("@nestjs/core");
 const _bodyanalysisservice = require("../body-analysis/body-analysis.service");
 const _faceanalysisservice = require("../face-analysis/face-analysis.service");
 const _usersrepository = require("../users/repositories/users.repository");
+const _usermediaregistryservice = require("../user-media/services/user-media-registry.service");
 const _aiservice = require("../ai/services/ai.service");
 const _storagepathresolverservice = require("../../storage/services/storage-path-resolver.service");
 const _digitalavatarcontextutil = require("./utils/digital-avatar-context.util");
@@ -45,7 +46,7 @@ function resolveUserArtifacts(moduleRef) {
     });
 }
 let DigitalAvatarService = class DigitalAvatarService {
-    constructor(digitalAvatarRepository, avatarImageStorageService, storagePathResolver, aiService, faceAnalysisService, bodyAnalysisService, usersRepository, digitalAvatarVectorService, moduleRef){
+    constructor(digitalAvatarRepository, avatarImageStorageService, storagePathResolver, aiService, faceAnalysisService, bodyAnalysisService, usersRepository, digitalAvatarVectorService, moduleRef, userMediaRegistryService){
         this.digitalAvatarRepository = digitalAvatarRepository;
         this.avatarImageStorageService = avatarImageStorageService;
         this.storagePathResolver = storagePathResolver;
@@ -55,6 +56,7 @@ let DigitalAvatarService = class DigitalAvatarService {
         this.usersRepository = usersRepository;
         this.digitalAvatarVectorService = digitalAvatarVectorService;
         this.moduleRef = moduleRef;
+        this.userMediaRegistryService = userMediaRegistryService;
         this.logger = new _common.Logger(DigitalAvatarService.name);
     }
     async syncAvatarVector(userId, record) {
@@ -147,6 +149,13 @@ let DigitalAvatarService = class DigitalAvatarService {
             avatar_image: storagePath,
             version: nextVersion,
             raw_ai_response: rawAiResponse
+        });
+        await this.userMediaRegistryService.registerAvatar(userId, storagePath, {
+            mimeType: 'image/png',
+            metadata: {
+                avatarType: canonicalType,
+                version: nextVersion
+            }
         });
         this.logger.log(`Digital avatar v${record.version} (${record.avatar_type}) activated for user ${userId}`);
         await this.syncAvatarVector(userId, record);
@@ -261,8 +270,10 @@ DigitalAvatarService = _ts_decorate([
     _ts_param(6, (0, _common.Inject)(_usersrepository.UsersRepository)),
     _ts_param(7, (0, _common.Inject)(_digitalavatarvectorservice.DigitalAvatarVectorService)),
     _ts_param(8, (0, _common.Inject)(_core.ModuleRef)),
+    _ts_param(9, (0, _common.Inject)(_usermediaregistryservice.UserMediaRegistryService)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        void 0,
         void 0,
         void 0,
         void 0,

@@ -25,6 +25,10 @@ function isDefaultArtifact(raw) {
   );
 }
 
+export function isDefaultFaceAnalysisRecord(record) {
+  return isDefaultArtifact(record?.raw_ai_response);
+}
+
 export function resolveFaceHasAnalysis(record) {
   if (!record?.face_shape) {
     return false;

@@ -12,6 +12,8 @@ import {
 import { StoragePathResolver } from '../../../storage/services/storage-path-resolver.service';
 import { PIPELINE_SIGNALS, PipelineEventBus } from '../../user-pipeline/pipeline-event.bus';
 import { UserArtifactsService } from '../../user-artifacts/user-artifacts.service';
+import { UserMediaService } from '../../user-media/services/user-media.service';
+import { USER_MEDIA_MODULE } from '../../user-media/validators/user-media.constants';
 import { UsersRepository } from '../repositories/users.repository';
 
 export @Injectable()
@@ -26,6 +28,7 @@ class UsersService {
     @Inject(StoragePathResolver) storagePathResolver,
     @Inject(ApiCacheService) apiCacheService,
     @Inject(BodyPhotoProcessingService) bodyPhotoProcessingService,
+    @Inject(UserMediaService) userMediaService,
   ) {
     this.usersRepository = usersRepository;
     this.fashionDnaRegenerationService = fashionDnaRegenerationService;
@@ -35,6 +38,7 @@ class UsersService {
     this.storagePathResolver = storagePathResolver;
     this.apiCacheService = apiCacheService;
     this.bodyPhotoProcessingService = bodyPhotoProcessingService;
+    this.userMediaService = userMediaService;
   }
 
   profileCacheKey(userId) {
@@ -52,7 +56,10 @@ class UsersService {
           throw new NotFoundException('Profile not found');
         }
 
-        return this.formatProfile(context.profile, context);
+        return this.attachPersistentMediaUrls(
+          userId,
+          this.formatProfile(context.profile, context),
+        );
       },
     );
   }
@@ -80,7 +87,54 @@ class UsersService {
 
     await this.apiCacheService.invalidate(this.profileCacheKey(userId));
 
-    return this.formatProfile(profile, context);
+    return this.attachPersistentMediaUrls(
+      userId,
+      this.formatProfile(profile, context),
+    );
+  }
+
+  async resolveMediaUrl(userId, storagePath, module) {
+    if (storagePath) {
+      const existing = await this.userMediaService.resolvePublicUrlIfExists(storagePath);
+
+      if (existing) {
+        return existing;
+      }
+    }
+
+    const latest = await this.userMediaService.getLatestMedia(userId, module);
+    return latest?.publicUrl || null;
+  }
+
+  async attachPersistentMediaUrls(userId, profile) {
+    if (!profile) {
+      return profile;
+    }
+
+    const faceImageUrl = (await this.resolveMediaUrl(
+      userId,
+      profile.face_image_url,
+      USER_MEDIA_MODULE.FACE_REGISTRATION,
+    )) || profile.faceImageUrl || null;
+
+    const bodyPhotoOriginalUrl = (await this.resolveMediaUrl(
+      userId,
+      profile.body_image_url || profile.body_image,
+      USER_MEDIA_MODULE.BODY_ANALYSIS,
+    )) || profile.bodyPhotoOriginalUrl || null;
+
+    const bodyPhotoUrl = bodyPhotoOriginalUrl
+      || profile.bodyPhotoTransparentUrl
+      || profile.bodyPhotoUrl
+      || null;
+
+    return {
+      ...profile,
+      faceImageUrl,
+      bodyImageUrl: bodyPhotoUrl,
+      bodyPhotoUrl,
+      bodyPhotoOriginalUrl,
+    };
   }
 
   async ensureProfileExists(userId) {

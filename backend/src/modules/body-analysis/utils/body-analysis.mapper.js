@@ -77,6 +77,14 @@ function isDefaultArtifact(raw) {
   );
 }
 
+export function isDefaultBodyAnalysisRecord(record) {
+  return isDefaultArtifact(record?.raw_ai_response);
+}
+
+export function hasRealBodyAnalysis(record) {
+  return resolveBodyHasAnalysis(record);
+}
+
 export function resolveBodyHasAnalysis(record) {
   if (!record?.body_type) {
     return false;

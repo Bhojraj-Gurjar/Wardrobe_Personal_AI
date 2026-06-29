@@ -135,8 +135,12 @@ function createCuratedProductSeeder({
     const images = mapImages(imageUrl, tryOnImageUrl);
     const existing = await prisma.product.findUnique({
       where: { sku: product.sku },
-      select: { id: true },
+      select: { id: true, cms_metadata: true },
     });
+
+    if (existing?.cms_metadata?.adminDeleted) {
+      return existing;
+    }
 
     if (existing) {
       return prisma.product.update({

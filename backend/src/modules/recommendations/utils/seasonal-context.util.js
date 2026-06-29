@@ -2,6 +2,22 @@ import { EVENT_OCCASION_KEYWORDS, SEASON_TAGS } from '../types';
 
 const MONSOON_MONTHS = [6, 7, 8, 9];
 
+function normalizeTagList(tags) {
+  if (Array.isArray(tags)) {
+    return tags.filter(Boolean).map((tag) => String(tag));
+  }
+
+  if (tags && typeof tags === 'object') {
+    return Object.values(tags).filter(Boolean).map((tag) => String(tag));
+  }
+
+  if (tags != null && tags !== '') {
+    return [String(tags)];
+  }
+
+  return [];
+}
+
 export function resolveSeasonFromDate(date = new Date()) {
   const month = date.getMonth() + 1;
 
@@ -40,8 +56,8 @@ export function scoreSeasonalMatch(product, seasonalContext) {
   }
 
   const haystack = [
-    ...(product.style_tags || []),
-    ...(product.occasion_tags || []),
+    ...normalizeTagList(product.style_tags),
+    ...normalizeTagList(product.occasion_tags),
     product.subcategory || '',
     product.fabric || '',
     product.color || '',
@@ -67,8 +83,8 @@ export function scoreEventMatch(product, eventType = 'casual') {
   const eventKey = String(eventType || 'casual').toLowerCase();
   const keywords = EVENT_OCCASION_KEYWORDS[eventKey] || EVENT_OCCASION_KEYWORDS.casual;
   const haystack = [
-    ...(product.occasion_tags || []),
-    ...(product.style_tags || []),
+    ...normalizeTagList(product.occasion_tags),
+    ...normalizeTagList(product.style_tags),
     product.name || '',
     product.subcategory || '',
     product.category || '',

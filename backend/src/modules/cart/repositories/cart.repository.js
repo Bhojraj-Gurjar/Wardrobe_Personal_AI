@@ -14,7 +14,14 @@ class CartRepository {
   findByUserId(userId) {
     return this.prisma.cartItem.findMany({
       where: { user_id: userId },
-      include: { product: { include: PRODUCT_INCLUDE } },
+      include: {
+        product: {
+          include: {
+            ...PRODUCT_INCLUDE,
+            variants: { select: { id: true, stock: true } },
+          },
+        },
+      },
       orderBy: { created_at: 'desc' },
     });
   }
@@ -36,7 +43,12 @@ class CartRepository {
   productExists(productId) {
     return this.prisma.product.findFirst({
       where: { id: productId, is_active: true },
-      select: { id: true },
+      select: {
+        id: true,
+        stock_quantity: true,
+        visibility: true,
+        variants: { select: { stock: true } },
+      },
     });
   }
 

@@ -82,7 +82,7 @@ export class UpdateProductDto {
   @Min(0)
   price;
 
-  @ApiPropertyOptional({ example: 'USD' })
+  @ApiPropertyOptional({ example: 'INR' })
   @IsOptional()
   @IsString()
   currency;

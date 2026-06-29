@@ -4,6 +4,7 @@
  */
 
 const { resolveStableProductId } = require('../../../../scripts/lib/product-identity.cjs');
+const LEGACY_USD_TO_INR = 83;
 const {
   SUBCATEGORY_TO_PRODUCT_TYPE,
   inferProductType,
@@ -345,8 +346,8 @@ function buildCatalogProducts() {
         ?? inferProductType({ name: line.name, subcategory: line.subcategory }),
       gender: meta.gender,
       brand: line.brand,
-      price: line.price,
-      currency: 'USD',
+      price: Math.round(line.price * LEGACY_USD_TO_INR),
+      currency: 'INR',
       color: line.color,
       fabric: line.fabric,
       fitType: line.fitType,

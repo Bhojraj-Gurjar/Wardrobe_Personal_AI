@@ -7,6 +7,7 @@ import {
   deriveStyleAttributesFromSignals,
   normalizeKey,
 } from '../utils/fashion-dna-product-style.util';
+import { formatCurrencyRange } from '../../../common/utils/currency.util';
 
 const CONFIDENCE_WEIGHTS = {
   faceAnalysis: 15,
@@ -85,6 +86,28 @@ function formatBrandName(value) {
     .join(' ');
 }
 
+function formatColorLabel(value) {
+  if (!value) {
+    return '';
+  }
+
+  if (typeof value === 'string') {
+    return formatBrandName(value);
+  }
+
+  if (typeof value === 'object') {
+    return formatBrandName(
+      value.name
+      || value.label
+      || value.color
+      || value.key
+      || '',
+    );
+  }
+
+  return String(value);
+}
+
 function resolveBudgetTier(averagePrice) {
   const price = Number(averagePrice) || 0;
 
@@ -109,12 +132,6 @@ function resolveBudgetTier(averagePrice) {
   }
 
   return 'LUXURY';
-}
-
-function formatCurrencyRange(min, max, currency = 'INR') {
-  const symbol = currency === 'USD' ? '$' : '₹';
-  const format = (value) => `${symbol}${Math.round(value).toLocaleString('en-IN')}`;
-  return `${format(min)} – ${format(max)}`;
 }
 
 export @Injectable()
@@ -171,9 +188,11 @@ class FashionDnaEngineService {
     );
     const stylistScore = saturatingRatio(volume.stylist_sessions || 0, 4);
     const consistencyScore = clamp(
-      (Object.keys(signals.favoriteCategories || {}).length > 0 ? 35 : 0)
-      + (Object.keys(signals.favoriteBrands || {}).length > 0 ? 35 : 0)
-      + saturatingRatio(volume.product_views || 0, 12) * 0.3,
+      (Object.keys(signals.favoriteCategories || {}).length > 0 ? 30 : 0)
+      + (Object.keys(signals.favoriteBrandsRanked || signals.brandCounts || {}).length > 0 ? 30 : 0)
+      + saturatingRatio(volume.product_views || 0, 12) * 0.25
+      + saturatingRatio(volume.searches || 0, 8) * 0.15
+      + saturatingRatio(volume.cart || 0, 4) * 0.1,
     );
 
     const components = {
@@ -524,7 +543,11 @@ class FashionDnaEngineService {
     }
 
     if (colorProfile.primary?.length >= 2) {
-      const palette = colorProfile.primary.slice(0, 3).map((entry) => entry.color).join(', ');
+      const palette = colorProfile.primary
+        .slice(0, 3)
+        .map((entry) => formatColorLabel(entry?.color ?? entry))
+        .filter(Boolean)
+        .join(', ');
       insights.push(`Primary palette centers on ${palette}.`);
     }
 
