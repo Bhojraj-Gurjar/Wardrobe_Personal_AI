@@ -7,6 +7,12 @@ function parseCorsOrigins(value) {
     .filter(Boolean);
 }
 
+function ensureHttpUrl(value, fallback = '') {
+  const raw = String(value || fallback).trim().replace(/\/$/, '');
+  if (!raw) return raw;
+  return /^https?:\/\//i.test(raw) ? raw : `http://${raw}`;
+}
+
 export default () => ({
   nodeEnv: process.env.NODE_ENV || 'development',
   port: parseInt(process.env.PORT, 10) || 3000,
@@ -22,6 +28,7 @@ export default () => ({
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d',
   },
   redis: {
+    url: process.env.REDIS_URL,
     host: process.env.REDIS_HOST || 'localhost',
     port: parseInt(process.env.REDIS_PORT, 10) || 6379,
   },
@@ -78,7 +85,7 @@ export default () => ({
       || 384,
   },
   aiService: {
-    url: process.env.AI_SERVICE_URL || 'http://localhost:8000',
+    url: ensureHttpUrl(process.env.AI_SERVICE_URL, 'http://localhost:8000'),
     publicUrl:
       process.env.AI_SERVICE_PUBLIC_URL || 'http://localhost:8000',
   },
@@ -90,9 +97,10 @@ export default () => ({
         process.env.STORAGE_PUBLIC_BASE_URL || 'http://localhost:3000',
       publicPath: process.env.STORAGE_PUBLIC_PATH || '/uploads',
     },
-    internalBaseUrl:
+    internalBaseUrl: ensureHttpUrl(
       process.env.STORAGE_INTERNAL_BASE_URL
-      || process.env.STORAGE_PUBLIC_BASE_URL
-      || 'http://localhost:3000',
+      || process.env.STORAGE_PUBLIC_BASE_URL,
+      'http://localhost:3000',
+    ),
   },
 });
