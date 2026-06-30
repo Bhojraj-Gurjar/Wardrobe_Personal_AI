@@ -42,7 +42,9 @@ const TICKET_INCLUDE = {
       attachments: true,
     },
   },
-  attachments: true,
+  attachments: {
+    where: { message_id: null },
+  },
   activities: {
     orderBy: { created_at: 'desc' },
     take: 50,
@@ -692,20 +694,22 @@ class SupportRepository {
   }
 
   findUserNotifications(userId, { page = 1, limit = 20, unreadOnly = false } = {}) {
+    const safePage = Math.max(Number.parseInt(String(page), 10) || 1, 1);
+    const safeLimit = Math.min(Math.max(Number.parseInt(String(limit), 10) || 20, 1), 50);
     const where = { user_id: userId };
 
     if (unreadOnly) {
       where.is_read = false;
     }
 
-    const skip = (page - 1) * limit;
+    const skip = (safePage - 1) * safeLimit;
 
     return this.prisma.$transaction([
       this.prisma.supportNotification.findMany({
         where,
         orderBy: { created_at: 'desc' },
         skip,
-        take: limit,
+        take: safeLimit,
         include: {
           ticket: {
             select: {

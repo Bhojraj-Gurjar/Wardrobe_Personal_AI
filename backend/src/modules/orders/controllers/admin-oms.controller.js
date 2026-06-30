@@ -113,6 +113,12 @@ class AdminOmsController {
     return this.orderOmsService.markRtd(id, admin.userId, payload);
   }
 
+  @Post(':id/dispatch')
+  @ApiOperation({ summary: 'Dispatch order — move directly to in transit' })
+  dispatch(@CurrentUser() admin, @Param('id') id, @Body() payload) {
+    return this.orderOmsService.dispatchOrder(id, admin.userId, payload);
+  }
+
   @Post(':id/mark-handover')
   markHandover(@CurrentUser() admin, @Param('id') id, @Body() payload) {
     return this.orderOmsService.markHandover(id, admin.userId, payload);

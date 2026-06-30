@@ -18,6 +18,8 @@ const _bodyphotoprocessingservice = require("../../body-analysis/services/body-p
 const _bodyphotodisplayutil = require("../../body-analysis/utils/body-photo-display.util");
 const _storagepathresolverservice = require("../../../storage/services/storage-path-resolver.service");
 const _pipelineeventbus = require("../../user-pipeline/pipeline-event.bus");
+const _notificationsservice = require("../../notifications/notifications.service");
+const _notificationsconstants = require("../../notifications/notifications.constants");
 const _userartifactsservice = require("../../user-artifacts/user-artifacts.service");
 const _usermediaservice = require("../../user-media/services/user-media.service");
 const _usermediaconstants = require("../../user-media/validators/user-media.constants");
@@ -37,7 +39,7 @@ function _ts_param(paramIndex, decorator) {
     };
 }
 let UsersService = class UsersService {
-    constructor(usersRepository, fashionDnaRegenerationService, bodyAnalysisService, pipelineEventBus, userArtifactsService, storagePathResolver, apiCacheService, bodyPhotoProcessingService, userMediaService){
+    constructor(usersRepository, fashionDnaRegenerationService, bodyAnalysisService, pipelineEventBus, userArtifactsService, storagePathResolver, apiCacheService, bodyPhotoProcessingService, userMediaService, notificationsService){
         this.usersRepository = usersRepository;
         this.fashionDnaRegenerationService = fashionDnaRegenerationService;
         this.bodyAnalysisService = bodyAnalysisService;
@@ -47,6 +49,7 @@ let UsersService = class UsersService {
         this.apiCacheService = apiCacheService;
         this.bodyPhotoProcessingService = bodyPhotoProcessingService;
         this.userMediaService = userMediaService;
+        this.notificationsService = notificationsService;
     }
     profileCacheKey(userId) {
         return this.apiCacheService.buildKey('users:profile', userId);
@@ -61,8 +64,12 @@ let UsersService = class UsersService {
         });
     }
     async updateProfile(userId, dto) {
-        await this.ensureProfileExists(userId);
-        const profile = await this.usersRepository.updateProfileByUserId(userId, this.mapDtoToProfileData(dto));
+        const existingProfile = await this.ensureProfileExists(userId);
+        const profileData = this.mapDtoToProfileData(dto);
+        if (profileData.preferences !== undefined) {
+            profileData.preferences = this.mergeProfilePreferences(existingProfile.preferences, profileData.preferences);
+        }
+        const profile = await this.usersRepository.updateProfileByUserId(userId, profileData);
         this.fashionDnaRegenerationService.trigger(userId, (0, _fashiondnaregenerationconstants.resolveProfileRegenerationSource)(dto));
         await this.bodyAnalysisService.syncFromProfileUpdate(userId, dto);
         setImmediate(()=>{
@@ -70,6 +77,7 @@ let UsersService = class UsersService {
                 userId
             });
         });
+        this.notificationsService.notifyProfileEvent(userId, _notificationsconstants.APP_NOTIFICATION_TYPES.PROFILE_UPDATED, 'Profile updated', 'Your profile changes have been saved.', '/profile').catch(()=>null);
         const context = await this.usersRepository.findProfileContextByUserId(userId);
         await this.apiCacheService.invalidate(this.profileCacheKey(userId));
         return this.attachPersistentMediaUrls(userId, this.formatProfile(profile, context));
@@ -105,6 +113,20 @@ let UsersService = class UsersService {
             throw new _common.NotFoundException('Profile not found');
         }
         return profile;
+    }
+    mergeProfilePreferences(existing, patch) {
+        const base = existing && typeof existing === 'object' && !Array.isArray(existing) ? {
+            ...existing
+        } : {};
+        if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
+            return base;
+        }
+        Object.entries(patch).forEach(([key, value])=>{
+            if (value !== undefined && value !== null) {
+                base[key] = value;
+            }
+        });
+        return base;
     }
     mapDtoToProfileData(dto) {
         const data = {};
@@ -191,8 +213,10 @@ UsersService = _ts_decorate([
     _ts_param(6, (0, _common.Inject)(_apicacheservice.ApiCacheService)),
     _ts_param(7, (0, _common.Inject)(_bodyphotoprocessingservice.BodyPhotoProcessingService)),
     _ts_param(8, (0, _common.Inject)(_usermediaservice.UserMediaService)),
+    _ts_param(9, (0, _common.Inject)(_notificationsservice.NotificationsService)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        void 0,
         void 0,
         void 0,
         void 0,

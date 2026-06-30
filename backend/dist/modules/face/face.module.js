@@ -12,6 +12,7 @@ const _common = require("@nestjs/common");
 const _authmodule = require("../auth/auth.module");
 const _fashiondnamodule = require("../fashion-dna/fashion-dna.module");
 const _userpipelinemodule = require("../user-pipeline/user-pipeline.module");
+const _notificationsmodule = require("../notifications/notifications.module");
 const _storagemodule = require("../../storage/storage.module");
 const _facecontroller = require("./controllers/face.controller");
 const _faceservice = require("./services/face.service");
@@ -32,7 +33,8 @@ FaceModule = _ts_decorate([
             _authmodule.AuthModule,
             _storagemodule.StorageModule,
             (0, _common.forwardRef)(()=>_fashiondnamodule.FashionDnaModule),
-            (0, _common.forwardRef)(()=>_userpipelinemodule.UserPipelineModule)
+            (0, _common.forwardRef)(()=>_userpipelinemodule.UserPipelineModule),
+            _notificationsmodule.NotificationsModule
         ],
         controllers: [
             _facecontroller.FaceController

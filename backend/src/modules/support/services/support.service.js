@@ -11,6 +11,7 @@ import { StoragePathResolver } from '../../../storage/services/storage-path-reso
 import { StorageService } from '../../../storage/services/storage.service';
 import { SupportRepository } from '../repositories/support.repository';
 import { SupportEventService } from './support-event.service';
+import { NotificationsService } from '../../notifications/notifications.service';
 import { canUserCloseTicket, canUserReopenTicket } from '../utils/support-status.util';
 import {
   ALLOWED_ATTACHMENT_MIME_TYPES,
@@ -30,11 +31,33 @@ class SupportService {
     @Inject(StorageService) storageService,
     @Inject(StoragePathResolver) storagePathResolver,
     @Inject(SupportEventService) supportEventService,
+    @Inject(NotificationsService) notificationsService,
   ) {
     this.supportRepository = supportRepository;
     this.storageService = storageService;
     this.storagePathResolver = storagePathResolver;
     this.supportEventService = supportEventService;
+    this.notificationsService = notificationsService;
+  }
+
+  async createSupportNotification(payload) {
+    const notification = await this.supportRepository.createNotification(payload);
+    const ticket = await this.supportRepository.findTicketById(payload.ticketId);
+
+    this.supportEventService.emit(SUPPORT_EVENTS.NOTIFICATION_CREATED, {
+      userId: payload.userId,
+      ticketId: payload.ticketId,
+      notificationId: notification.id,
+      type: payload.type,
+    });
+
+    this.notificationsService.forwardSupportNotification(
+      payload.userId,
+      notification,
+      ticket,
+    );
+
+    return notification;
   }
 
   async createTicket(userId, dto, files = []) {
@@ -110,8 +133,14 @@ class SupportService {
       throw new NotFoundException('Support ticket not found');
     }
 
-    if ([SUPPORT_TICKET_STATUS.CLOSED, SUPPORT_TICKET_STATUS.CANCELLED].includes(ticket.status)) {
-      throw new BadRequestException('Cannot reply to a closed or cancelled ticket');
+    if (
+      [
+        SUPPORT_TICKET_STATUS.RESOLVED,
+        SUPPORT_TICKET_STATUS.CLOSED,
+        SUPPORT_TICKET_STATUS.CANCELLED,
+      ].includes(ticket.status)
+    ) {
+      throw new BadRequestException('Cannot reply to a resolved, closed, or cancelled ticket');
     }
 
     await this.validateTicketAttachmentLimit(ticketId, files);
@@ -171,7 +200,7 @@ class SupportService {
       userId,
     );
 
-    await this.supportRepository.createNotification({
+    await this.createSupportNotification({
       userId,
       ticketId,
       type: SUPPORT_NOTIFICATION_TYPE.CLOSED,
@@ -205,7 +234,7 @@ class SupportService {
       userId,
     );
 
-    await this.supportRepository.createNotification({
+    await this.createSupportNotification({
       userId,
       ticketId,
       type: SUPPORT_NOTIFICATION_TYPE.REOPENED,
@@ -269,7 +298,7 @@ class SupportService {
     if (dto.status) {
       const notificationType = this.resolveStatusNotificationType(dto.status);
 
-      await this.supportRepository.createNotification({
+      await this.createSupportNotification({
         userId: ticket.user_id,
         ticketId,
         type: notificationType,
@@ -279,7 +308,7 @@ class SupportService {
     }
 
     if (dto.assigned_to_id) {
-      await this.supportRepository.createNotification({
+      await this.createSupportNotification({
         userId: dto.assigned_to_id,
         ticketId,
         type: SUPPORT_NOTIFICATION_TYPE.ASSIGNED,
@@ -328,7 +357,7 @@ class SupportService {
     }
 
     if (!this.parseBoolean(dto.is_internal)) {
-      await this.supportRepository.createNotification({
+      await this.createSupportNotification({
         userId: ticket.user_id,
         ticketId,
         type: SUPPORT_NOTIFICATION_TYPE.ADMIN_REPLIED,
@@ -543,7 +572,7 @@ class SupportService {
     const admins = await this.supportRepository.findAdminUsers();
 
     await Promise.all(
-      admins.map((admin) => this.supportRepository.createNotification({
+      admins.map((admin) => this.createSupportNotification({
         userId: admin.id,
         ticketId: ticket.id,
         type: SUPPORT_NOTIFICATION_TYPE.TICKET_CREATED,
@@ -560,7 +589,7 @@ class SupportService {
       : admins;
 
     await Promise.all(
-      recipients.map((admin) => this.supportRepository.createNotification({
+      recipients.map((admin) => this.createSupportNotification({
         userId: admin.id,
         ticketId: ticket.id,
         type: SUPPORT_NOTIFICATION_TYPE.USER_REPLIED,
@@ -595,12 +624,15 @@ class SupportService {
   }
 
   formatAttachment(attachment) {
+    const publicUrl = attachment.public_url
+      || this.storagePathResolver.toPublicUrl(attachment.storage_path);
+
     return {
       id: attachment.id,
       fileName: attachment.file_name,
       mimeType: attachment.mime_type,
       fileSize: attachment.file_size,
-      publicUrl: attachment.public_url,
+      publicUrl,
       attachmentType: attachment.attachment_type,
       createdAt: attachment.created_at,
     };
@@ -639,6 +671,9 @@ class SupportService {
   formatTicketSummary(ticket, { isAdmin = false } = {}) {
     const lastMessage = ticket.messages?.[0];
     const unreadCount = ticket._count?.messages || 0;
+    const descriptionPreview = ticket.description?.trim()
+      ? `${ticket.description.trim().slice(0, 140)}${ticket.description.trim().length > 140 ? '…' : ''}`
+      : null;
 
     return {
       id: ticket.id,
@@ -661,6 +696,7 @@ class SupportService {
           createdAt: lastMessage.created_at,
         }
         : null,
+      lastMessagePreview: lastMessage?.body?.trim() || descriptionPreview,
       ...(isAdmin ? { customer: this.formatUser(ticket.user) } : {}),
     };
   }

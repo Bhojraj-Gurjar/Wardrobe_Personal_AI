@@ -92,6 +92,131 @@ class ProductService {
     );
   }
 
+  async suggestSearch(query = {}) {
+    const term = String(query.q ?? query.search ?? '').trim();
+    const limit = Math.min(Math.max(Number.parseInt(String(query.limit ?? 8), 10) || 8, 1), 12);
+
+    if (!term) {
+      const [trendingProducts, popularBrands] = await Promise.all([
+        this.productRepository.findTrendingProducts(6),
+        this.productRepository.findPopularBrands(6),
+      ]);
+
+      return {
+        query: '',
+        products: trendingProducts.map((product) => this.formatProduct(product)),
+        brands: popularBrands
+          .map((row) => row.brand)
+          .filter(Boolean),
+        categories: [],
+        collections: [],
+        styles: [],
+        trendingSearches: await this.resolveTrendingSearches(),
+      };
+    }
+
+    const cacheKey = this.apiCacheService.buildKey('products:search:suggest', term, String(limit));
+
+    return this.apiCacheService.getOrSet(cacheKey, 60, async () => {
+      const [products, facetRows] = await Promise.all([
+        this.productRepository.findSearchSuggestionProducts(term, limit),
+        this.productRepository.findSearchFacetRows(term, 60),
+      ]);
+
+      const facets = this.extractSearchFacets(facetRows, term);
+
+      return {
+        query: term,
+        products: products.map((product) => this.formatProduct(product)),
+        brands: facets.brands,
+        categories: facets.categories,
+        collections: facets.collections,
+        styles: facets.styles,
+        trendingSearches: await this.resolveTrendingSearches(term),
+      };
+    });
+  }
+
+  async resolveTrendingSearches(excludeTerm = '') {
+    const rows = await this.productRepository.findTrendingSearchQueries(12);
+    const normalizedExclude = excludeTerm.trim().toLowerCase();
+
+    return rows
+      .map((row) => String(row.query || '').trim())
+      .filter((value) => value.length >= 2)
+      .filter((value) => value.toLowerCase() !== normalizedExclude)
+      .slice(0, 5);
+  }
+
+  extractSearchFacets(rows, term) {
+    const normalizedTerm = term.trim().toLowerCase();
+    const brands = new Set();
+    const categories = new Set();
+    const collections = new Set();
+    const styles = new Set();
+
+    const pushDistinct = (set, value) => {
+      const label = String(value || '').trim();
+      if (label) {
+        set.add(label);
+      }
+    };
+
+    const pushMatch = (set, value) => {
+      const label = String(value || '').trim();
+      if (!label) {
+        return;
+      }
+
+      if (label.toLowerCase().includes(normalizedTerm)) {
+        set.add(label);
+      }
+    };
+
+    rows.forEach((row) => {
+      pushDistinct(brands, row.brand);
+      pushDistinct(categories, row.category);
+      pushDistinct(categories, row.subcategory);
+      pushMatch(styles, row.product_type);
+
+      this.normalizeTagValues(row.style_tags).forEach((tag) => pushMatch(styles, tag));
+      this.normalizeTagValues(row.tags).forEach((tag) => {
+        if (String(tag).toLowerCase().startsWith('collection:')) {
+          pushDistinct(collections, String(tag).split(':').slice(1).join(':').trim());
+          return;
+        }
+
+        pushMatch(collections, tag);
+      });
+
+      const collectionName = row.cms_metadata?.collection || row.cms_metadata?.collection_name;
+      pushDistinct(collections, collectionName);
+    });
+
+    return {
+      brands: [...brands].slice(0, 5),
+      categories: [...categories].slice(0, 5),
+      collections: [...collections].slice(0, 5),
+      styles: [...styles].slice(0, 5),
+    };
+  }
+
+  normalizeTagValues(value) {
+    if (Array.isArray(value)) {
+      return value.filter(Boolean).map((item) => String(item));
+    }
+
+    if (value && typeof value === 'object') {
+      return Object.values(value).filter(Boolean).map((item) => String(item));
+    }
+
+    if (value != null && value !== '') {
+      return [String(value)];
+    }
+
+    return [];
+  }
+
   buildPaginatedResponse(products, total, query) {
     return {
       items: products.map((product) => this.formatProduct(product)),

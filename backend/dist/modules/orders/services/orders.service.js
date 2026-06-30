@@ -13,12 +13,15 @@ const _crypto = require("crypto");
 const _fashiondnaregenerationconstants = require("../../fashion-dna/constants/fashion-dna-regeneration.constants");
 const _fashiondnaregenerationservice = require("../../fashion-dna/services/fashion-dna-regeneration.service");
 const _productservice = require("../../products/services/product.service");
+const _productcatalogmapper = require("../../products/utils/product-catalog.mapper");
 const _currencyutil = require("../../../common/utils/currency.util");
 const _inventoryutil = require("../../commerce/utils/inventory.util");
 const _commerceconstants = require("../../commerce/constants/commerce.constants");
 const _storagepathresolverservice = require("../../../storage/services/storage-path-resolver.service");
 const _ordersrepository = require("../repositories/orders.repository");
 const _ordereventservice = require("./order-event.service");
+const _orderomsservice = require("./order-oms.service");
+const _notificationsservice = require("../../notifications/notifications.service");
 const _orderstatusutil = require("../utils/order-status.util");
 const _orderconstants = require("../validators/order.constants");
 function _ts_decorate(decorators, target, key, desc) {
@@ -36,15 +39,17 @@ function _ts_param(paramIndex, decorator) {
     };
 }
 let OrdersService = class OrdersService {
-    constructor(ordersRepository, fashionDnaRegenerationService, productService, orderEventService, storagePathResolver){
+    constructor(ordersRepository, fashionDnaRegenerationService, productService, orderEventService, storagePathResolver, orderOmsService, notificationsService){
         this.ordersRepository = ordersRepository;
         this.fashionDnaRegenerationService = fashionDnaRegenerationService;
         this.productService = productService;
         this.orderEventService = orderEventService;
         this.storagePathResolver = storagePathResolver;
+        this.orderOmsService = orderOmsService;
+        this.notificationsService = notificationsService;
     }
     updateExpiredOrders() {
-        return this.ordersRepository.syncAutoStatuses();
+        return this.orderOmsService.autoCompleteInTransitOrders();
     }
     async create(userId, dto) {
         if (dto.product_id) {
@@ -89,7 +94,7 @@ let OrdersService = class OrdersService {
                 product_id: item.product_id,
                 quantity: item.quantity,
                 price: item.price,
-                product: formatCatalogProduct(productMap.get(item.product_id))
+                product: (0, _productcatalogmapper.formatCatalogProduct)(productMap.get(item.product_id))
             }));
         const paymentMethod = checkoutDto.payment_method || 'COD';
         const paymentStatus = 'pending';
@@ -138,7 +143,7 @@ let OrdersService = class OrdersService {
             actor_role: 'CUSTOMER',
             notes: 'Order placed via checkout'
         });
-        await this.ordersRepository.createNotification({
+        const placedNotification = await this.ordersRepository.createNotification({
             id: (0, _crypto.randomUUID)(),
             user_id: userId,
             order_id: order.id,
@@ -152,6 +157,15 @@ let OrdersService = class OrdersService {
             orderNumber: order.order_number,
             status: _orderconstants.ORDER_STATUS.CREATED
         });
+        this.orderEventService.emit(_orderconstants.ORDER_EVENTS.ORDER_NOTIFICATION_CREATED, {
+            userId,
+            orderId: order.id,
+            orderNumber: order.order_number,
+            notificationId: placedNotification.id,
+            type: _orderconstants.ORDER_NOTIFICATION_TYPE.ORDER_PLACED
+        });
+        this.notificationsService.forwardOrderNotification(userId, placedNotification, order);
+        this.notificationsService.notifyAdminNewOrder(order).catch(()=>null);
         await Promise.all([
             ...new Set(checkoutDto.items.map((item)=>item.product_id))
         ].map((productId)=>this.productService.invalidateCatalogCache(productId)));
@@ -239,14 +253,14 @@ let OrdersService = class OrdersService {
                 product_id: item.product_id,
                 quantity: item.quantity,
                 price: item.price,
-                product: item.product || (order.product ? formatCatalogProduct(order.product) : null)
+                product: item.product || (order.product ? (0, _productcatalogmapper.formatCatalogProduct)(order.product) : null)
             })) : order.product ? [
             {
                 id: `${order.id}-0`,
                 product_id: order.product_id,
                 quantity: 1,
                 price: order.total_amount,
-                product: formatCatalogProduct(order.product)
+                product: (0, _productcatalogmapper.formatCatalogProduct)(order.product)
             }
         ] : [];
         const omsFlags = {
@@ -313,6 +327,7 @@ let OrdersService = class OrdersService {
             invoice_generated_at: order.invoice_generated_at,
             packed_at: order.packed_at,
             dispatched_at: order.dispatched_at,
+            in_transit_at: order.dispatched_at ?? order.oms_metadata?.in_transit_at ?? null,
             delivered_at: order.delivered_at,
             completed_at: order.completed_at,
             created_at: order.created_at,
@@ -327,8 +342,12 @@ OrdersService = _ts_decorate([
     _ts_param(2, (0, _common.Inject)(_productservice.ProductService)),
     _ts_param(3, (0, _common.Inject)(_ordereventservice.OrderEventService)),
     _ts_param(4, (0, _common.Inject)(_storagepathresolverservice.StoragePathResolver)),
+    _ts_param(5, (0, _common.Inject)((0, _common.forwardRef)(()=>_orderomsservice.OrderOmsService))),
+    _ts_param(6, (0, _common.Inject)(_notificationsservice.NotificationsService)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        void 0,
+        void 0,
         void 0,
         void 0,
         void 0,

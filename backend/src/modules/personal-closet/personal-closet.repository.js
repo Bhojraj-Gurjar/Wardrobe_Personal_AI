@@ -20,7 +20,7 @@ class PersonalClosetRepository {
     return this.prisma.order.findMany({
       where: {
         user_id: userId,
-        status: ORDER_STATUS.DELIVERED,
+        status: { in: [ORDER_STATUS.DELIVERED, ORDER_STATUS.COMPLETED] },
       },
       include: ORDER_INCLUDE,
       orderBy: { updated_at: 'desc' },

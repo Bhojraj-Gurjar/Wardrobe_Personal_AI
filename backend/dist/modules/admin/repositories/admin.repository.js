@@ -160,7 +160,7 @@ let AdminRepository = class AdminRepository {
                     total
                 ];
             }
-            const filtered = users.filter((user)=>(user.profile?.preferences?.plan || 'Free') === plan);
+            const filtered = (users ?? []).filter((user)=>(user?.profile?.preferences?.plan || 'Free') === plan);
             return [
                 filtered,
                 filtered.length

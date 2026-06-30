@@ -30,6 +30,17 @@ class ProductController {
     this.productService = productService;
   }
 
+  @Get('search/suggest')
+  @ApiOperation({
+    summary: 'Search autocomplete suggestions',
+    description: 'Returns matching products, brands, categories, collections, and styles',
+  })
+  @ApiQuery({ name: 'q', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  suggest(@Query() query) {
+    return this.productService.suggestSearch(query);
+  }
+
   @Get('search')
   @ApiOperation({
     summary: 'Search products',

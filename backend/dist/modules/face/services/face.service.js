@@ -22,6 +22,8 @@ const _fashiondnaregenerationconstants = require("../../fashion-dna/constants/fa
 const _fashiondnaregenerationservice = require("../../fashion-dna/services/fashion-dna-regeneration.service");
 const _userpipelineservice = require("../../user-pipeline/user-pipeline.service");
 const _usermediaregistryservice = require("../../user-media/services/user-media-registry.service");
+const _notificationsservice = require("../../notifications/notifications.service");
+const _notificationsconstants = require("../../notifications/notifications.constants");
 const _userstatus = require("../../../common/constants/user-status");
 const _parseduration = require("../../../common/utils/parse-duration");
 function _ts_decorate(decorators, target, key, desc) {
@@ -40,7 +42,7 @@ function _ts_param(paramIndex, decorator) {
 }
 const REFRESH_TOKEN_PREFIX = 'auth:refresh:';
 let FaceService = class FaceService {
-    constructor(faceRepository, faceImageStorageService, faceRateLimitService, storagePathResolver, jwtService, configService, redisService, aiService, fashionDnaRegenerationService, userPipelineService, userMediaRegistryService){
+    constructor(faceRepository, faceImageStorageService, faceRateLimitService, storagePathResolver, jwtService, configService, redisService, aiService, fashionDnaRegenerationService, userPipelineService, userMediaRegistryService, notificationsService){
         this.faceRepository = faceRepository;
         this.faceImageStorageService = faceImageStorageService;
         this.faceRateLimitService = faceRateLimitService;
@@ -52,6 +54,7 @@ let FaceService = class FaceService {
         this.fashionDnaRegenerationService = fashionDnaRegenerationService;
         this.userPipelineService = userPipelineService;
         this.userMediaRegistryService = userMediaRegistryService;
+        this.notificationsService = notificationsService;
         this.logger = new _common.Logger(FaceService.name);
         this.refreshTtlSeconds = (0, _parseduration.parseDurationToSeconds)(configService.get('jwt.refreshExpiresIn'));
     }
@@ -64,6 +67,7 @@ let FaceService = class FaceService {
             imageMimeType: dto.imageMimeType
         });
         this.fashionDnaRegenerationService.trigger(userId, _fashiondnaregenerationconstants.REFRESH_SOURCES.FACE_ANALYSIS);
+        this.notificationsService.notifyProfileEvent(userId, _notificationsconstants.APP_NOTIFICATION_TYPES.FACE_REGISTERED, 'Face registration completed', 'Your face has been registered successfully.', '/face-analysis').catch(()=>null);
         return this.formatRegistrationResponse(userId, registration);
     }
     async updatePhoto(userId, dto) {
@@ -197,7 +201,9 @@ let FaceService = class FaceService {
             clientIp: context.clientIp,
             challengeType: dto.challengeType
         });
-        return this.buildAuthResponse(user);
+        return this.buildAuthResponse(user, {
+            similarityScore: result?.similarity_score ?? result?.similarityScore ?? null
+        });
     }
     async verify(userId, dto) {
         if (!dto.imageBuffer?.length) {
@@ -247,12 +253,13 @@ let FaceService = class FaceService {
     logFaceAudit(event, meta = {}) {
         this.logger.log(`FACE_AUDIT | event=${event} | ${JSON.stringify(meta)}`);
     }
-    async buildAuthResponse(user) {
+    async buildAuthResponse(user, extra = {}) {
         const tokens = await this.generateTokens(user);
         return {
             user: this.sanitizeUser(user),
             faceVerified: true,
             message: 'Face verified',
+            ...extra,
             ...tokens
         };
     }
@@ -295,8 +302,10 @@ FaceService = _ts_decorate([
     _ts_param(8, (0, _common.Inject)(_fashiondnaregenerationservice.FashionDnaRegenerationService)),
     _ts_param(9, (0, _common.Inject)((0, _common.forwardRef)(()=>_userpipelineservice.UserPipelineService))),
     _ts_param(10, (0, _common.Inject)(_usermediaregistryservice.UserMediaRegistryService)),
+    _ts_param(11, (0, _common.Inject)(_notificationsservice.NotificationsService)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        void 0,
         void 0,
         void 0,
         void 0,

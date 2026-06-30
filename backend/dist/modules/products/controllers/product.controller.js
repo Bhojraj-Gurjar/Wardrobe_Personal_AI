@@ -38,6 +38,9 @@ let ProductController = class ProductController {
     constructor(productService){
         this.productService = productService;
     }
+    suggest(query) {
+        return this.productService.suggestSearch(query);
+    }
     search(query) {
         return this.productService.search(query);
     }
@@ -60,6 +63,27 @@ let ProductController = class ProductController {
         return this.productService.remove(id);
     }
 };
+_ts_decorate([
+    (0, _common.Get)('search/suggest'),
+    (0, _swagger.ApiOperation)({
+        summary: 'Search autocomplete suggestions',
+        description: 'Returns matching products, brands, categories, collections, and styles'
+    }),
+    (0, _swagger.ApiQuery)({
+        name: 'q',
+        required: false
+    }),
+    (0, _swagger.ApiQuery)({
+        name: 'limit',
+        required: false
+    }),
+    _ts_param(0, (0, _common.Query)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        void 0
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], ProductController.prototype, "suggest", null);
 _ts_decorate([
     (0, _common.Get)('search'),
     (0, _swagger.ApiOperation)({

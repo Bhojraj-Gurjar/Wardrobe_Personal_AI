@@ -87,6 +87,10 @@ class FaceAuthService:
             "frame_count": len(rgb_frames),
         }
 
+        vectors: list[np.ndarray] = []
+        qualities: list[float] = []
+        liveness_detections = None
+
         if challenge_type:
             liveness = liveness_challenge_service.analyze_frames(
                 rgb_frames,
@@ -95,36 +99,48 @@ class FaceAuthService:
             liveness_meta["liveness_score"] = liveness.liveness_score
             liveness_meta["challenge_type"] = liveness.challenge_type
             liveness_meta["frame_count"] = liveness.frame_count
+            liveness_detections = liveness.valid_detections
         elif self._settings.face_liveness_required:
             raise FaceValidationError(
                 "Liveness verification required.",
                 "liveness_failed",
             )
 
-        vectors: list[np.ndarray] = []
-        qualities: list[float] = []
+        if liveness_detections:
+            for detection in liveness_detections:
+                confidence = float(detection.detection_score)
+                if confidence < self._settings.face_min_embedding_confidence:
+                    continue
 
-        for rgb in rgb_frames:
-            try:
-                detections = detect_faces(rgb)
-            except Exception:  # noqa: BLE001
-                continue
+                embedding = np.asarray(detection.embedding, dtype=np.float32)
+                magnitude = float(np.linalg.norm(embedding))
+                if magnitude <= 0:
+                    continue
 
-            if len(detections) != 1:
-                continue
+                vectors.append(embedding / magnitude)
+                qualities.append(confidence)
+        else:
+            for rgb in rgb_frames:
+                try:
+                    frame_detections = detect_faces(rgb)
+                except Exception:  # noqa: BLE001
+                    continue
 
-            detection = detections[0]
-            confidence = float(detection.detection_score)
-            if confidence < self._settings.face_min_embedding_confidence:
-                continue
+                if len(frame_detections) != 1:
+                    continue
 
-            embedding = np.asarray(detection.embedding, dtype=np.float32)
-            magnitude = float(np.linalg.norm(embedding))
-            if magnitude <= 0:
-                continue
+                detection = frame_detections[0]
+                confidence = float(detection.detection_score)
+                if confidence < self._settings.face_min_embedding_confidence:
+                    continue
 
-            vectors.append(embedding / magnitude)
-            qualities.append(confidence)
+                embedding = np.asarray(detection.embedding, dtype=np.float32)
+                magnitude = float(np.linalg.norm(embedding))
+                if magnitude <= 0:
+                    continue
+
+                vectors.append(embedding / magnitude)
+                qualities.append(confidence)
 
         if not vectors:
             raise FaceValidationError("Image quality is too low.", "low_quality")
@@ -344,13 +360,15 @@ class FaceAuthService:
         if not qdrant_store.enabled:
             raise RuntimeError("Qdrant is not configured")
 
-        with face_diagnostics.measure("login_total"):
+        with face_diagnostics.measure("login_liveness_embed"):
             frame_images = images if images else [image]
             embedding, _quality, liveness_meta = self._embed_frames_average(
                 frame_images,
                 challenge_type=challenge_type,
             )
             self._validate_embedding(embedding)
+
+        with face_diagnostics.measure("login_qdrant_search"):
             matches = qdrant_store.search_vectors(
                 self._collection(),
                 embedding,

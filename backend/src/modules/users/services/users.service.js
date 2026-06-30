@@ -11,6 +11,8 @@ import {
 } from '../../body-analysis/utils/body-photo-display.util';
 import { StoragePathResolver } from '../../../storage/services/storage-path-resolver.service';
 import { PIPELINE_SIGNALS, PipelineEventBus } from '../../user-pipeline/pipeline-event.bus';
+import { NotificationsService } from '../../notifications/notifications.service';
+import { APP_NOTIFICATION_TYPES } from '../../notifications/notifications.constants';
 import { UserArtifactsService } from '../../user-artifacts/user-artifacts.service';
 import { UserMediaService } from '../../user-media/services/user-media.service';
 import { USER_MEDIA_MODULE } from '../../user-media/validators/user-media.constants';
@@ -29,6 +31,7 @@ class UsersService {
     @Inject(ApiCacheService) apiCacheService,
     @Inject(BodyPhotoProcessingService) bodyPhotoProcessingService,
     @Inject(UserMediaService) userMediaService,
+    @Inject(NotificationsService) notificationsService,
   ) {
     this.usersRepository = usersRepository;
     this.fashionDnaRegenerationService = fashionDnaRegenerationService;
@@ -39,6 +42,7 @@ class UsersService {
     this.apiCacheService = apiCacheService;
     this.bodyPhotoProcessingService = bodyPhotoProcessingService;
     this.userMediaService = userMediaService;
+    this.notificationsService = notificationsService;
   }
 
   profileCacheKey(userId) {
@@ -65,11 +69,19 @@ class UsersService {
   }
 
   async updateProfile(userId, dto) {
-    await this.ensureProfileExists(userId);
+    const existingProfile = await this.ensureProfileExists(userId);
+    const profileData = this.mapDtoToProfileData(dto);
+
+    if (profileData.preferences !== undefined) {
+      profileData.preferences = this.mergeProfilePreferences(
+        existingProfile.preferences,
+        profileData.preferences,
+      );
+    }
 
     const profile = await this.usersRepository.updateProfileByUserId(
       userId,
-      this.mapDtoToProfileData(dto),
+      profileData,
     );
 
     this.fashionDnaRegenerationService.trigger(
@@ -82,6 +94,14 @@ class UsersService {
     setImmediate(() => {
       this.pipelineEventBus.emit(PIPELINE_SIGNALS.PROFILE_UPDATED, { userId });
     });
+
+    this.notificationsService.notifyProfileEvent(
+      userId,
+      APP_NOTIFICATION_TYPES.PROFILE_UPDATED,
+      'Profile updated',
+      'Your profile changes have been saved.',
+      '/profile',
+    ).catch(() => null);
 
     const context = await this.usersRepository.findProfileContextByUserId(userId);
 
@@ -145,6 +165,24 @@ class UsersService {
     }
 
     return profile;
+  }
+
+  mergeProfilePreferences(existing, patch) {
+    const base = existing && typeof existing === 'object' && !Array.isArray(existing)
+      ? { ...existing }
+      : {};
+
+    if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
+      return base;
+    }
+
+    Object.entries(patch).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        base[key] = value;
+      }
+    });
+
+    return base;
   }
 
   mapDtoToProfileData(dto) {

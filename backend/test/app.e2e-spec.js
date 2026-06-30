@@ -1,6 +1,7 @@
 import { Test } from '@nestjs/testing';
-import * as request from 'supertest';
+import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { API_PREFIX } from '../src/common/constants';
 
 describe('AppController (e2e)', () => {
   let app;
@@ -11,17 +12,22 @@ describe('AppController (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    app.setGlobalPrefix(API_PREFIX);
     await app.init();
   });
 
-  it('/ (GET)', () => {
-    return request(app.getHttpServer())
-      .get('/')
-      .expect(200)
-      .expect('Hello World!');
+  afterEach(async () => {
+    await app?.close();
   });
 
-  afterEach(async () => {
-    await app.close();
+  it(`GET /${API_PREFIX}/health`, () => {
+    return request(app.getHttpServer())
+      .get(`/${API_PREFIX}/health`)
+      .expect(200)
+      .expect((response) => {
+        const payload = response.body?.data ?? response.body;
+        expect(payload?.status).toBe('ok');
+        expect(payload?.service).toBe('Wardrobe AI API');
+      });
   });
 });

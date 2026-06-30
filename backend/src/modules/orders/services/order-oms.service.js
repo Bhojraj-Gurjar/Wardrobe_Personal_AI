@@ -3,12 +3,14 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { OrdersRepository } from '../repositories/orders.repository';
 import { OrdersService } from './orders.service';
 import { OrderPdfService } from './order-pdf.service';
 import { OrderEventService } from './order-event.service';
+import { NotificationsService } from '../../notifications/notifications.service';
 import {
   assertCanMoveToPacking,
   assertPackingChecklistComplete,
@@ -24,18 +26,23 @@ import {
 } from '../validators/order.constants';
 import { generateOmsInvoiceNumber } from '../../commerce/constants/commerce.constants';
 
+/** Hours after entering in-transit before auto-completion. */
+const IN_TRANSIT_AUTO_COMPLETE_MS = 60 * 60 * 1000;
+
 export @Injectable()
 class OrderOmsService {
   constructor(
     @Inject(OrdersRepository) ordersRepository,
-    @Inject(OrdersService) ordersService,
+    @Inject(forwardRef(() => OrdersService)) ordersService,
     @Inject(OrderPdfService) orderPdfService,
     @Inject(OrderEventService) orderEventService,
+    @Inject(NotificationsService) notificationsService,
   ) {
     this.ordersRepository = ordersRepository;
     this.ordersService = ordersService;
     this.orderPdfService = orderPdfService;
     this.orderEventService = orderEventService;
+    this.notificationsService = notificationsService;
   }
 
   async getOrderOrThrow(id) {
@@ -84,6 +91,8 @@ class OrderOmsService {
       notificationId: notification.id,
       type,
     });
+
+    this.notificationsService.forwardOrderNotification(order.user_id, notification, order);
 
     return notification;
   }
@@ -378,13 +387,6 @@ class OrderOmsService {
 
     await this.recordTimeline(updated, ORDER_TIMELINE_ACTION.PACKED, { actorId: adminId, notes });
 
-    await this.notifyCustomer(
-      updated,
-      ORDER_NOTIFICATION_TYPE.PACKED,
-      'Order packed',
-      `Your order ${updated.order_number} has been packed.`,
-    );
-
     return this.ordersService.formatOrder(updated);
   }
 
@@ -404,12 +406,39 @@ class OrderOmsService {
 
     await this.notifyCustomer(
       updated,
-      ORDER_NOTIFICATION_TYPE.READY_TO_DISPATCH,
-      'Ready to dispatch',
-      `Your order ${updated.order_number} is ready for dispatch.`,
+      ORDER_NOTIFICATION_TYPE.PACKED,
+      'Order packed',
+      'Your order is ready for dispatch.',
     );
 
     return this.ordersService.formatOrder(updated);
+  }
+
+  async dispatchOrder(id, adminId, payload = {}) {
+    const order = await this.getOrderOrThrow(id);
+    const dispatchableStatuses = [
+      ORDER_STATUS.CONFIRMED,
+      ORDER_STATUS.PACKING,
+      ORDER_STATUS.PACKED,
+      ORDER_STATUS.READY_TO_DISPATCH,
+      ORDER_STATUS.READY_FOR_HANDOVER,
+    ];
+
+    if (!dispatchableStatuses.includes(order.status)) {
+      throw new BadRequestException('Order cannot be dispatched from its current status.');
+    }
+
+    if (![ORDER_STATUS.READY_TO_DISPATCH, ORDER_STATUS.READY_FOR_HANDOVER].includes(order.status)) {
+      await this.quickMarkRtd(id, adminId);
+    }
+
+    return this.markShipped(id, adminId, {
+      courier_name: payload.courier_name ?? order.courier_name ?? 'Manual Courier',
+      tracking_number: payload.tracking_number
+        ?? order.tracking_number
+        ?? `TRK-${order.order_number}`,
+      ...payload,
+    });
   }
 
   async markHandover(id, adminId, payload = {}) {
@@ -429,24 +458,33 @@ class OrderOmsService {
       metadata: payload,
     });
 
+    await this.notifyCustomer(
+      updated,
+      ORDER_NOTIFICATION_TYPE.HANDED_OVER,
+      'Handed to courier',
+      `Your order ${updated.order_number} has been handed to the courier.`,
+    );
+
     return this.ordersService.formatOrder(updated);
   }
 
   async markShipped(id, adminId, payload = {}) {
     const order = await this.getOrderOrThrow(id);
 
+    const now = new Date();
     const updated = await this.transitionOrder(order, ORDER_STATUS.SHIPPED, {
       actorId: adminId,
       notes: payload.notes,
       extra: {
         courier_name: payload.courier_name ?? order.courier_name,
         tracking_number: payload.tracking_number ?? order.tracking_number,
-        dispatched_at: new Date(),
+        dispatched_at: now,
         estimated_delivery: payload.estimated_delivery
           ? new Date(payload.estimated_delivery)
           : order.estimated_delivery,
         oms_metadata: {
           ...(order.oms_metadata || {}),
+          in_transit_at: now.toISOString(),
           delivery_notes: payload.delivery_notes ?? order.oms_metadata?.delivery_notes,
           delay_reason: payload.delay_reason ?? null,
         },
@@ -461,52 +499,122 @@ class OrderOmsService {
     await this.notifyCustomer(
       updated,
       ORDER_NOTIFICATION_TYPE.SHIPPED,
-      'Order shipped',
-      `Your order ${updated.order_number} is on the way.${payload.tracking_number ? ` Tracking: ${payload.tracking_number}` : ''}`,
+      'Order in transit',
+      'Your package is on the way.',
     );
 
     return this.ordersService.formatOrder(updated);
   }
 
   async markDelivered(id, adminId, notes = null) {
+    return this.markCompleted(id, adminId, notes);
+  }
+
+  async markCompleted(id, adminId, notes = null) {
     const order = await this.getOrderOrThrow(id);
 
-    const updated = await this.transitionOrder(order, ORDER_STATUS.DELIVERED, {
+    if (![ORDER_STATUS.SHIPPED, ORDER_STATUS.DELIVERED].includes(order.status)) {
+      throw new BadRequestException('Only in-transit orders can be completed');
+    }
+
+    const now = new Date();
+    const updated = await this.transitionOrder(order, ORDER_STATUS.COMPLETED, {
       actorId: adminId,
       notes,
-      extra: { delivered_at: new Date() },
+      extra: {
+        completed_at: now,
+        delivered_at: order.delivered_at || now,
+      },
     });
 
-    await this.recordTimeline(updated, ORDER_TIMELINE_ACTION.DELIVERED, { actorId: adminId, notes });
+    await this.recordTimeline(updated, ORDER_TIMELINE_ACTION.COMPLETED, {
+      actorId: adminId,
+      notes,
+      metadata: { display_label: 'Delivered / Completed' },
+    });
 
     await this.notifyCustomer(
       updated,
       ORDER_NOTIFICATION_TYPE.DELIVERED,
       'Order delivered',
-      `Your order ${updated.order_number} has been delivered.`,
+      'Your order has been delivered successfully.',
     );
 
     return this.ordersService.formatOrder(updated);
   }
 
-  async markCompleted(id, adminId) {
-    const order = await this.getOrderOrThrow(id);
+  async autoCompleteOrder(order) {
+    if (order.status !== ORDER_STATUS.SHIPPED) {
+      return null;
+    }
 
+    const now = new Date();
     const updated = await this.transitionOrder(order, ORDER_STATUS.COMPLETED, {
-      actorId: adminId,
-      extra: { completed_at: new Date() },
+      extra: {
+        completed_at: now,
+        delivered_at: order.delivered_at || now,
+      },
     });
 
-    await this.recordTimeline(updated, ORDER_TIMELINE_ACTION.COMPLETED, { actorId: adminId });
+    await this.recordTimeline(updated, ORDER_TIMELINE_ACTION.COMPLETED, {
+      actorRole: 'SYSTEM',
+      notes: 'Auto-completed after in-transit period',
+      metadata: { display_label: 'Delivered / Completed', auto: true },
+    });
 
     await this.notifyCustomer(
       updated,
-      ORDER_NOTIFICATION_TYPE.COMPLETED,
-      'Order completed',
-      `Your order ${updated.order_number} is complete. Thank you for shopping with Wardrobe AI.`,
+      ORDER_NOTIFICATION_TYPE.DELIVERED,
+      'Order delivered',
+      'Your order has been delivered successfully.',
     );
 
-    return this.ordersService.formatOrder(updated);
+    return updated;
+  }
+
+  async autoCompleteInTransitOrders() {
+    const cutoff = new Date(Date.now() - IN_TRANSIT_AUTO_COMPLETE_MS);
+    const orders = await this.ordersRepository.findShippedOrdersReadyForCompletion(cutoff);
+    let completed = 0;
+
+    for (const order of orders) {
+      try {
+        const result = await this.autoCompleteOrder(order);
+        if (result) {
+          completed += 1;
+        }
+      } catch {
+        // Continue with remaining orders
+      }
+    }
+
+    return completed;
+  }
+
+  async migrateHandoverOrdersToInTransit() {
+    const legacyOrders = await this.ordersRepository.findOrdersByStatus(
+      ORDER_STATUS.READY_FOR_HANDOVER,
+    );
+
+    if (!legacyOrders.length) {
+      return 0;
+    }
+
+    const now = new Date();
+
+    await Promise.all(
+      legacyOrders.map((order) => this.ordersRepository.updateOrder(order.id, {
+        status: ORDER_STATUS.SHIPPED,
+        dispatched_at: order.dispatched_at || order.updated_at || now,
+        oms_metadata: {
+          ...(order.oms_metadata || {}),
+          in_transit_at: (order.dispatched_at || order.updated_at || now).toISOString(),
+          migrated_from_handover: true,
+        },
+      })),
+    );
+
+    return legacyOrders.length;
   }
 
   async cancelOrder(id, adminId, reason = null) {
@@ -579,9 +687,10 @@ class OrderOmsService {
     const packedRtd = (byStatus[ORDER_STATUS.PACKING] || 0)
       + (byStatus[ORDER_STATUS.PACKED] || 0)
       + (byStatus[ORDER_STATUS.READY_TO_DISPATCH] || 0);
-    const handedOver = byStatus[ORDER_STATUS.READY_FOR_HANDOVER] || 0;
-    const inTransit = byStatus[ORDER_STATUS.SHIPPED] || 0;
-    const completed = byStatus[ORDER_STATUS.COMPLETED] || 0;
+    const legacyHandover = byStatus[ORDER_STATUS.READY_FOR_HANDOVER] || 0;
+    const inTransit = (byStatus[ORDER_STATUS.SHIPPED] || 0) + legacyHandover;
+    const completed = (byStatus[ORDER_STATUS.COMPLETED] || 0)
+      + (byStatus[ORDER_STATUS.DELIVERED] || 0);
 
     return {
       today_orders: todayCount,
@@ -592,11 +701,9 @@ class OrderOmsService {
       new_orders: newOrders,
       accepted,
       packed_rtd: packedRtd,
-      handed_over: handedOver,
       processing: accepted + (byStatus[ORDER_STATUS.PACKING] || 0),
       rtd: (byStatus[ORDER_STATUS.PACKED] || 0) + (byStatus[ORDER_STATUS.READY_TO_DISPATCH] || 0),
       in_transit: inTransit,
-      delivered: byStatus[ORDER_STATUS.DELIVERED] || 0,
       completed,
       cancelled: byStatus[ORDER_STATUS.CANCELLED] || 0,
       returned: byStatus[ORDER_STATUS.RETURNED] || 0,

@@ -567,8 +567,11 @@ let AdminService = class AdminService {
         for (const group of statusGroups){
             statusCounts[group.status] = group._count.status;
             if (![
+                _orderconstants.ORDER_STATUS.COMPLETED,
                 _orderconstants.ORDER_STATUS.DELIVERED,
-                _orderconstants.ORDER_STATUS.CANCELLED
+                _orderconstants.ORDER_STATUS.CANCELLED,
+                _orderconstants.ORDER_STATUS.ARCHIVED,
+                _orderconstants.ORDER_STATUS.REFUNDED
             ].includes(group.status)) {
                 activeOrders += group._count.status;
             }
@@ -626,7 +629,10 @@ let AdminService = class AdminService {
             row.orders.push(formatted);
             row.orderCount += 1;
             row.totalSpent += order.total_amount;
-            if (order.status === _orderconstants.ORDER_STATUS.DELIVERED) {
+            if ([
+                _orderconstants.ORDER_STATUS.DELIVERED,
+                _orderconstants.ORDER_STATUS.COMPLETED
+            ].includes(order.status)) {
                 row.deliveredCount += 1;
             }
             if (!row.lastOrderDate || order.created_at > row.lastOrderDate) {
@@ -745,7 +751,10 @@ let AdminService = class AdminService {
     formatAdminUser(user, detailed = false) {
         const name = user.profile?.name || user.email?.split('@')[0] || 'User';
         const plan = user.profile?.preferences?.plan || 'Free';
-        const deliveredOrders = user.orders?.filter((order)=>order.status === _orderconstants.ORDER_STATUS.DELIVERED).length || 0;
+        const deliveredOrders = user.orders?.filter((order)=>[
+                _orderconstants.ORDER_STATUS.DELIVERED,
+                _orderconstants.ORDER_STATUS.COMPLETED
+            ].includes(order.status)).length || 0;
         const base = {
             id: user.id,
             name,

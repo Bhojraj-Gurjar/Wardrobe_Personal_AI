@@ -4,6 +4,7 @@ const { spawnSync } = require('node:child_process');
 const { PrismaClient } = require('@prisma/client');
 const { PrismaPg } = require('@prisma/adapter-pg');
 const pg = require('pg');
+const { isSkuSeedSuppressed } = require('./product-seed-guard.cjs');
 
 function createCuratedProductSeeder({
   products,
@@ -131,6 +132,10 @@ function createCuratedProductSeeder({
   }
 
   async function upsertProduct(prisma, product, imageUrl, tryOnImageUrl) {
+    if (isSkuSeedSuppressed(product.sku)) {
+      return null;
+    }
+
     const data = mapProductData(product, imageUrl, tryOnImageUrl);
     const images = mapImages(imageUrl, tryOnImageUrl);
     const existing = await prisma.product.findUnique({
@@ -184,6 +189,15 @@ function createCuratedProductSeeder({
       await ensureTryOnSchema(pool);
 
       for (const product of products) {
+        if (isSkuSeedSuppressed(product.sku)) {
+          summaries.push({
+            sku: product.sku,
+            name: product.name,
+            skipped: true,
+          });
+          continue;
+        }
+
         const original = copyOriginalAsset(product.assetFileName);
         const tryOn = generateTryOnImage(original.absolutePath, product.sku);
 
@@ -220,6 +234,12 @@ function createCuratedProductSeeder({
       console.log(`\n=== ${label} Import Summary ===\n`);
 
       for (const item of summaries) {
+        if (item.skipped) {
+          console.log(`Product: ${item.name} (${item.sku})`);
+          console.log('  ↷ Skipped — admin deleted (seed suppressed)\n');
+          continue;
+        }
+
         console.log(`Product: ${item.name} (${item.color})`);
         console.log(`  ✓ Product Created (${item.created ? 'new' : 'updated'})`);
         console.log(`  ✓ Category Assigned: ${item.category}`);

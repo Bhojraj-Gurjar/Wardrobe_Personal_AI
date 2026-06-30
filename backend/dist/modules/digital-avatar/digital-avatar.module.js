@@ -14,6 +14,7 @@ const _bodyanalysismodule = require("../body-analysis/body-analysis.module");
 const _faceanalysismodule = require("../face-analysis/face-analysis.module");
 const _fashiondnamodule = require("../fashion-dna/fashion-dna.module");
 const _usersmodule = require("../users/users.module");
+const _notificationsmodule = require("../notifications/notifications.module");
 const _digitalavatarcontroller = require("./digital-avatar.controller");
 const _digitalavatarrepository = require("./digital-avatar.repository");
 const _digitalavatarservice = require("./digital-avatar.service");
@@ -34,7 +35,8 @@ DigitalAvatarModule = _ts_decorate([
             _usersmodule.UsersModule,
             (0, _common.forwardRef)(()=>_faceanalysismodule.FaceAnalysisModule),
             (0, _common.forwardRef)(()=>_bodyanalysismodule.BodyAnalysisModule),
-            (0, _common.forwardRef)(()=>_fashiondnamodule.FashionDnaModule)
+            (0, _common.forwardRef)(()=>_fashiondnamodule.FashionDnaModule),
+            _notificationsmodule.NotificationsModule
         ],
         controllers: [
             _digitalavatarcontroller.DigitalAvatarController

@@ -31,6 +31,7 @@ export const PRODUCT_TYPES = [
     'Shorts',
     'Joggers',
     'Formal Pants',
+    'Pajama',
     'Sneakers',
     'Running Shoes',
     'Loafers',
@@ -71,7 +72,7 @@ export const PRODUCT_TYPES = [
 /** Product types available per UI category (admin dropdown). */
 export const PRODUCT_TYPES_BY_UI_CATEGORY = {
   Tops: ['T-Shirt', 'Shirt', 'Polo', 'Hoodie', 'Sweatshirt', 'Tank Top', 'Kurta'],
-  Bottoms: ['Jeans', 'Chinos', 'Cargo Pants', 'Shorts', 'Joggers', 'Formal Pants'],
+  Bottoms: ['Jeans', 'Chinos', 'Cargo Pants', 'Shorts', 'Joggers', 'Formal Pants', 'Pajama'],
   Outerwear: ['Jacket', 'Blazer', 'Bomber Jacket'],
   Footwear: ['Sneakers', 'Running Shoes', 'Loafers', 'Boots', 'Sandals', 'Slippers'],
   Accessories: ['Watch', 'Belt', 'Cap', 'Backpack', 'Sunglasses'],
@@ -104,6 +105,7 @@ export const PRODUCT_TYPE_TO_AVATAR_CATEGORY = {
   Shorts: 'BOTTOM',
   Joggers: 'BOTTOM',
   'Formal Pants': 'BOTTOM',
+  Pajama: 'BOTTOM',
   Sneakers: 'FOOTWEAR',
   'Running Shoes': 'FOOTWEAR',
   Loafers: 'FOOTWEAR',
@@ -135,6 +137,15 @@ export const PRODUCT_TYPE_TO_OUTFIT_SLOT = {
   Shorts: 'pants',
   Joggers: 'pants',
   'Formal Pants': 'pants',
+  Cargo: 'pants',
+  Trouser: 'pants',
+  'Track Pant': 'pants',
+  Pajama: 'pants',
+  'Co-ord Set': 'dress',
+  Suit: 'dress',
+  Sherwani: 'dress',
+  Overshirt: 'shirt',
+  Sweater: 'tshirt',
   Sneakers: 'shoes',
   'Running Shoes': 'shoes',
   Loafers: 'shoes',
@@ -161,12 +172,50 @@ export const PRODUCT_TYPE_TO_TRY_ON_SLOT = {
   Shorts: 'pants',
   Joggers: 'pants',
   'Formal Pants': 'pants',
+  Cargo: 'pants',
+  Trouser: 'pants',
+  'Track Pant': 'pants',
+  Pajama: 'pants',
+  'Co-ord Set': 'dress',
+  Suit: 'dress',
+  Sherwani: 'dress',
+  Overshirt: 'shirt',
+  Sweater: 'tshirt',
   Sneakers: 'shoes',
   'Running Shoes': 'shoes',
   Loafers: 'shoes',
   Boots: 'shoes',
   Sandals: 'shoes',
   Slippers: 'shoes',
+};
+
+/** Map product type → CatVTON garment region (upper, lower, dress). */
+export const PRODUCT_TYPE_TO_CATVTON_REGION = {
+  'T-Shirt': 'upper',
+  Shirt: 'upper',
+  Polo: 'upper',
+  Hoodie: 'upper',
+  Sweatshirt: 'upper',
+  'Tank Top': 'upper',
+  Kurta: 'upper',
+  Jacket: 'upper',
+  Blazer: 'upper',
+  'Bomber Jacket': 'upper',
+  Overshirt: 'upper',
+  Sweater: 'upper',
+  Jeans: 'lower',
+  Chinos: 'lower',
+  'Cargo Pants': 'lower',
+  Shorts: 'lower',
+  Joggers: 'lower',
+  'Formal Pants': 'lower',
+  Cargo: 'lower',
+  Trouser: 'lower',
+  'Track Pant': 'lower',
+  Pajama: 'lower',
+  'Co-ord Set': 'dress',
+  Suit: 'dress',
+  Sherwani: 'dress',
 };
 
 /** Product types eligible for CatVTON virtual try-on (upper/lower body garments). */
@@ -181,12 +230,21 @@ export const TRY_ON_COMPATIBLE_PRODUCT_TYPES = new Set([
   'Jacket',
   'Blazer',
   'Bomber Jacket',
+  'Overshirt',
+  'Sweater',
   'Jeans',
   'Chinos',
   'Cargo Pants',
   'Shorts',
   'Joggers',
   'Formal Pants',
+  'Cargo',
+  'Trouser',
+  'Track Pant',
+  'Pajama',
+  'Co-ord Set',
+  'Suit',
+  'Sherwani',
 ]);
 
 /** Subcategory slug → default product type (migration / seed). */
@@ -220,6 +278,7 @@ const NAME_INFERENCE_RULES = [
   { pattern: /\bt-?shirt|\btee\b|\btee\b/i, type: 'T-Shirt' },
   { pattern: /\btank\s+top/i, type: 'Tank Top' },
   { pattern: /\bkurta/i, type: 'Kurta' },
+  { pattern: /\bpajama|\bpyjama/i, type: 'Pajama' },
   { pattern: /\bblazer/i, type: 'Blazer' },
   { pattern: /\bbomber/i, type: 'Bomber Jacket' },
   { pattern: /\bjacket/i, type: 'Jacket' },
@@ -271,6 +330,10 @@ export function resolveOutfitSlotFromProductType(productType) {
 
 export function resolveTryOnSlotFromProductType(productType) {
   return PRODUCT_TYPE_TO_TRY_ON_SLOT[productType] ?? null;
+}
+
+export function resolveCatvtonRegionFromProductType(productType) {
+  return PRODUCT_TYPE_TO_CATVTON_REGION[productType] ?? null;
 }
 
 export function isTryOnCompatibleProductType(productType) {

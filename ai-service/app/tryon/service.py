@@ -71,6 +71,26 @@ def _configure_hf_auth(token: str | None) -> None:
         logger.warning("Hugging Face hub login skipped: %s", exc)
 
 
+def _ensure_output_dir_writable() -> None:
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    probe = OUTPUT_DIR / ".write_probe"
+    probe.write_text("ok", encoding="utf-8")
+    probe.unlink(missing_ok=True)
+
+
+def _persist_generated_image(source_path: Path, output_path: Path) -> None:
+    try:
+        shutil.copy2(source_path, output_path)
+    except PermissionError as exc:
+        raise TryOnServiceError(
+            "Storage upload failed: unable to save generated try-on image.",
+        ) from exc
+    except OSError as exc:
+        raise TryOnServiceError(
+            f"Storage upload failed: {exc}",
+        ) from exc
+
+
 def log_tryon_startup_config() -> None:
     token = _resolve_hf_token()
 
@@ -80,10 +100,20 @@ def log_tryon_startup_config() -> None:
         )
         return
 
+    try:
+        _ensure_output_dir_writable()
+    except Exception as exc:
+        logger.error(
+            "Virtual try-on output directory is not writable | path=%s | error=%s",
+            OUTPUT_DIR,
+            exc,
+        )
+
     logger.info(
-        "Virtual try-on configured | space=%s | token=present | fallback=%s",
+        "Virtual try-on configured | space=%s | token=present | fallback=%s | output=%s",
         CATVTON_SPACE,
         _fallback_enabled(),
+        OUTPUT_DIR,
     )
 
 
@@ -148,12 +178,16 @@ def _validate_downloaded_image(path: Path, label: str) -> None:
         raise TryOnServiceError(f"Invalid {label.lower()} image.") from exc
 
 
-def _invoke_catvton_with_retry(person_path: Path, garment_path: Path) -> str:
+def _invoke_catvton_with_retry(
+    person_path: Path,
+    garment_path: Path,
+    garment_region: str = "upper",
+) -> str:
     last_error: Exception | None = None
 
     for attempt in range(TRYON_MAX_RETRIES):
         try:
-            return _invoke_catvton(person_path, garment_path)
+            return _invoke_catvton(person_path, garment_path, garment_region)
         except Exception as exc:
             last_error = exc
 
@@ -190,25 +224,50 @@ def _build_person_editor_payload(person_path: Path) -> dict:
     }
 
 
-def _local_tryon_fallback(person_path: Path, garment_path: Path, output_path: Path) -> None:
+def _local_tryon_fallback(
+    person_path: Path,
+    garment_path: Path,
+    output_path: Path,
+    garment_region: str = "upper",
+) -> None:
     """Lightweight overlay fallback when CatVTON / ZeroGPU is unavailable."""
-    with Image.open(person_path).convert("RGBA") as person, Image.open(
-        garment_path,
-    ).convert("RGBA") as garment:
-        person_width, person_height = person.size
-        target_width = max(1, int(person_width * 0.58))
-        target_height = max(1, int(person_height * 0.42))
-        garment = garment.copy()
-        garment.thumbnail((target_width, target_height), Image.Resampling.LANCZOS)
+    try:
+        with Image.open(person_path).convert("RGBA") as person, Image.open(
+            garment_path,
+        ).convert("RGBA") as garment:
+            person_width, person_height = person.size
 
-        x = (person_width - garment.width) // 2
-        y = int(person_height * 0.2)
-        composed = person.copy()
-        composed.paste(garment, (x, y), garment)
-        composed.convert("RGB").save(output_path, format="PNG")
+            if garment_region == "lower":
+                target_width = max(1, int(person_width * 0.62))
+                target_height = max(1, int(person_height * 0.48))
+                y = int(person_height * 0.42)
+            elif garment_region == "dress":
+                target_width = max(1, int(person_width * 0.68))
+                target_height = max(1, int(person_height * 0.72))
+                y = int(person_height * 0.16)
+            else:
+                target_width = max(1, int(person_width * 0.58))
+                target_height = max(1, int(person_height * 0.42))
+                y = int(person_height * 0.2)
+
+            garment = garment.copy()
+            garment.thumbnail((target_width, target_height), Image.Resampling.LANCZOS)
+
+            x = (person_width - garment.width) // 2
+            composed = person.copy()
+            composed.paste(garment, (x, y), garment)
+            composed.convert("RGB").save(output_path, format="PNG")
+    except PermissionError as exc:
+        raise TryOnServiceError(
+            "Storage upload failed: unable to save generated try-on image.",
+        ) from exc
 
 
-def _invoke_catvton(person_path: Path, garment_path: Path) -> str:
+def _invoke_catvton(
+    person_path: Path,
+    garment_path: Path,
+    garment_region: str = "upper",
+) -> str:
     token = _resolve_hf_token()
 
     if not token:
@@ -226,12 +285,16 @@ def _invoke_catvton(person_path: Path, garment_path: Path) -> str:
     client = Client(CATVTON_SPACE, **client_kwargs)
     person_payload = _build_person_editor_payload(person_path)
 
-    logger.info("Calling CatVTON Space for virtual try-on (space=%s)", CATVTON_SPACE)
+    logger.info(
+        "Calling CatVTON Space for virtual try-on (space=%s, region=%s)",
+        CATVTON_SPACE,
+        garment_region,
+    )
 
     result = client.predict(
         person_payload,
         gradio_file(str(garment_path)),
-        "upper",
+        garment_region,
         50,
         2.5,
         42,
@@ -248,70 +311,156 @@ async def _download_image(url: str, destination: Path, client: httpx.AsyncClient
     destination.write_bytes(response.content)
 
 
-async def run_virtual_tryon(person_image_url: str, garment_image_url: str) -> str:
+async def _run_single_garment_tryon(
+    person_path: Path,
+    garment_path: Path,
+    garment_region: str,
+    work_dir: Path,
+) -> Path:
+    try:
+        result_path = await asyncio.wait_for(
+            asyncio.to_thread(
+                _invoke_catvton_with_retry,
+                person_path,
+                garment_path,
+                garment_region,
+            ),
+            timeout=TRYON_TIMEOUT_SECONDS,
+        )
+        return Path(result_path)
+    except Exception as exc:
+        if _fallback_enabled() and _is_quota_error(exc):
+            logger.warning(
+                "CatVTON ZeroGPU quota unavailable; using local overlay fallback: %s",
+                exc,
+            )
+            output_path = work_dir / f"fallback_{uuid.uuid4().hex}.png"
+            await asyncio.to_thread(
+                _local_tryon_fallback,
+                person_path,
+                garment_path,
+                output_path,
+                garment_region,
+            )
+            return output_path
+
+        if isinstance(exc, asyncio.TimeoutError):
+            raise TryOnTimeoutError(
+                f"Virtual try-on timed out after {TRYON_TIMEOUT_SECONDS} seconds",
+            ) from exc
+
+        if isinstance(exc, TryOnServiceError):
+            raise
+
+        raise TryOnServiceError(f"Virtual try-on failed: {exc}") from exc
+
+
+def _resolve_try_on_mode(garment_layers: list[dict]) -> str:
+    regions = {layer.get("garment_region", "upper") for layer in garment_layers}
+
+    if "lower" in regions and ("upper" in regions or "dress" in regions):
+        return "full"
+
+    if regions == {"lower"}:
+        return "lower"
+
+    if "dress" in regions:
+        return "full"
+
+    return "upper"
+
+
+async def run_virtual_tryon(
+    person_image_url: str,
+    garment_image_url: str | None = None,
+    garment_region: str = "upper",
+    garments: list[dict] | None = None,
+) -> dict[str, str | int]:
     """
-    Download person + garment images, run CatVTON, persist output under
-    app/generated/tryon/, and return the absolute file path.
+    Download person + garment image(s), run CatVTON (sequentially for outfits),
+    persist output under app/generated/tryon/, and return metadata.
     """
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     work_dir = Path(tempfile.mkdtemp(prefix="wardrobe_tryon_"))
 
     person_path = work_dir / "person.png"
-    garment_path = work_dir / "garment.png"
+    current_person_path = work_dir / "current_person.png"
+
+    garment_layers = garments or [{
+        "garment_image_url": garment_image_url,
+        "garment_region": garment_region or "upper",
+    }]
+
+    if not person_image_url:
+        raise TryOnServiceError("Person image missing.")
+
+    if not garment_layers or not garment_layers[0].get("garment_image_url"):
+        raise TryOnServiceError("Invalid garment image.")
+
+    try_on_mode = _resolve_try_on_mode(garment_layers)
 
     try:
-        if not person_image_url:
-            raise TryOnServiceError("Person image missing.")
-        if not garment_image_url:
-            raise TryOnServiceError("Invalid garment image.")
-
-        logger.info("Downloading person and garment images for virtual try-on")
+        logger.info(
+            "Downloading person image and %s garment layer(s) for virtual try-on",
+            len(garment_layers),
+        )
 
         async with httpx.AsyncClient() as client:
-            await asyncio.gather(
-                _download_image(person_image_url, person_path, client),
-                _download_image(garment_image_url, garment_path, client),
-            )
+            await _download_image(person_image_url, person_path, client)
 
         await asyncio.to_thread(_validate_downloaded_image, person_path, "Person")
-        await asyncio.to_thread(_validate_downloaded_image, garment_path, "Garment")
+        shutil.copy2(person_path, current_person_path)
 
-        try:
-            result_path = await asyncio.wait_for(
-                asyncio.to_thread(_invoke_catvton_with_retry, person_path, garment_path),
-                timeout=TRYON_TIMEOUT_SECONDS,
-            )
-        except Exception as exc:
-            if _fallback_enabled() and _is_quota_error(exc):
-                logger.warning(
-                    "CatVTON ZeroGPU quota unavailable; using local overlay fallback: %s",
-                    exc,
+        final_result_path: Path | None = None
+
+        async with httpx.AsyncClient() as client:
+            for index, layer in enumerate(garment_layers):
+                garment_url = layer.get("garment_image_url")
+                region = layer.get("garment_region") or "upper"
+                garment_path = work_dir / f"garment_{index}.png"
+
+                if not garment_url:
+                    raise TryOnServiceError("Invalid garment image.")
+
+                await _download_image(garment_url, garment_path, client)
+                await asyncio.to_thread(_validate_downloaded_image, garment_path, "Garment")
+
+                logger.info(
+                    "Applying garment layer %s/%s | region=%s",
+                    index + 1,
+                    len(garment_layers),
+                    region,
                 )
-                output_path = OUTPUT_DIR / f"{uuid.uuid4().hex}.png"
-                await asyncio.to_thread(
-                    _local_tryon_fallback,
-                    person_path,
+
+                layer_result = await _run_single_garment_tryon(
+                    current_person_path,
                     garment_path,
-                    output_path,
+                    region,
+                    work_dir,
                 )
-                return f"/tryon/results/{output_path.name}"
 
-            if isinstance(exc, asyncio.TimeoutError):
-                raise TryOnTimeoutError(
-                    f"Virtual try-on timed out after {TRYON_TIMEOUT_SECONDS} seconds",
-                ) from exc
+                shutil.copy2(layer_result, current_person_path)
+                final_result_path = layer_result
 
-            if isinstance(exc, TryOnServiceError):
-                raise
-
-            raise TryOnServiceError(f"Virtual try-on failed: {exc}") from exc
+        if not final_result_path:
+            raise TryOnServiceError("Virtual try-on failed.")
 
         logger.info("Rendering result...")
         output_path = OUTPUT_DIR / f"{uuid.uuid4().hex}.png"
-        shutil.copy2(result_path, output_path)
+        await asyncio.to_thread(_persist_generated_image, final_result_path, output_path)
 
-        logger.info("Generation successful | saved=%s", output_path)
-        return f"/tryon/results/{output_path.name}"
+        logger.info(
+            "Generation successful | mode=%s | layers=%s | saved=%s",
+            try_on_mode,
+            len(garment_layers),
+            output_path,
+        )
+
+        return {
+            "result_image_url": f"/tryon/results/{output_path.name}",
+            "try_on_mode": try_on_mode,
+            "garments_applied": len(garment_layers),
+        }
     except asyncio.TimeoutError as exc:
         raise TryOnTimeoutError(
             f"Virtual try-on timed out after {TRYON_TIMEOUT_SECONDS} seconds",

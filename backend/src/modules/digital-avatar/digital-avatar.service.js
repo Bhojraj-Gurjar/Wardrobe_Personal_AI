@@ -15,6 +15,8 @@ import { FaceAnalysisService } from '../face-analysis/face-analysis.service';
 import { UsersRepository } from '../users/repositories/users.repository';
 import { UserMediaRegistryService } from '../user-media/services/user-media-registry.service';
 import { AiService } from '../ai/services/ai.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { APP_NOTIFICATION_TYPES } from '../notifications/notifications.constants';
 
 function resolveUserArtifacts(moduleRef) {
   const { UserArtifactsService } = require('../user-artifacts/user-artifacts.service');
@@ -65,6 +67,7 @@ class DigitalAvatarService {
     @Inject(DigitalAvatarVectorService) digitalAvatarVectorService,
     @Inject(ModuleRef) moduleRef,
     @Inject(UserMediaRegistryService) userMediaRegistryService,
+    @Inject(NotificationsService) notificationsService,
   ) {
     this.digitalAvatarRepository = digitalAvatarRepository;
     this.avatarImageStorageService = avatarImageStorageService;
@@ -76,6 +79,7 @@ class DigitalAvatarService {
     this.digitalAvatarVectorService = digitalAvatarVectorService;
     this.moduleRef = moduleRef;
     this.userMediaRegistryService = userMediaRegistryService;
+    this.notificationsService = notificationsService;
     this.logger = new Logger(DigitalAvatarService.name);
   }
 
@@ -245,6 +249,14 @@ class DigitalAvatarService {
     );
 
     await this.syncAvatarVector(userId, record);
+
+    this.notificationsService.notifyProfileEvent(
+      userId,
+      APP_NOTIFICATION_TYPES.DIGITAL_AVATAR_GENERATED,
+      'Digital avatar generated',
+      'Your digital avatar is ready to view.',
+      '/digital-avatar',
+    ).catch(() => null);
 
     return this.formatRecord(record);
   }

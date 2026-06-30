@@ -346,7 +346,7 @@ class AdminProductCmsRepository {
       this.prisma.productView.count({ where: { product_id: resolvedProductId } }).catch(() => 0),
       this.prisma.wishlist.count({ where: { product_id: resolvedProductId } }).catch(() => 0),
       this.prisma.order.count({
-        where: { product_id: resolvedProductId, status: 'DELIVERED' },
+        where: { product_id: resolvedProductId, status: { in: ['DELIVERED', 'COMPLETED'] } },
       }).catch(() => 0),
     ]).then(([views, wishlistCount, orders]) => ({
       views: views ?? 0,

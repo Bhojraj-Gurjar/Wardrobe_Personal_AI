@@ -7,6 +7,7 @@ import {
 import { randomUUID } from 'crypto';
 import { StorageService } from '../../../storage/services/storage.service';
 import { StoragePathResolver } from '../../../storage/services/storage-path-resolver.service';
+import { resolveAdminProductTypeDisplay } from '../utils/admin-product-type.util';
 import { formatCatalogProduct } from '../../products/utils/product-catalog.mapper';
 import {
   isValidProductType,
@@ -22,6 +23,7 @@ import {
 } from '../constants/cms-taxonomy.constants';
 import { AdminProductCmsRepository } from '../repositories/admin-product-cms.repository';
 import { ProductService } from '../../products/services/product.service';
+import { recordSeedSuppression } from '../../products/utils/product-seed-guard.util';
 
 const ALLOWED_IMAGE_MIME = new Set([
   'image/jpeg',
@@ -71,12 +73,68 @@ class AdminProductCmsService {
     await this.productService.invalidateCatalogCache(productId);
   }
 
-  deleteProduct(id) {
-    return this.cmsRepository.deleteProductById(id);
+  async deleteProduct(id) {
+    const product = await this.cmsRepository.findProductById(id);
+
+    if (!product) {
+      return null;
+    }
+
+    const deleted = await this.cmsRepository.deleteProductById(id);
+
+    if (deleted) {
+      if (product.sku) {
+        recordSeedSuppression(product.sku);
+      }
+
+      await this.cleanupProductStorage(product);
+    }
+
+    return deleted;
   }
 
-  archiveProduct(id) {
-    return this.cmsRepository.archiveProductById(id);
+  async archiveProduct(id) {
+    const product = await this.cmsRepository.findProductById(id);
+
+    if (!product) {
+      return null;
+    }
+
+    const archived = await this.cmsRepository.archiveProductById(id);
+
+    if (archived?.sku) {
+      recordSeedSuppression(archived.sku);
+    }
+
+    return archived;
+  }
+
+  async cleanupProductStorage(product) {
+    const urls = new Set();
+
+    if (product.image_url) {
+      urls.add(product.image_url);
+    }
+
+    if (product.try_on_image) {
+      urls.add(product.try_on_image);
+    }
+
+    for (const image of product.images || []) {
+      if (image?.url) {
+        urls.add(image.url);
+      }
+    }
+
+    for (const variant of product.variants || []) {
+      if (variant?.image_url) {
+        urls.add(variant.image_url);
+      }
+    }
+
+    await Promise.all(
+      [...urls].map((url) => this.storageService.deleteStoredFile(url).catch(() => false)),
+    );
   }
 
   async listProducts(query) {
@@ -542,7 +600,7 @@ class AdminProductCmsService {
       name: product.name,
       brand: product.brand,
       category: product.category,
-      productType: product.product_type,
+      productType: resolveAdminProductTypeDisplay(product),
       gender: product.gender,
       price: product.price,
       mrp: product.mrp,

@@ -3,11 +3,13 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { REFRESH_SOURCES } from '../../fashion-dna/constants/fashion-dna-regeneration.constants';
 import { FashionDnaRegenerationService } from '../../fashion-dna/services/fashion-dna-regeneration.service';
 import { ProductService } from '../../products/services/product.service';
+import { formatCatalogProduct } from '../../products/utils/product-catalog.mapper';
 import { DEFAULT_CURRENCY } from '../../../common/utils/currency.util';
 import { STOCK_EXCEEDED_ERROR, StockExceededError } from '../../commerce/utils/inventory.util';
 import {
@@ -17,6 +19,8 @@ import {
 import { StoragePathResolver } from '../../../storage/services/storage-path-resolver.service';
 import { OrdersRepository } from '../repositories/orders.repository';
 import { OrderEventService } from './order-event.service';
+import { OrderOmsService } from './order-oms.service';
+import { NotificationsService } from '../../notifications/notifications.service';
 import {
   isOrderCancellable,
   normalizeDisplayStatus,
@@ -37,16 +41,20 @@ class OrdersService {
     @Inject(ProductService) productService,
     @Inject(OrderEventService) orderEventService,
     @Inject(StoragePathResolver) storagePathResolver,
+    @Inject(forwardRef(() => OrderOmsService)) orderOmsService,
+    @Inject(NotificationsService) notificationsService,
   ) {
     this.ordersRepository = ordersRepository;
     this.fashionDnaRegenerationService = fashionDnaRegenerationService;
     this.productService = productService;
     this.orderEventService = orderEventService;
     this.storagePathResolver = storagePathResolver;
+    this.orderOmsService = orderOmsService;
+    this.notificationsService = notificationsService;
   }
 
   updateExpiredOrders() {
-    return this.ordersRepository.syncAutoStatuses();
+    return this.orderOmsService.autoCompleteInTransitOrders();
   }
 
   async create(userId, dto) {
@@ -160,7 +168,7 @@ class OrdersService {
       notes: 'Order placed via checkout',
     });
 
-    await this.ordersRepository.createNotification({
+    const placedNotification = await this.ordersRepository.createNotification({
       id: randomUUID(),
       user_id: userId,
       order_id: order.id,
@@ -175,6 +183,17 @@ class OrdersService {
       orderNumber: order.order_number,
       status: ORDER_STATUS.CREATED,
     });
+
+    this.orderEventService.emit(ORDER_EVENTS.ORDER_NOTIFICATION_CREATED, {
+      userId,
+      orderId: order.id,
+      orderNumber: order.order_number,
+      notificationId: placedNotification.id,
+      type: ORDER_NOTIFICATION_TYPE.ORDER_PLACED,
+    });
+
+    this.notificationsService.forwardOrderNotification(userId, placedNotification, order);
+    this.notificationsService.notifyAdminNewOrder(order).catch(() => null);
 
     await Promise.all(
       [...new Set(checkoutDto.items.map((item) => item.product_id))].map((productId) =>
@@ -374,6 +393,7 @@ class OrdersService {
       invoice_generated_at: order.invoice_generated_at,
       packed_at: order.packed_at,
       dispatched_at: order.dispatched_at,
+      in_transit_at: order.dispatched_at ?? order.oms_metadata?.in_transit_at ?? null,
       delivered_at: order.delivered_at,
       completed_at: order.completed_at,
       created_at: order.created_at,

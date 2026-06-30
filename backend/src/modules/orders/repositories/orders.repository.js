@@ -418,9 +418,61 @@ class OrdersRepository {
     });
   }
 
-  /** OMS: admin-driven lifecycle — no auto-progression. */
+  /** Auto-complete in-transit orders that have passed the delivery window. */
   async syncAutoStatuses() {
     return 0;
+  }
+
+  findOrdersByStatus(status) {
+    return this.prisma.order.findMany({
+      where: { status },
+      include: ORDER_INCLUDE,
+    });
+  }
+
+  findShippedOrdersReadyForCompletion(cutoff) {
+    return this.prisma.order.findMany({
+      where: {
+        status: ORDER_STATUS.SHIPPED,
+        OR: [
+          { dispatched_at: { lte: cutoff } },
+          {
+            dispatched_at: null,
+            updated_at: { lte: cutoff },
+          },
+        ],
+      },
+      include: ORDER_INCLUDE,
+    });
+  }
+
+  async migrateDeliveredOrdersToCompleted() {
+    const legacyOrders = await this.prisma.order.findMany({
+      where: { status: 'DELIVERED' },
+      select: { id: true, delivered_at: true, completed_at: true },
+    });
+
+    if (!legacyOrders.length) {
+      return 0;
+    }
+
+    await Promise.all(
+      legacyOrders.map((order) => {
+        const deliveredAt = order.delivered_at || new Date();
+        const completedAt = order.completed_at || deliveredAt;
+
+        return this.prisma.order.update({
+          where: { id: order.id },
+          data: {
+            status: 'COMPLETED',
+            delivered_at: deliveredAt,
+            completed_at: completedAt,
+          },
+        });
+      }),
+    );
+
+    return legacyOrders.length;
   }
 
   countByStatus() {

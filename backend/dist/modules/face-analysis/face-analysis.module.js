@@ -13,6 +13,7 @@ const _authmodule = require("../auth/auth.module");
 const _facemodule = require("../face/face.module");
 const _fashiondnamodule = require("../fashion-dna/fashion-dna.module");
 const _pipelineeventmodule = require("../user-pipeline/pipeline-event.module");
+const _notificationsmodule = require("../notifications/notifications.module");
 const _faceanalysiscontroller = require("./face-analysis.controller");
 const _faceanalysisrepository = require("./face-analysis.repository");
 const _faceanalysisservice = require("./face-analysis.service");
@@ -32,7 +33,8 @@ FaceAnalysisModule = _ts_decorate([
             _authmodule.AuthModule,
             _facemodule.FaceModule,
             (0, _common.forwardRef)(()=>_fashiondnamodule.FashionDnaModule),
-            _pipelineeventmodule.PipelineEventModule
+            _pipelineeventmodule.PipelineEventModule,
+            _notificationsmodule.NotificationsModule
         ],
         controllers: [
             _faceanalysiscontroller.FaceAnalysisController

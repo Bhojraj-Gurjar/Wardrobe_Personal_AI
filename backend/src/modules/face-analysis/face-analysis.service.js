@@ -16,6 +16,8 @@ import { AiService } from '../ai/services/ai.service';
 import { REFRESH_SOURCES } from '../fashion-dna/constants/fashion-dna-regeneration.constants';
 import { FashionDnaRegenerationService } from '../fashion-dna/services/fashion-dna-regeneration.service';
 import { PIPELINE_SIGNALS, PipelineEventBus } from '../user-pipeline/pipeline-event.bus';
+import { NotificationsService } from '../notifications/notifications.service';
+import { APP_NOTIFICATION_TYPES } from '../notifications/notifications.constants';
 
 function resolveUserArtifacts(moduleRef) {
   const { UserArtifactsService } = require('../user-artifacts/user-artifacts.service');
@@ -44,6 +46,7 @@ class FaceAnalysisService {
     fashionDnaRegenerationService,
     @Inject(PipelineEventBus) pipelineEventBus,
     @Inject(ModuleRef) moduleRef,
+    @Inject(NotificationsService) notificationsService,
   ) {
     this.faceAnalysisRepository = faceAnalysisRepository;
     this.biometricTraitsService = biometricTraitsService;
@@ -53,6 +56,7 @@ class FaceAnalysisService {
     this.fashionDnaRegenerationService = fashionDnaRegenerationService;
     this.pipelineEventBus = pipelineEventBus;
     this.moduleRef = moduleRef;
+    this.notificationsService = notificationsService;
     this.logger = new Logger(FaceAnalysisService.name);
   }
 
@@ -153,6 +157,14 @@ class FaceAnalysisService {
         userId,
       });
     });
+
+    this.notificationsService.notifyProfileEvent(
+      userId,
+      APP_NOTIFICATION_TYPES.FACE_UPDATED,
+      'Face analysis completed',
+      'Your face analysis report is ready to view.',
+      '/face-analysis',
+    ).catch(() => null);
 
     const facePhoto = await resolveFaceService(this.moduleRef).getFacePhoto(userId);
 

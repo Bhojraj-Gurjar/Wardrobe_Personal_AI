@@ -88,18 +88,7 @@ class ProductRepository {
     const and = [buildCatalogVisibilityFilter()];
 
     if (query.search) {
-      and.push({
-        OR: [
-          { name: { contains: query.search, mode: 'insensitive' } },
-          { sku: { contains: query.search, mode: 'insensitive' } },
-          { description: { contains: query.search, mode: 'insensitive' } },
-          { brand: { contains: query.search, mode: 'insensitive' } },
-          { category: { contains: query.search, mode: 'insensitive' } },
-          { subcategory: { contains: query.search, mode: 'insensitive' } },
-          { product_type: { contains: query.search, mode: 'insensitive' } },
-          { color: { contains: query.search, mode: 'insensitive' } },
-        ],
-      });
+      and.push(this.buildTextSearchFilter(query.search));
     }
 
     if (query.category) {
@@ -194,6 +183,108 @@ class ProductRepository {
     }
 
     return { AND: and };
+  }
+
+  buildTextSearchFilter(term) {
+    return {
+      OR: [
+        { name: { contains: term, mode: 'insensitive' } },
+        { sku: { contains: term, mode: 'insensitive' } },
+        { description: { contains: term, mode: 'insensitive' } },
+        { brand: { contains: term, mode: 'insensitive' } },
+        { category: { contains: term, mode: 'insensitive' } },
+        { subcategory: { contains: term, mode: 'insensitive' } },
+        { product_type: { contains: term, mode: 'insensitive' } },
+        { color: { contains: term, mode: 'insensitive' } },
+        { fabric: { contains: term, mode: 'insensitive' } },
+        { pattern: { contains: term, mode: 'insensitive' } },
+        { fit_type: { contains: term, mode: 'insensitive' } },
+      ],
+    };
+  }
+
+  findSearchSuggestionProducts(term, limit = 8) {
+    const where = {
+      AND: [
+        buildCatalogVisibilityFilter(),
+        this.buildTextSearchFilter(term),
+      ],
+    };
+
+    return this.prisma.product.findMany({
+      where,
+      orderBy: [
+        { is_trending: 'desc' },
+        { view_count: 'desc' },
+        { created_at: 'desc' },
+      ],
+      take: limit,
+      include: { images: { orderBy: { sort_order: 'asc' } } },
+    });
+  }
+
+  findSearchFacetRows(term, limit = 60) {
+    const where = {
+      AND: [
+        buildCatalogVisibilityFilter(),
+        this.buildTextSearchFilter(term),
+      ],
+    };
+
+    return this.prisma.product.findMany({
+      where,
+      select: {
+        brand: true,
+        category: true,
+        subcategory: true,
+        style_tags: true,
+        tags: true,
+        cms_metadata: true,
+        product_type: true,
+      },
+      take: limit,
+    });
+  }
+
+  findTrendingProducts(limit = 6) {
+    return this.prisma.product.findMany({
+      where: {
+        AND: [
+          buildCatalogVisibilityFilter(),
+          { OR: [{ is_trending: true }, { is_best_seller: true }] },
+        ],
+      },
+      orderBy: [
+        { is_trending: 'desc' },
+        { view_count: 'desc' },
+      ],
+      take: limit,
+      include: { images: { orderBy: { sort_order: 'asc' } } },
+    });
+  }
+
+  findPopularBrands(limit = 6) {
+    return this.prisma.product.groupBy({
+      by: ['brand'],
+      where: {
+        AND: [
+          buildCatalogVisibilityFilter(),
+          { brand: { not: null } },
+        ],
+      },
+      _count: { brand: true },
+      orderBy: { _count: { brand: 'desc' } },
+      take: limit,
+    });
+  }
+
+  findTrendingSearchQueries(limit = 5) {
+    return this.prisma.searchHistory.groupBy({
+      by: ['query'],
+      _count: { query: true },
+      orderBy: { _count: { query: 'desc' } },
+      take: limit,
+    });
   }
 
   mapImages(images) {

@@ -36,6 +36,8 @@ import { FashionDnaRegenerationService } from '../fashion-dna/services/fashion-d
 
 import { PIPELINE_SIGNALS, PipelineEventBus } from '../user-pipeline/pipeline-event.bus';
 import { UserMediaRegistryService } from '../user-media/services/user-media-registry.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { APP_NOTIFICATION_TYPES } from '../notifications/notifications.constants';
 
 import {
 
@@ -87,6 +89,8 @@ class BodyAnalysisService {
 
     @Inject(UserMediaRegistryService) userMediaRegistryService,
 
+    @Inject(NotificationsService) notificationsService,
+
   ) {
 
     this.bodyAnalysisRepository = bodyAnalysisRepository;
@@ -110,6 +114,8 @@ class BodyAnalysisService {
     this.moduleRef = moduleRef;
 
     this.userMediaRegistryService = userMediaRegistryService;
+
+    this.notificationsService = notificationsService;
 
     this.logger = new Logger(BodyAnalysisService.name);
 
@@ -468,6 +474,14 @@ class BodyAnalysisService {
         userId,
       });
     });
+
+    this.notificationsService.notifyProfileEvent(
+      userId,
+      APP_NOTIFICATION_TYPES.BODY_ANALYSIS_COMPLETED,
+      'Body analysis completed',
+      'Your body analysis report is ready to view.',
+      '/body-analysis',
+    ).catch(() => null);
 
     return this.enrichBodyAnalysisResponse(record);
   }

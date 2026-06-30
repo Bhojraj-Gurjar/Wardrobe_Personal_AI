@@ -9,6 +9,15 @@ import { ProductRepository } from '../products/repositories/product.repository';
 import { TryOnService } from '../try-on/try-on.service';
 import { assessTryOnCompatibility } from '../try-on/utils/try-on-product-compatibility.util';
 import {
+  buildTryOnGarmentPlan,
+  describeTryOnMode,
+} from '../try-on/utils/try-on-garment-plan.util';
+import {
+  inferProductType,
+  resolveCatvtonRegionFromProductType,
+  resolveTryOnSlotFromProductType,
+} from '../products/constants/product-type.constants';
+import {
   mapProductImagesForResponse,
   resolvePublicProductImageUrl,
 } from '../products/utils/resolve-product-image.util';
@@ -17,6 +26,7 @@ import { FashionDnaRegenerationService } from '../fashion-dna/services/fashion-d
 import { REFRESH_SOURCES } from '../fashion-dna/constants/fashion-dna-regeneration.constants';
 import { UserMediaRegistryService } from '../user-media/services/user-media-registry.service';
 import { VirtualTryOnRepository } from './virtual-try-on.repository';
+import { NotificationsService } from '../notifications/notifications.service';
 import { BodyImageResolverService } from './services/body-image-resolver.service';
 import { BackgroundRemovalService } from './services/background-removal.service';
 import { TRY_ON_CATEGORIES, EMPTY_TRY_ON_OUTFIT } from './constants/try-on-layer.constants';
@@ -93,6 +103,7 @@ class VirtualTryOnService {
     @Inject(TryOnService) tryOnService,
     @Inject(FashionDnaRegenerationService) fashionDnaRegenerationService,
     @Inject(UserMediaRegistryService) userMediaRegistryService,
+    @Inject(NotificationsService) notificationsService,
   ) {
     this.repository = repository;
     this.bodyImageResolver = bodyImageResolver;
@@ -102,6 +113,7 @@ class VirtualTryOnService {
     this.tryOnService = tryOnService;
     this.fashionDnaRegenerationService = fashionDnaRegenerationService;
     this.userMediaRegistryService = userMediaRegistryService;
+    this.notificationsService = notificationsService;
     this.logger = new Logger(VirtualTryOnService.name);
   }
 
@@ -251,6 +263,10 @@ class VirtualTryOnService {
         productImages: images,
         isTryOnCompatible: compatibility.isTryOnCompatible,
         compatibilityLabel: compatibility.compatibilityLabel,
+        tryOnSlot: resolveTryOnSlotFromProductType(product.product_type || inferProductType(product)),
+        tryOnRegion: resolveCatvtonRegionFromProductType(
+          product.product_type || inferProductType(product),
+        ),
       };
     });
 
@@ -372,11 +388,15 @@ class VirtualTryOnService {
 
     this.logger.log(`Generating virtual try-on for user=${userId} product=${productId}`);
 
+    const garmentRegion = resolveCatvtonRegionFromProductType(
+      inferProductType(record),
+    ) || 'upper';
+
     const catvtonResult = await this.tryOnService.generateTryOn(
       userId,
       personImageUrl,
       garmentImageUrl,
-      { persistHistory: false },
+      { persistHistory: false, garmentRegion },
     );
 
     const generatedImageUrl = this.tryOnService.toBrowserAccessibleTryOnUrl(
@@ -427,6 +447,16 @@ class VirtualTryOnService {
       ? null
       : await this.bodyImageResolver.resolveDisplayBodyImagePath(userId);
 
+    this.logger.log(
+      `Virtual try-on completed for user=${userId} product=${productId} image=${persistedGeneratedImage || generatedImageUrl}`,
+    );
+
+    this.notificationsService.notifyVirtualTryOnCompleted(
+      userId,
+      resultRecord.id,
+      product?.name,
+    ).catch(() => null);
+
     return {
       result: this.formatTryOnResult(resultRecord, product),
       bodyPhotoUrl: usingTemporaryBody
@@ -438,6 +468,179 @@ class VirtualTryOnService {
         persistedGeneratedImage || generatedImageUrl,
         (path) => this.storagePathResolver.toPublicUrl(path),
       ),
+      tryOnMode: catvtonResult?.tryOnMode || (garmentRegion === 'lower' ? 'lower' : 'upper'),
+      tryOnModeLabel: describeTryOnMode(
+        catvtonResult?.tryOnMode || (garmentRegion === 'lower' ? 'lower' : 'upper'),
+      ),
+      garmentsApplied: catvtonResult?.garmentsApplied || 1,
+    };
+  }
+
+  async generateOutfitTryOn(userId, productIds = [], options = {}) {
+    const uniqueIds = [...new Set((productIds || []).filter(Boolean))];
+
+    if (!uniqueIds.length) {
+      throw new BadRequestException('Select at least one product to try on.');
+    }
+
+    const onboardingBodyPath = await this.bodyImageResolver.resolveBodyImagePath(userId);
+    const temporaryBodyImageUrl = options.temporaryBodyImageUrl || null;
+    const usingTemporaryBody = Boolean(temporaryBodyImageUrl);
+
+    if (!onboardingBodyPath && !usingTemporaryBody) {
+      throw new BadRequestException(
+        'Complete onboarding with a body photo to use Virtual Try-On.',
+      );
+    }
+
+    const bodyPhotoPath = usingTemporaryBody
+      ? temporaryBodyImageUrl
+      : onboardingBodyPath;
+
+    const records = await Promise.all(
+      uniqueIds.map((id) => this.productRepository.findById(id)),
+    );
+
+    const products = records
+      .filter((record) => record && record.is_active !== false)
+      .map((record) => formatDbProduct(record, this.storagePathResolver));
+
+    if (!products.length) {
+      throw new NotFoundException('No valid products found for try-on.');
+    }
+
+    const plan = buildTryOnGarmentPlan(records.filter(Boolean));
+
+    if (!plan.garments.length) {
+      const reason = plan.unsupported[0]?.reason
+        || 'Selected products are not compatible with virtual try-on.';
+      throw new BadRequestException(reason);
+    }
+
+    if (plan.unsupported.length) {
+      this.logger.warn(
+        `Skipping unsupported try-on products for user=${userId}: ${plan.unsupported
+          .map((entry) => entry.product?.name)
+          .filter(Boolean)
+          .join(', ')}`,
+      );
+    }
+
+    const garmentLayers = plan.garments.map((entry) => {
+      const compatibility = assessTryOnCompatibility(
+        records.find((record) => record?.id === entry.product.id),
+      );
+      const garmentImageUrl = this.storagePathResolver.toPublicUrl(compatibility.tryOnImage)
+        || entry.product.imageUrl;
+
+      if (!garmentImageUrl) {
+        throw new BadRequestException(`${entry.product.name} has no garment image.`);
+      }
+
+      return {
+        garmentImageUrl,
+        garmentRegion: entry.region,
+      };
+    });
+
+    if (!usingTemporaryBody) {
+      await this.repository.upsertSession(userId, {
+        body_image: bodyPhotoPath,
+        transparent_image: null,
+      });
+    }
+
+    const personImageUrl = usingTemporaryBody
+      ? temporaryBodyImageUrl
+      : this.storagePathResolver.toPublicUrl(bodyPhotoPath);
+
+    this.logger.log(
+      `Generating outfit try-on for user=${userId} mode=${plan.mode} layers=${garmentLayers.length}`,
+    );
+
+    const catvtonResult = await this.tryOnService.generateTryOn(
+      userId,
+      personImageUrl,
+      null,
+      { persistHistory: false, garments: garmentLayers },
+    );
+
+    const generatedImageUrl = this.tryOnService.toBrowserAccessibleTryOnUrl(
+      catvtonResult?.resultImageUrl
+      || catvtonResult?.result_image_url
+      || null,
+    );
+
+    const persistedGeneratedImage = await this.tryOnService.persistGeneratedResult(
+      userId,
+      generatedImageUrl,
+    );
+
+    if (persistedGeneratedImage) {
+      await this.userMediaRegistryService.registerTryOnResult(userId, persistedGeneratedImage, {
+        productId: products[0]?.id,
+        bodyPhotoReference: usingTemporaryBody ? null : bodyPhotoPath,
+      });
+    }
+
+    const resultRecord = await this.repository.createTryOnResult(userId, {
+      product_id: products[0]?.id,
+      body_photo_reference: usingTemporaryBody ? null : bodyPhotoPath,
+      transparent_image: null,
+      garment_image: garmentLayers[0]?.garmentImageUrl || null,
+      generated_image: persistedGeneratedImage || generatedImageUrl,
+      input_image: usingTemporaryBody ? temporaryBodyImageUrl : bodyPhotoPath,
+      selected_products: products,
+    });
+
+    const session = await this.repository.findSessionByUserId(userId);
+    const sessionBodyImage = usingTemporaryBody
+      ? (this.isTryOnPersonSessionPath(session?.body_image)
+        ? session.body_image
+        : null)
+      : bodyPhotoPath;
+
+    await this.repository.upsertSession(userId, {
+      body_image: sessionBodyImage || bodyPhotoPath,
+      transparent_image: usingTemporaryBody ? null : null,
+      generated_outfit_image: persistedGeneratedImage || generatedImageUrl,
+      selected_products: products,
+    });
+
+    this.scheduleFashionDnaRefresh(userId, REFRESH_SOURCES.TRY_ON);
+
+    const displayBodyPath = usingTemporaryBody
+      ? null
+      : await this.bodyImageResolver.resolveDisplayBodyImagePath(userId);
+
+    this.notificationsService.notifyVirtualTryOnCompleted(
+      userId,
+      resultRecord.id,
+      products.map((item) => item.name).filter(Boolean).join(' + '),
+    ).catch(() => null);
+
+    const resolvedMode = catvtonResult?.tryOnMode || plan.mode;
+
+    return {
+      result: this.formatTryOnResult(resultRecord, products[0]),
+      bodyPhotoUrl: usingTemporaryBody
+        ? temporaryBodyImageUrl
+        : this.storagePathResolver.toPublicUrl(
+          displayBodyPath || bodyPhotoPath,
+        ),
+      generatedImageUrl: this.tryOnService.toPublicTryOnUrl(
+        persistedGeneratedImage || generatedImageUrl,
+        (path) => this.storagePathResolver.toPublicUrl(path),
+      ),
+      tryOnMode: resolvedMode,
+      tryOnModeLabel: describeTryOnMode(resolvedMode),
+      garmentsApplied: catvtonResult?.garmentsApplied || garmentLayers.length,
+      selectedProducts: products,
+      skippedProducts: plan.unsupported.map((entry) => ({
+        id: entry.product?.id,
+        name: entry.product?.name,
+        reason: entry.reason,
+      })),
     };
   }
 

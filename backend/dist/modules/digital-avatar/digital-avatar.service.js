@@ -15,6 +15,8 @@ const _faceanalysisservice = require("../face-analysis/face-analysis.service");
 const _usersrepository = require("../users/repositories/users.repository");
 const _usermediaregistryservice = require("../user-media/services/user-media-registry.service");
 const _aiservice = require("../ai/services/ai.service");
+const _notificationsservice = require("../notifications/notifications.service");
+const _notificationsconstants = require("../notifications/notifications.constants");
 const _storagepathresolverservice = require("../../storage/services/storage-path-resolver.service");
 const _digitalavatarcontextutil = require("./utils/digital-avatar-context.util");
 const _digitalavatarrepository = require("./digital-avatar.repository");
@@ -46,7 +48,7 @@ function resolveUserArtifacts(moduleRef) {
     });
 }
 let DigitalAvatarService = class DigitalAvatarService {
-    constructor(digitalAvatarRepository, avatarImageStorageService, storagePathResolver, aiService, faceAnalysisService, bodyAnalysisService, usersRepository, digitalAvatarVectorService, moduleRef, userMediaRegistryService){
+    constructor(digitalAvatarRepository, avatarImageStorageService, storagePathResolver, aiService, faceAnalysisService, bodyAnalysisService, usersRepository, digitalAvatarVectorService, moduleRef, userMediaRegistryService, notificationsService){
         this.digitalAvatarRepository = digitalAvatarRepository;
         this.avatarImageStorageService = avatarImageStorageService;
         this.storagePathResolver = storagePathResolver;
@@ -57,6 +59,7 @@ let DigitalAvatarService = class DigitalAvatarService {
         this.digitalAvatarVectorService = digitalAvatarVectorService;
         this.moduleRef = moduleRef;
         this.userMediaRegistryService = userMediaRegistryService;
+        this.notificationsService = notificationsService;
         this.logger = new _common.Logger(DigitalAvatarService.name);
     }
     async syncAvatarVector(userId, record) {
@@ -159,6 +162,7 @@ let DigitalAvatarService = class DigitalAvatarService {
         });
         this.logger.log(`Digital avatar v${record.version} (${record.avatar_type}) activated for user ${userId}`);
         await this.syncAvatarVector(userId, record);
+        this.notificationsService.notifyProfileEvent(userId, _notificationsconstants.APP_NOTIFICATION_TYPES.DIGITAL_AVATAR_GENERATED, 'Digital avatar generated', 'Your digital avatar is ready to view.', '/digital-avatar').catch(()=>null);
         return this.formatRecord(record);
     }
     async generateBasicAvatar(userId) {
@@ -271,8 +275,10 @@ DigitalAvatarService = _ts_decorate([
     _ts_param(7, (0, _common.Inject)(_digitalavatarvectorservice.DigitalAvatarVectorService)),
     _ts_param(8, (0, _common.Inject)(_core.ModuleRef)),
     _ts_param(9, (0, _common.Inject)(_usermediaregistryservice.UserMediaRegistryService)),
+    _ts_param(10, (0, _common.Inject)(_notificationsservice.NotificationsService)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        void 0,
         void 0,
         void 0,
         void 0,

@@ -7,6 +7,8 @@ const {
   TRYON_SKU_PREFIX,
   TRY_ON_PRODUCT_SEED,
 } = require('./lib/try-on-products.seed.cjs');
+const { isSkuSeedSuppressed } = require('./lib/product-seed-guard.cjs');
+const { inferProductTypeFromMetadata } = require('../src/modules/products/constants/product-type.constants');
 
 loadEnv({ path: resolve(__dirname, '../.env') });
 
@@ -29,6 +31,7 @@ function mapProductData(product) {
     description: product.description ?? null,
     category,
     subcategory: product.subcategory,
+    product_type: product.productType ?? inferProductTypeFromMetadata(product),
     gender: product.gender,
     brand,
     category_id: category,
@@ -64,12 +67,20 @@ function mapImages(product) {
 }
 
 async function upsertProduct(prisma, product) {
+  if (isSkuSeedSuppressed(product.sku)) {
+    return null;
+  }
+
   const data = mapProductData(product);
   const images = mapImages(product);
   const existing = await prisma.product.findUnique({
     where: { sku: product.sku },
-    select: { id: true },
+    select: { id: true, cms_metadata: true },
   });
+
+  if (existing?.cms_metadata?.adminDeleted) {
+    return existing;
+  }
 
   if (existing) {
     return prisma.product.update({

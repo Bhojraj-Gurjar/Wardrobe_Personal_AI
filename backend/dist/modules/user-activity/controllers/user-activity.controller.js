@@ -42,6 +42,12 @@ let UserActivityController = class UserActivityController {
     recordSearch(user, dto) {
         return this.userActivityService.recordSearch(user.userId, dto.query);
     }
+    getRecentSearches(user) {
+        return this.userActivityService.getRecentSearches(user.userId);
+    }
+    clearSearchHistory(user) {
+        return this.userActivityService.clearSearchHistory(user.userId);
+    }
 };
 _ts_decorate([
     (0, _common.Post)('product-views'),
@@ -81,6 +87,31 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", void 0)
 ], UserActivityController.prototype, "recordSearch", null);
+_ts_decorate([
+    (0, _common.Get)('searches'),
+    (0, _swagger.ApiOperation)({
+        summary: 'Get recent search history'
+    }),
+    _ts_param(0, (0, _currentuserdecorator.CurrentUser)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        void 0
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], UserActivityController.prototype, "getRecentSearches", null);
+_ts_decorate([
+    (0, _common.Delete)('searches'),
+    (0, _common.HttpCode)(200),
+    (0, _swagger.ApiOperation)({
+        summary: 'Clear search history'
+    }),
+    _ts_param(0, (0, _currentuserdecorator.CurrentUser)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        void 0
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], UserActivityController.prototype, "clearSearchHistory", null);
 UserActivityController = _ts_decorate([
     (0, _swagger.ApiTags)('user-activity'),
     (0, _swagger.ApiBearerAuth)(),

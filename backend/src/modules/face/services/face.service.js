@@ -23,6 +23,8 @@ import { REFRESH_SOURCES } from '../../fashion-dna/constants/fashion-dna-regener
 import { FashionDnaRegenerationService } from '../../fashion-dna/services/fashion-dna-regeneration.service';
 import { UserPipelineService } from '../../user-pipeline/user-pipeline.service';
 import { UserMediaRegistryService } from '../../user-media/services/user-media-registry.service';
+import { NotificationsService } from '../../notifications/notifications.service';
+import { APP_NOTIFICATION_TYPES } from '../../notifications/notifications.constants';
 import { USER_STATUS } from '../../../common/constants/user-status';
 import { parseDurationToSeconds } from '../../../common/utils/parse-duration';
 
@@ -42,6 +44,7 @@ class FaceService {
     @Inject(FashionDnaRegenerationService) fashionDnaRegenerationService,
     @Inject(forwardRef(() => UserPipelineService)) userPipelineService,
     @Inject(UserMediaRegistryService) userMediaRegistryService,
+    @Inject(NotificationsService) notificationsService,
   ) {
     this.faceRepository = faceRepository;
     this.faceImageStorageService = faceImageStorageService;
@@ -54,6 +57,7 @@ class FaceService {
     this.fashionDnaRegenerationService = fashionDnaRegenerationService;
     this.userPipelineService = userPipelineService;
     this.userMediaRegistryService = userMediaRegistryService;
+    this.notificationsService = notificationsService;
     this.logger = new Logger(FaceService.name);
     this.refreshTtlSeconds = parseDurationToSeconds(
       configService.get('jwt.refreshExpiresIn'),
@@ -76,6 +80,14 @@ class FaceService {
       userId,
       REFRESH_SOURCES.FACE_ANALYSIS,
     );
+
+    this.notificationsService.notifyProfileEvent(
+      userId,
+      APP_NOTIFICATION_TYPES.FACE_REGISTERED,
+      'Face registration completed',
+      'Your face has been registered successfully.',
+      '/face-analysis',
+    ).catch(() => null);
 
     return this.formatRegistrationResponse(userId, registration);
   }
@@ -253,7 +265,9 @@ class FaceService {
       challengeType: dto.challengeType,
     });
 
-    return this.buildAuthResponse(user);
+    return this.buildAuthResponse(user, {
+      similarityScore: result?.similarity_score ?? result?.similarityScore ?? null,
+    });
   }
 
   async verify(userId, dto) {
@@ -329,13 +343,14 @@ class FaceService {
     this.logger.log(`FACE_AUDIT | event=${event} | ${JSON.stringify(meta)}`);
   }
 
-  async buildAuthResponse(user) {
+  async buildAuthResponse(user, extra = {}) {
     const tokens = await this.generateTokens(user);
 
     return {
       user: this.sanitizeUser(user),
       faceVerified: true,
       message: 'Face verified',
+      ...extra,
       ...tokens,
     };
   }

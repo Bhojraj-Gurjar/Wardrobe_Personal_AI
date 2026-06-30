@@ -12,6 +12,7 @@ const _common = require("@nestjs/common");
 const _authmodule = require("../auth/auth.module");
 const _fashiondnamodule = require("../fashion-dna/fashion-dna.module");
 const _pipelineeventmodule = require("../user-pipeline/pipeline-event.module");
+const _notificationsmodule = require("../notifications/notifications.module");
 const _productsmodule = require("../products/products.module");
 const _storagemodule = require("../../storage/storage.module");
 const _bodyanalysiscontroller = require("./body-analysis.controller");
@@ -37,7 +38,8 @@ BodyAnalysisModule = _ts_decorate([
             _storagemodule.StorageModule,
             _productsmodule.ProductsModule,
             (0, _common.forwardRef)(()=>_fashiondnamodule.FashionDnaModule),
-            _pipelineeventmodule.PipelineEventModule
+            _pipelineeventmodule.PipelineEventModule,
+            _notificationsmodule.NotificationsModule
         ],
         controllers: [
             _bodyanalysiscontroller.BodyAnalysisController

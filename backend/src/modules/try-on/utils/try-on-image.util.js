@@ -67,6 +67,18 @@ export function mapTryOnServiceError(error) {
     return 'Unable to contact HuggingFace try-on service.';
   }
 
+  if (normalized.includes('permission denied') || normalized.includes('storage upload failed')) {
+    return 'Storage upload failed.';
+  }
+
+  if (normalized.includes('econnrefused') || normalized.includes('unable to reach')) {
+    return 'Unable to reach AI service.';
+  }
+
+  if (normalized.includes('authentication') || normalized.includes('unauthorized')) {
+    return 'Authentication failed.';
+  }
+
   if (detail) {
     return detail;
   }

@@ -4,6 +4,7 @@ import { ProductsModule } from '../products/products.module';
 import { BodyAnalysisModule } from '../body-analysis/body-analysis.module';
 import { TryOnModule } from '../try-on/try-on.module';
 import { FashionDnaModule } from '../fashion-dna/fashion-dna.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { VirtualTryOnController } from './virtual-try-on.controller';
 import { VirtualTryOnService } from './virtual-try-on.service';
 import { VirtualTryOnRepository } from './virtual-try-on.repository';
@@ -11,7 +12,7 @@ import { BodyImageResolverService } from './services/body-image-resolver.service
 import { BackgroundRemovalService } from './services/background-removal.service';
 
 export @Module({
-  imports: [AiModule, ProductsModule, BodyAnalysisModule, TryOnModule, FashionDnaModule],
+  imports: [AiModule, ProductsModule, BodyAnalysisModule, TryOnModule, FashionDnaModule, NotificationsModule],
   controllers: [VirtualTryOnController],
   providers: [
     VirtualTryOnService,

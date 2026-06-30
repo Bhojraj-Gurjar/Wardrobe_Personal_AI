@@ -95,6 +95,7 @@ model User {
   support_notifications SupportNotification[]
   addresses             UserAddress[]
   order_notifications   OrderNotification[]
+  user_notifications    UserNotification[]
   user_media            UserMedia[]
 
   @@map("users")
@@ -234,7 +235,7 @@ model Product {
   description          String?
   category             String?
   subcategory          String?
-  product_type         String         @default("T-Shirt") @map("product_type")
+  product_type         String?        @map("product_type")
   gender               String?
   brand                String?
   category_id          String?        @map("category_id")
@@ -987,6 +988,38 @@ model SupportNotification {
   @@index([user_id, is_read])
   @@index([ticket_id])
   @@map("support_notifications")
+}
+
+enum NotificationCategory {
+  ORDERS
+  SUPPORT
+  SHOPPING
+  SECURITY
+  SYSTEM
+  PROFILE
+  ADMIN
+}
+
+model UserNotification {
+  id          String               @id @default(uuid())
+  user_id     String               @map("user_id")
+  category    NotificationCategory
+  type        String
+  title       String
+  description String?
+  is_read     Boolean              @default(false) @map("is_read")
+  read_at     DateTime?            @map("read_at")
+  action_path String?              @map("action_path") @db.VarChar(2048)
+  entity_type String?              @map("entity_type")
+  entity_id   String?              @map("entity_id")
+  metadata    Json?
+  created_at  DateTime             @default(now()) @map("created_at")
+  user        User                 @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, is_read])
+  @@index([user_id, category])
+  @@index([user_id, created_at])
+  @@map("user_notifications")
 }
 
 model UserMedia {

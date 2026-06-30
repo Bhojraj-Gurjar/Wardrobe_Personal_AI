@@ -30,6 +30,7 @@ import { VirtualTryOnModule } from './modules/virtual-try-on/virtual-try-on.modu
 import { PersonalClosetModule } from './modules/personal-closet/personal-closet.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { SupportModule } from './modules/support/support.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AiModule } from './modules/ai/ai.module';
 import { RequestIdMiddleware } from './middleware/request-id.middleware';
 
@@ -65,6 +66,7 @@ export @Module({
     PersonalClosetModule,
     DashboardModule,
     SupportModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

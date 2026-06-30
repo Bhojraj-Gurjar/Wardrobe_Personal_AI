@@ -53,27 +53,30 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     libgomp1 \
     ca-certificates \
+    gosu \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
-RUN mkdir -p models/insightface models/huggingface models/cache uploads \
+RUN mkdir -p models/insightface models/huggingface models/cache uploads app/generated/tryon \
     && python -c "import urllib.request; urllib.request.urlretrieve('https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task', 'models/face_landmarker.task')" \
     && python -c "import urllib.request; urllib.request.urlretrieve('https://storage.googleapis.com/mediapipe-models/image_segmenter/hair_segmenter/float32/latest/hair_segmenter.tflite', 'models/hair_segmenter.tflite')"
 
 COPY app ./app
 COPY fashion_dna.py color_affinity.py fashion_personality.py ./
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
-RUN groupadd --system --gid 1001 aiservice \
+RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh \
+  && chmod +x /usr/local/bin/docker-entrypoint.sh \
+  && groupadd --system --gid 1001 aiservice \
   && useradd --system --uid 1001 --gid aiservice --home-dir /app aiservice \
   && chown -R aiservice:aiservice /app
-
-USER aiservice
 
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=180s --retries=5 \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
 
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--no-access-log"]

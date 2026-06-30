@@ -45,13 +45,62 @@ let UserActivityService = class UserActivityService {
         };
     }
     async recordSearch(userId, query) {
-        const entry = await this.userActivityRepository.createSearchHistory(userId, query);
+        const normalized = String(query || '').trim();
+        if (!normalized) {
+            return null;
+        }
+        const entry = await this.userActivityRepository.createSearchHistory(userId, normalized);
+        await this.pruneSearchHistory(userId);
         this.fashionDnaRegenerationService.trigger(userId, _fashiondnaregenerationconstants.REFRESH_SOURCES.BROWSING_ACTIVITY);
         return {
             id: entry.id,
             query: entry.query,
             searched_at: entry.searched_at
         };
+    }
+    async getRecentSearches(userId, limit = 10) {
+        const rows = await this.userActivityRepository.findRecentSearches(userId, 50);
+        const seen = new Set();
+        const items = [];
+        rows.forEach((row)=>{
+            const key = row.query.trim().toLowerCase();
+            if (!key || seen.has(key)) {
+                return;
+            }
+            seen.add(key);
+            items.push({
+                id: row.id,
+                query: row.query,
+                searchedAt: row.searched_at
+            });
+        });
+        return {
+            items: items.slice(0, limit)
+        };
+    }
+    async clearSearchHistory(userId) {
+        await this.userActivityRepository.deleteSearchHistory(userId);
+        return {
+            success: true
+        };
+    }
+    async pruneSearchHistory(userId, keep = 10) {
+        const rows = await this.userActivityRepository.findRecentSearches(userId, 50);
+        const seen = new Set();
+        const keepIds = [];
+        rows.forEach((row)=>{
+            const key = row.query.trim().toLowerCase();
+            if (!key || seen.has(key)) {
+                return;
+            }
+            seen.add(key);
+            keepIds.push(row.id);
+        });
+        const allowedIds = new Set(keepIds.slice(0, keep));
+        const deleteIds = rows.map((row)=>row.id).filter((id)=>!allowedIds.has(id));
+        if (deleteIds.length) {
+            await this.userActivityRepository.deleteSearchHistoryByIds(userId, deleteIds);
+        }
     }
 };
 UserActivityService = _ts_decorate([

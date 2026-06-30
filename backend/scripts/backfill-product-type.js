@@ -36,8 +36,17 @@ async function main() {
 
     for (const product of products) {
       const inferred = inferProductTypeFromMetadata(product);
+      const current = product.product_type?.trim() || null;
 
-      if (product.product_type === inferred) {
+      const isPlaceholder = current === 'T-Shirt' && inferred && inferred !== 'T-Shirt';
+      const shouldUpdate = !current || isPlaceholder;
+
+      if (!shouldUpdate) {
+        skipped += 1;
+        continue;
+      }
+
+      if (current === inferred) {
         skipped += 1;
         continue;
       }

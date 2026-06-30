@@ -109,7 +109,7 @@ class LivenessService:
         height = max(float(ys.max() - ys.min()), 1.0)
         aspect = width / height
 
-        if aspect < 0.55 or aspect > 1.8:
+        if self._settings.face_anti_spoof_enabled and (aspect < 0.55 or aspect > 1.8):
             raise FaceValidationError("Face verification failed.", "spoof")
 
     def validate_blink_sequence(self, ear_values: list[float]) -> bool:

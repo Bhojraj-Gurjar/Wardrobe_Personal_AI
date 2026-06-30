@@ -1,6 +1,7 @@
-import { Inject, ConflictException,
+import { Inject, BadRequestException, ConflictException,
   ForbiddenException,
   Injectable,
+  TooManyRequestsException,
   UnauthorizedException, forwardRef, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -15,6 +16,12 @@ import { parseDurationToSeconds } from '../../../common/utils/parse-duration';
 
 const BCRYPT_ROUNDS = 12;
 const REFRESH_TOKEN_PREFIX = 'auth:refresh:';
+const TOKEN_INVALID_AFTER_PREFIX = 'auth:token-invalid-after:';
+const PASSWORD_CHANGE_ATTEMPT_PREFIX = 'auth:password-change:attempts:';
+const PASSWORD_CHANGE_LOCK_PREFIX = 'auth:password-change:lock:';
+const PASSWORD_CHANGE_MAX_ATTEMPTS = 5;
+const PASSWORD_CHANGE_LOCK_SECONDS = 900;
+const PASSWORD_CHANGE_ATTEMPT_WINDOW_SECONDS = 3600;
 
 export @Injectable()
 class AuthService {
@@ -120,6 +127,117 @@ class AuthService {
     await this.ensureActiveUser(user);
 
     return this.sanitizeUser(user);
+  }
+
+  async changePassword(userId, dto) {
+    await this.assertPasswordChangeNotLocked(userId);
+
+    if (dto.newPassword !== dto.confirmPassword) {
+      throw new BadRequestException('New password and confirmation do not match');
+    }
+
+    if (dto.newPassword === dto.currentPassword) {
+      throw new BadRequestException(
+        'New password must be different from your current password',
+      );
+    }
+
+    const user = await this.authRepository.findById(userId);
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    await this.ensureActiveUser(user);
+
+    const isCurrentPasswordValid = await bcrypt.compare(
+      dto.currentPassword,
+      user.password_hash,
+    );
+
+    if (!isCurrentPasswordValid) {
+      await this.recordPasswordChangeFailure(userId);
+      throw new BadRequestException('Current password is incorrect');
+    }
+
+    await this.recordPasswordChangeSuccess(userId);
+
+    const passwordHash = await bcrypt.hash(dto.newPassword, BCRYPT_ROUNDS);
+    await this.authRepository.updatePassword(userId, passwordHash);
+    await this.invalidateUserSessions(userId);
+
+    const updatedUser = await this.authRepository.findById(userId);
+    const tokens = await this.generateTokens(updatedUser);
+
+    return {
+      message: 'Password updated successfully',
+      ...tokens,
+    };
+  }
+
+  async assertPasswordChangeNotLocked(userId) {
+    const lockKey = `${PASSWORD_CHANGE_LOCK_PREFIX}${userId}`;
+    const locked = await this.redisService.get(lockKey);
+
+    if (locked) {
+      throw new TooManyRequestsException(
+        'Too many failed password change attempts. Try again later.',
+      );
+    }
+  }
+
+  async recordPasswordChangeFailure(userId) {
+    const attemptKey = `${PASSWORD_CHANGE_ATTEMPT_PREFIX}${userId}`;
+    const attempts = await this.redisService.incr(attemptKey);
+
+    if (attempts === 1) {
+      await this.redisService.expire(attemptKey, PASSWORD_CHANGE_ATTEMPT_WINDOW_SECONDS);
+    }
+
+    if (attempts >= PASSWORD_CHANGE_MAX_ATTEMPTS) {
+      const lockKey = `${PASSWORD_CHANGE_LOCK_PREFIX}${userId}`;
+      await this.redisService.setex(lockKey, PASSWORD_CHANGE_LOCK_SECONDS, '1');
+      await this.redisService.del(attemptKey);
+      throw new TooManyRequestsException(
+        'Too many failed password change attempts. Try again later.',
+      );
+    }
+  }
+
+  recordPasswordChangeSuccess(userId) {
+    return this.redisService.del(`${PASSWORD_CHANGE_ATTEMPT_PREFIX}${userId}`);
+  }
+
+  async invalidateUserSessions(userId) {
+    const invalidAfter = Math.floor(Date.now() / 1000);
+    await this.redisService.set(
+      `${TOKEN_INVALID_AFTER_PREFIX}${userId}`,
+      String(invalidAfter),
+    );
+    await this.revokeAllRefreshTokensForUser(userId);
+  }
+
+  async revokeAllRefreshTokensForUser(userId) {
+    let cursor = '0';
+
+    do {
+      const [nextCursor, keys] = await this.redisService.scan(
+        cursor,
+        'MATCH',
+        `${REFRESH_TOKEN_PREFIX}*`,
+        'COUNT',
+        100,
+      );
+      cursor = nextCursor;
+
+      for (const key of keys) {
+        const storedUserId = await this.redisService.get(key);
+
+        if (storedUserId === userId) {
+          await this.redisService.del(key);
+        }
+      }
+    } while (cursor !== '0');
   }
 
   async ensureUniqueCredentials(email, mobile) {

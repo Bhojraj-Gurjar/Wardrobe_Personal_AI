@@ -43,7 +43,7 @@ export function normalizeDisplayStatus(status) {
     [ORDER_STATUS.READY_FOR_HANDOVER]: 'Ready For Handover',
     [ORDER_STATUS.SHIPPED]: 'In Transit',
     [ORDER_STATUS.DELIVERED]: 'Delivered',
-    [ORDER_STATUS.COMPLETED]: 'Completed',
+    [ORDER_STATUS.COMPLETED]: 'Delivered',
     [ORDER_STATUS.CANCELLED]: 'Cancelled',
     [ORDER_STATUS.RETURNED]: 'Returned',
     [ORDER_STATUS.REFUNDED]: 'Refunded',
@@ -74,11 +74,9 @@ export function resolveStatusFilterValues(statusFilter) {
     PACKING: [ORDER_STATUS.PACKING],
     PACKED_RTD: [ORDER_STATUS.PACKING, ORDER_STATUS.PACKED, ORDER_STATUS.READY_TO_DISPATCH],
     RTD: [ORDER_STATUS.PACKED, ORDER_STATUS.READY_TO_DISPATCH],
-    HANDOVER: [ORDER_STATUS.READY_FOR_HANDOVER],
-    SHIPPED: [ORDER_STATUS.SHIPPED],
-    IN_TRANSIT: [ORDER_STATUS.SHIPPED],
-    DELIVERED: [ORDER_STATUS.DELIVERED],
-    COMPLETED: [ORDER_STATUS.COMPLETED],
+    SHIPPED: [ORDER_STATUS.SHIPPED, ORDER_STATUS.READY_FOR_HANDOVER],
+    IN_TRANSIT: [ORDER_STATUS.SHIPPED, ORDER_STATUS.READY_FOR_HANDOVER],
+    COMPLETED: [ORDER_STATUS.COMPLETED, ORDER_STATUS.DELIVERED],
     CANCELLED: [ORDER_STATUS.CANCELLED],
     RETURNED: [ORDER_STATUS.RETURNED],
     REFUNDED: [ORDER_STATUS.REFUNDED],
@@ -96,14 +94,14 @@ export function isOrderCancellable(status) {
 export function getTimelineSteps(status) {
   const steps = [
     { key: 'placed', label: 'Order Placed', statuses: [ORDER_STATUS.CREATED] },
-    { key: 'accepted', label: 'Order Accepted', statuses: [ORDER_STATUS.CONFIRMED] },
-    { key: 'invoice', label: 'Invoice Generated', statuses: [] },
-    { key: 'packed', label: 'Packed', statuses: [ORDER_STATUS.PACKING, ORDER_STATUS.PACKED] },
-    { key: 'rtd', label: 'Ready To Dispatch', statuses: [ORDER_STATUS.READY_TO_DISPATCH] },
-    { key: 'handover', label: 'Handed Over', statuses: [ORDER_STATUS.READY_FOR_HANDOVER] },
-    { key: 'transit', label: 'Out For Delivery', statuses: [ORDER_STATUS.SHIPPED] },
-    { key: 'delivered', label: 'Delivered', statuses: [ORDER_STATUS.DELIVERED] },
-    { key: 'completed', label: 'Completed', statuses: [ORDER_STATUS.COMPLETED] },
+    { key: 'accepted', label: 'Accepted', statuses: [ORDER_STATUS.CONFIRMED] },
+    { key: 'packed', label: 'Packed / Ready To Dispatch', statuses: [ORDER_STATUS.PACKING, ORDER_STATUS.PACKED, ORDER_STATUS.READY_TO_DISPATCH] },
+    { key: 'transit', label: 'In Transit', statuses: [ORDER_STATUS.SHIPPED, ORDER_STATUS.READY_FOR_HANDOVER] },
+    {
+      key: 'completed',
+      label: 'Delivered / Completed',
+      statuses: [ORDER_STATUS.COMPLETED, ORDER_STATUS.DELIVERED],
+    },
   ];
 
   const statusOrder = [
@@ -112,10 +110,10 @@ export function getTimelineSteps(status) {
     ORDER_STATUS.PACKING,
     ORDER_STATUS.PACKED,
     ORDER_STATUS.READY_TO_DISPATCH,
-    ORDER_STATUS.READY_FOR_HANDOVER,
     ORDER_STATUS.SHIPPED,
-    ORDER_STATUS.DELIVERED,
+    ORDER_STATUS.READY_FOR_HANDOVER,
     ORDER_STATUS.COMPLETED,
+    ORDER_STATUS.DELIVERED,
   ];
 
   const currentIndex = statusOrder.indexOf(status);

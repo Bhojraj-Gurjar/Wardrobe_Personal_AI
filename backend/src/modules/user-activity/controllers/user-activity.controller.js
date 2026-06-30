@@ -2,6 +2,8 @@ import {
   Inject,
   Body,
   Controller,
+  Delete,
+  Get,
   HttpCode,
   Post,
   UseGuards,
@@ -45,5 +47,18 @@ class UserActivityController {
   @ApiResponse({ status: 201, description: 'Search recorded' })
   recordSearch(@CurrentUser() user, @Body(recordSearchPipe) dto) {
     return this.userActivityService.recordSearch(user.userId, dto.query);
+  }
+
+  @Get('searches')
+  @ApiOperation({ summary: 'Get recent search history' })
+  getRecentSearches(@CurrentUser() user) {
+    return this.userActivityService.getRecentSearches(user.userId);
+  }
+
+  @Delete('searches')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Clear search history' })
+  clearSearchHistory(@CurrentUser() user) {
+    return this.userActivityService.clearSearchHistory(user.userId);
   }
 }

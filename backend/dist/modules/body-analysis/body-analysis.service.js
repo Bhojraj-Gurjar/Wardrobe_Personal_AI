@@ -23,6 +23,8 @@ const _fashiondnaregenerationconstants = require("../fashion-dna/constants/fashi
 const _fashiondnaregenerationservice = require("../fashion-dna/services/fashion-dna-regeneration.service");
 const _pipelineeventbus = require("../user-pipeline/pipeline-event.bus");
 const _usermediaregistryservice = require("../user-media/services/user-media-registry.service");
+const _notificationsservice = require("../notifications/notifications.service");
+const _notificationsconstants = require("../notifications/notifications.constants");
 const _bodyanalysismapper = require("./utils/body-analysis.mapper");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -45,7 +47,7 @@ function resolveUserArtifacts(moduleRef) {
     });
 }
 let BodyAnalysisService = class BodyAnalysisService {
-    constructor(bodyAnalysisRepository, bodyAnalysisVectorService, bodyImageStorageService, bodyPhotoProcessingService, bodyFitProductsService, storagePathResolver, aiService, fashionDnaRegenerationService, pipelineEventBus, moduleRef, userMediaRegistryService){
+    constructor(bodyAnalysisRepository, bodyAnalysisVectorService, bodyImageStorageService, bodyPhotoProcessingService, bodyFitProductsService, storagePathResolver, aiService, fashionDnaRegenerationService, pipelineEventBus, moduleRef, userMediaRegistryService, notificationsService){
         this.bodyAnalysisRepository = bodyAnalysisRepository;
         this.bodyAnalysisVectorService = bodyAnalysisVectorService;
         this.bodyImageStorageService = bodyImageStorageService;
@@ -57,6 +59,7 @@ let BodyAnalysisService = class BodyAnalysisService {
         this.pipelineEventBus = pipelineEventBus;
         this.moduleRef = moduleRef;
         this.userMediaRegistryService = userMediaRegistryService;
+        this.notificationsService = notificationsService;
         this.logger = new _common.Logger(BodyAnalysisService.name);
     }
     async getStoredTraits(userId) {
@@ -286,6 +289,7 @@ let BodyAnalysisService = class BodyAnalysisService {
                 userId
             });
         });
+        this.notificationsService.notifyProfileEvent(userId, _notificationsconstants.APP_NOTIFICATION_TYPES.BODY_ANALYSIS_COMPLETED, 'Body analysis completed', 'Your body analysis report is ready to view.', '/body-analysis').catch(()=>null);
         return this.enrichBodyAnalysisResponse(record);
     }
     async syncFromProfileUpdate(userId, profileDto) {
@@ -372,8 +376,10 @@ BodyAnalysisService = _ts_decorate([
     _ts_param(8, (0, _common.Inject)(_pipelineeventbus.PipelineEventBus)),
     _ts_param(9, (0, _common.Inject)(_core.ModuleRef)),
     _ts_param(10, (0, _common.Inject)(_usermediaregistryservice.UserMediaRegistryService)),
+    _ts_param(11, (0, _common.Inject)(_notificationsservice.NotificationsService)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        void 0,
         void 0,
         void 0,
         void 0,

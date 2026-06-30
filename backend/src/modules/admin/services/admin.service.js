@@ -573,7 +573,13 @@ class AdminService {
 
     for (const group of statusGroups) {
       statusCounts[group.status] = group._count.status;
-      if (![ORDER_STATUS.DELIVERED, ORDER_STATUS.CANCELLED].includes(group.status)) {
+      if (![
+        ORDER_STATUS.COMPLETED,
+        ORDER_STATUS.DELIVERED,
+        ORDER_STATUS.CANCELLED,
+        ORDER_STATUS.ARCHIVED,
+        ORDER_STATUS.REFUNDED,
+      ].includes(group.status)) {
         activeOrders += group._count.status;
       }
     }
@@ -642,7 +648,7 @@ class AdminService {
       row.orders.push(formatted);
       row.orderCount += 1;
       row.totalSpent += order.total_amount;
-      if (order.status === ORDER_STATUS.DELIVERED) {
+      if ([ORDER_STATUS.DELIVERED, ORDER_STATUS.COMPLETED].includes(order.status)) {
         row.deliveredCount += 1;
       }
       if (!row.lastOrderDate || order.created_at > row.lastOrderDate) {
@@ -780,7 +786,7 @@ class AdminService {
     const name = user.profile?.name || user.email?.split('@')[0] || 'User';
     const plan = user.profile?.preferences?.plan || 'Free';
     const deliveredOrders = user.orders?.filter(
-      (order) => order.status === ORDER_STATUS.DELIVERED,
+      (order) => [ORDER_STATUS.DELIVERED, ORDER_STATUS.COMPLETED].includes(order.status),
     ).length || 0;
 
     const base = {

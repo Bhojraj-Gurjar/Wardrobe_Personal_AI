@@ -20,7 +20,7 @@ import {
 } from './utils/try-on-image.util';
 
 const TRYON_PATH = '/tryon/generate';
-const TRYON_TIMEOUT_MS = 65000;
+const TRYON_TIMEOUT_MS = 120000;
 const TRYON_RETRY_DELAYS_MS = [2000, 4000, 8000];
 export @Injectable()
 class TryOnService {
@@ -292,18 +292,37 @@ class TryOnService {
   }
 
   async generateTryOn(userId, personImageUrl, garmentImageUrl, options = {}) {
-    const { persistHistory = true } = options;
+    const {
+      persistHistory = true,
+      garmentRegion = 'upper',
+      garments = null,
+    } = options;
 
     if (!this.baseUrl) {
       throw new ServiceUnavailableException('AI_SERVICE_URL is not configured');
     }
 
     const validatedPersonUrl = assertTryOnImageUrl(personImageUrl, 'Person');
-    const validatedGarmentUrl = assertTryOnImageUrl(garmentImageUrl, 'Garment');
 
     const url = `${this.baseUrl}${TRYON_PATH}`;
     const aiPersonUrl = this.rewriteImageUrlForAi(validatedPersonUrl);
-    const aiGarmentUrl = this.rewriteImageUrlForAi(validatedGarmentUrl);
+
+    const payload = {
+      personImageUrl: aiPersonUrl,
+    };
+
+    if (Array.isArray(garments) && garments.length) {
+      payload.garments = garments.map((layer) => ({
+        garmentImageUrl: this.rewriteImageUrlForAi(
+          assertTryOnImageUrl(layer.garmentImageUrl, 'Garment'),
+        ),
+        garmentRegion: layer.garmentRegion || 'upper',
+      }));
+    } else {
+      const validatedGarmentUrl = assertTryOnImageUrl(garmentImageUrl, 'Garment');
+      payload.garmentImageUrl = this.rewriteImageUrlForAi(validatedGarmentUrl);
+      payload.garmentRegion = garmentRegion || 'upper';
+    }
 
     this.logger.log('Uploading person image for virtual try-on');
     this.logger.log('Uploading garment image for virtual try-on');
@@ -312,10 +331,7 @@ class TryOnService {
     const startedAt = Date.now();
 
     try {
-      const response = await this.postTryOnWithRetry(url, {
-        personImageUrl: aiPersonUrl,
-        garmentImageUrl: aiGarmentUrl,
-      });
+      const response = await this.postTryOnWithRetry(url, payload);
 
       const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1);
       this.logger.log(`Inference completed in ${elapsedSec} sec | status=${response.status}`);
@@ -333,12 +349,16 @@ class TryOnService {
         ...result,
         resultImageUrl: resolvedResultUrl,
         result_image_url: resolvedResultUrl,
+        tryOnMode: result?.tryOnMode || result?.try_on_mode || null,
+        garmentsApplied: result?.garmentsApplied ?? result?.garments_applied ?? null,
       };
 
       if (persistHistory) {
         await this.tryOnHistoryRepository.create(userId, {
           inputImage: validatedPersonUrl,
-          transparentImage: validatedGarmentUrl,
+          transparentImage: Array.isArray(garments) && garments[0]
+            ? garments[0].garmentImageUrl
+            : garmentImageUrl,
           generatedImage: persistedPath || rawResultUrl,
           selectedProducts: [],
         });

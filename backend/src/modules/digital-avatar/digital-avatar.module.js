@@ -4,6 +4,7 @@ import { BodyAnalysisModule } from '../body-analysis/body-analysis.module';
 import { FaceAnalysisModule } from '../face-analysis/face-analysis.module';
 import { FashionDnaModule } from '../fashion-dna/fashion-dna.module';
 import { UsersModule } from '../users/users.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { DigitalAvatarController } from './digital-avatar.controller';
 import { DigitalAvatarRepository } from './digital-avatar.repository';
 import { DigitalAvatarService } from './digital-avatar.service';
@@ -17,6 +18,7 @@ export @Module({
     forwardRef(() => FaceAnalysisModule),
     forwardRef(() => BodyAnalysisModule),
     forwardRef(() => FashionDnaModule),
+    NotificationsModule,
   ],
   controllers: [DigitalAvatarController],
   providers: [

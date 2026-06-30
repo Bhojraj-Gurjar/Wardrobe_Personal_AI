@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { FashionDnaModule } from '../fashion-dna/fashion-dna.module';
 import { PipelineEventModule } from '../user-pipeline/pipeline-event.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { ProductsModule } from '../products/products.module';
 import { StorageModule } from '../../storage/storage.module';
 import { BodyAnalysisController } from './body-analysis.controller';
@@ -20,6 +21,7 @@ export @Module({
     ProductsModule,
     forwardRef(() => FashionDnaModule),
     PipelineEventModule,
+    NotificationsModule,
   ],
   controllers: [BodyAnalysisController],
   providers: [

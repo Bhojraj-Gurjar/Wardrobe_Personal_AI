@@ -8,11 +8,13 @@ import { RegisterDto } from '../dto/register.dto';
 import { LoginDto } from '../dto/login.dto';
 import { RefreshTokenDto } from '../dto/refresh-token.dto';
 import { LogoutDto } from '../dto/logout.dto';
+import { ChangePasswordDto } from '../dto/change-password.dto';
 
 const registerPipe = DtoValidationPipe(RegisterDto);
 const loginPipe = DtoValidationPipe(LoginDto);
 const refreshPipe = DtoValidationPipe(RefreshTokenDto);
 const logoutPipe = DtoValidationPipe(LogoutDto);
+const changePasswordPipe = DtoValidationPipe(ChangePasswordDto);
 
 export @ApiTags('auth')
 @Controller('auth')
@@ -64,5 +66,17 @@ class AuthController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   me(@CurrentUser() user) {
     return this.authService.getMe(user.userId);
+  }
+
+  @Post('change-password')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Change password for the authenticated user' })
+  @ApiResponse({ status: 200, description: 'Password updated successfully' })
+  @ApiResponse({ status: 400, description: 'Validation error' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  changePassword(@CurrentUser() user, @Body(changePasswordPipe) dto) {
+    return this.authService.changePassword(user.userId, dto);
   }
 }

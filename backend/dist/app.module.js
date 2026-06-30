@@ -40,6 +40,7 @@ const _virtualtryonmodule = require("./modules/virtual-try-on/virtual-try-on.mod
 const _personalclosetmodule = require("./modules/personal-closet/personal-closet.module");
 const _dashboardmodule = require("./modules/dashboard/dashboard.module");
 const _supportmodule = require("./modules/support/support.module");
+const _notificationsmodule = require("./modules/notifications/notifications.module");
 const _aimodule = require("./modules/ai/ai.module");
 const _requestidmiddleware = require("./middleware/request-id.middleware");
 function _ts_decorate(decorators, target, key, desc) {
@@ -85,7 +86,8 @@ AppModule = _ts_decorate([
             _virtualtryonmodule.VirtualTryOnModule,
             _personalclosetmodule.PersonalClosetModule,
             _dashboardmodule.DashboardModule,
-            _supportmodule.SupportModule
+            _supportmodule.SupportModule,
+            _notificationsmodule.NotificationsModule
         ],
         controllers: [
             _appcontroller.AppController

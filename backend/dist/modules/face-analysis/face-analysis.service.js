@@ -18,6 +18,8 @@ const _aiservice = require("../ai/services/ai.service");
 const _fashiondnaregenerationconstants = require("../fashion-dna/constants/fashion-dna-regeneration.constants");
 const _fashiondnaregenerationservice = require("../fashion-dna/services/fashion-dna-regeneration.service");
 const _pipelineeventbus = require("../user-pipeline/pipeline-event.bus");
+const _notificationsservice = require("../notifications/notifications.service");
+const _notificationsconstants = require("../notifications/notifications.constants");
 const _faceanalysismapper = require("./utils/face-analysis.mapper");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -46,7 +48,7 @@ function resolveFaceService(moduleRef) {
     });
 }
 let FaceAnalysisService = class FaceAnalysisService {
-    constructor(faceAnalysisRepository, biometricTraitsService, faceAnalysisVectorService, faceImageStorageService, aiService, fashionDnaRegenerationService, pipelineEventBus, moduleRef){
+    constructor(faceAnalysisRepository, biometricTraitsService, faceAnalysisVectorService, faceImageStorageService, aiService, fashionDnaRegenerationService, pipelineEventBus, moduleRef, notificationsService){
         this.faceAnalysisRepository = faceAnalysisRepository;
         this.biometricTraitsService = biometricTraitsService;
         this.faceAnalysisVectorService = faceAnalysisVectorService;
@@ -55,6 +57,7 @@ let FaceAnalysisService = class FaceAnalysisService {
         this.fashionDnaRegenerationService = fashionDnaRegenerationService;
         this.pipelineEventBus = pipelineEventBus;
         this.moduleRef = moduleRef;
+        this.notificationsService = notificationsService;
         this.logger = new _common.Logger(FaceAnalysisService.name);
     }
     async collectBiometricTraits(userId) {
@@ -120,6 +123,7 @@ let FaceAnalysisService = class FaceAnalysisService {
                 userId
             });
         });
+        this.notificationsService.notifyProfileEvent(userId, _notificationsconstants.APP_NOTIFICATION_TYPES.FACE_UPDATED, 'Face analysis completed', 'Your face analysis report is ready to view.', '/face-analysis').catch(()=>null);
         const facePhoto = await resolveFaceService(this.moduleRef).getFacePhoto(userId);
         return {
             ...(0, _faceanalysismapper.formatFaceAnalysisRecord)(record),
@@ -153,8 +157,10 @@ FaceAnalysisService = _ts_decorate([
     _ts_param(5, (0, _common.Inject)((0, _common.forwardRef)(()=>_fashiondnaregenerationservice.FashionDnaRegenerationService))),
     _ts_param(6, (0, _common.Inject)(_pipelineeventbus.PipelineEventBus)),
     _ts_param(7, (0, _common.Inject)(_core.ModuleRef)),
+    _ts_param(8, (0, _common.Inject)(_notificationsservice.NotificationsService)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        void 0,
         void 0,
         void 0,
         void 0,

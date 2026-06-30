@@ -14,6 +14,7 @@ class QdrantStore:
         self._settings = settings
         self._client = None
         self._enabled = bool(settings.qdrant_url)
+        self._ensured_collections: set[str] = set()
 
     @property
     def enabled(self) -> bool:
@@ -31,6 +32,10 @@ class QdrantStore:
         return self._client
 
     def ensure_collection(self, name: str, size: int) -> None:
+        cache_key = f"{name}:{size}"
+        if cache_key in self._ensured_collections:
+            return
+
         client = self._get_client()
         if not client:
             return
@@ -55,6 +60,8 @@ class QdrantStore:
                 collection_name=name,
                 vectors_config=qmodels.VectorParams(size=size, distance=qmodels.Distance.COSINE),
             )
+
+        self._ensured_collections.add(cache_key)
 
     def upsert_vector(
         self,

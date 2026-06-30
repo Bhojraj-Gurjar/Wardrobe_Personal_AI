@@ -12,6 +12,7 @@ const _common = require("@nestjs/common");
 const _authmodule = require("../auth/auth.module");
 const _fashiondnamodule = require("../fashion-dna/fashion-dna.module");
 const _productsmodule = require("../products/products.module");
+const _notificationsmodule = require("../notifications/notifications.module");
 const _orderscontroller = require("./controllers/orders.controller");
 const _orderaddresscontroller = require("./controllers/order-address.controller");
 const _adminomscontroller = require("./controllers/admin-oms.controller");
@@ -35,7 +36,8 @@ OrdersModule = _ts_decorate([
         imports: [
             _authmodule.AuthModule,
             _fashiondnamodule.FashionDnaModule,
-            _productsmodule.ProductsModule
+            _productsmodule.ProductsModule,
+            _notificationsmodule.NotificationsModule
         ],
         controllers: [
             _orderscontroller.OrdersController,

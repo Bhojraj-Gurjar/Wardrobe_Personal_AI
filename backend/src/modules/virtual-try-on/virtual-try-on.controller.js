@@ -182,6 +182,22 @@ class VirtualTryOnController {
 
 
 
+  @Post('generate-outfit')
+
+  @HttpCode(200)
+
+  @ApiOperation({ summary: 'Generate CatVTON try-on for a multi-product outfit' })
+
+  generateOutfitTryOn(@CurrentUser() user, @Body() body) {
+    return this.virtualTryOnService.generateOutfitTryOn(
+      user.userId,
+      body?.productIds || [],
+      body || {},
+    );
+  }
+
+
+
   @Get('results')
 
   @ApiOperation({ summary: 'List virtual try-on result history' })
