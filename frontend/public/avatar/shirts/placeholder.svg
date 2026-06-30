@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="280" height="520" viewBox="0 0 280 520" fill="none">
+  <title>Shirt placeholder overlay</title>
+  <polygon points="68,148 110,124 170,124 212,148 196,250 84,250" fill="#DBEAFE" fill-opacity="0.85" stroke="#93C5FD" stroke-width="2" stroke-dasharray="6 4"/>
+  <line x1="136" y1="132" x2="136" y2="242" stroke="#BFDBFE" stroke-width="2"/>
+  <line x1="128" y1="132" x2="128" y2="242" stroke="#BFDBFE" stroke-width="1.5"/>
+  <line x1="144" y1="132" x2="144" y2="242" stroke="#BFDBFE" stroke-width="1.5"/>
+  <text x="140" y="198" text-anchor="middle" fill="#1E3A8A" font-family="system-ui,sans-serif" font-size="11" font-weight="600" opacity="0.85">SHIRT</text>
+</svg>

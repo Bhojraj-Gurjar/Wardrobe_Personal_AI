@@ -1,0 +1,9 @@
+export { DigitalAvatarView } from './digital-avatar-view';
+export { AvatarControls } from './avatar-controls';
+export { CategoryTabs } from './category-tabs';
+export { ProductSelector } from './product-selector';
+export { CurrentOutfitCard } from './current-outfit-card';
+export { SkinToneSelector } from './skin-tone-selector';
+export { HairColorSelector } from './hair-color-selector';
+export { LookSummary } from './look-summary';
+export { AISuggestButton } from './ai-suggest-button';
