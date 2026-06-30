@@ -1,4 +1,13 @@
-export const PRODUCT_SORT_FIELDS = ['name', 'price', 'sku', 'created_at'];
+export const PRODUCT_SORT_FIELDS = [
+  'name',
+  'price',
+  'sku',
+  'created_at',
+  'updated_at',
+  'category',
+  'product_type',
+  'brand',
+];
 
 export const SORT_ORDERS = ['asc', 'desc'];
 

@@ -42,6 +42,13 @@ let FashionDnaRepository = class FashionDnaRepository {
             }
         });
     }
+    findFaceRegistration(userId) {
+        return this.prisma.faceRegistration.findUnique({
+            where: {
+                user_id: userId
+            }
+        });
+    }
     findWishlistProducts(userId) {
         return this.prisma.wishlist.findMany({
             where: {
@@ -62,6 +69,14 @@ let FashionDnaRepository = class FashionDnaRepository {
                 ...data
             },
             update: data
+        });
+    }
+    updateByUserId(userId, data) {
+        return this.prisma.fashionDna.update({
+            where: {
+                user_id: userId
+            },
+            data
         });
     }
 };

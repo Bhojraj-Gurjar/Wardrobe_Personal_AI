@@ -34,4 +34,11 @@ class AuthRepository {
       },
     });
   }
+
+  updatePassword(userId, passwordHash) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { password_hash: passwordHash },
+    });
+  }
 }

@@ -39,11 +39,73 @@ let FaceRepository = class FaceRepository {
             user_id: userId
         }, this.vectorSize);
     }
-    searchFaceVector(embedding) {
-        return this.qdrantService.searchInCollection(this.collection, embedding, 1, this.vectorSize);
+    upsertFaceRegistration(userId, faceImageUrl = null, livenessMeta = {}) {
+        const faceEmbeddingId = userId;
+        const data = {
+            face_embedding_id: faceEmbeddingId,
+            is_face_registered: true,
+            registered_at: new Date()
+        };
+        if (faceImageUrl) {
+            data.face_image_url = faceImageUrl;
+        }
+        if (livenessMeta.livenessScore != null) {
+            data.liveness_score = livenessMeta.livenessScore;
+        }
+        if (typeof livenessMeta.blinkDetected === 'boolean') {
+            data.blink_detected = livenessMeta.blinkDetected;
+        }
+        if (typeof livenessMeta.smileDetected === 'boolean') {
+            data.smile_detected = livenessMeta.smileDetected;
+        }
+        return this.prisma.faceRegistration.upsert({
+            where: {
+                user_id: userId
+            },
+            create: {
+                user_id: userId,
+                face_image_url: faceImageUrl,
+                ...data
+            },
+            update: data
+        });
+    }
+    findFaceRegistration(userId) {
+        return this.prisma.faceRegistration.findUnique({
+            where: {
+                user_id: userId
+            }
+        });
+    }
+    searchFaceVector(embedding, limit = 1) {
+        return this.qdrantService.searchInCollection(this.collection, embedding, limit, this.vectorSize);
     }
     deleteFaceVector(userId) {
         return this.qdrantService.deleteVector(this.collection, userId);
+    }
+    async purgeStaleFaceVectors() {
+        if (!this.qdrantService.isConfigured()) {
+            return {
+                deleted: 0
+            };
+        }
+        let deleted = 0;
+        let offset = undefined;
+        do {
+            const { points, nextOffset } = await this.qdrantService.scrollCollection(this.collection, 100, offset);
+            for (const point of points){
+                const userId = point.payload?.user_id || String(point.id);
+                const user = await this.findUserById(userId);
+                if (!user) {
+                    await this.qdrantService.deleteVector(this.collection, point.id);
+                    deleted += 1;
+                }
+            }
+            offset = nextOffset;
+        }while (offset)
+        return {
+            deleted
+        };
     }
     findUserById(userId) {
         return this.prisma.user.findUnique({
@@ -51,6 +113,9 @@ let FaceRepository = class FaceRepository {
                 id: userId
             }
         });
+    }
+    getFaceVector(userId) {
+        return this.qdrantService.getVector(this.collection, userId);
     }
 };
 FaceRepository = _ts_decorate([

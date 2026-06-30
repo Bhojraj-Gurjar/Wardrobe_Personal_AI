@@ -18,6 +18,9 @@ _export(exports, {
     get QueryProductsDto () {
         return _queryproductsdto.QueryProductsDto;
     },
+    get SearchProductsDto () {
+        return _searchproductsdto.SearchProductsDto;
+    },
     get UpdateProductDto () {
         return _updateproductdto.UpdateProductDto;
     }
@@ -25,5 +28,6 @@ _export(exports, {
 const _createproductdto = require("./create-product.dto");
 const _updateproductdto = require("./update-product.dto");
 const _queryproductsdto = require("./query-products.dto");
+const _searchproductsdto = require("./search-products.dto");
 
 //# sourceMappingURL=index.js.map

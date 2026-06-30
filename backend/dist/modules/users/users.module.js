@@ -10,6 +10,10 @@ Object.defineProperty(exports, "UsersModule", {
 });
 const _common = require("@nestjs/common");
 const _authmodule = require("../auth/auth.module");
+const _bodyanalysismodule = require("../body-analysis/body-analysis.module");
+const _fashiondnamodule = require("../fashion-dna/fashion-dna.module");
+const _pipelineeventmodule = require("../user-pipeline/pipeline-event.module");
+const _notificationsmodule = require("../notifications/notifications.module");
 const _userscontroller = require("./controllers/users.controller");
 const _usersservice = require("./services/users.service");
 const _usersrepository = require("./repositories/users.repository");
@@ -24,7 +28,11 @@ let UsersModule = class UsersModule {
 UsersModule = _ts_decorate([
     (0, _common.Module)({
         imports: [
-            _authmodule.AuthModule
+            _authmodule.AuthModule,
+            _fashiondnamodule.FashionDnaModule,
+            (0, _common.forwardRef)(()=>_bodyanalysismodule.BodyAnalysisModule),
+            _pipelineeventmodule.PipelineEventModule,
+            _notificationsmodule.NotificationsModule
         ],
         controllers: [
             _userscontroller.UsersController
@@ -34,7 +42,8 @@ UsersModule = _ts_decorate([
             _usersrepository.UsersRepository
         ],
         exports: [
-            _usersservice.UsersService
+            _usersservice.UsersService,
+            _usersrepository.UsersRepository
         ]
     })
 ], UsersModule);

@@ -12,6 +12,7 @@ const _common = require("@nestjs/common");
 const _passport = require("@nestjs/passport");
 const _passportjwt = require("passport-jwt");
 const _config = require("@nestjs/config");
+const _redisservice = require("../../../database/redis.service");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -26,17 +27,26 @@ function _ts_param(paramIndex, decorator) {
         decorator(target, key, paramIndex);
     };
 }
+const TOKEN_INVALID_AFTER_PREFIX = 'auth:token-invalid-after:';
 let JwtStrategy = class JwtStrategy extends (0, _passport.PassportStrategy)(_passportjwt.Strategy) {
-    constructor(configService){
+    constructor(configService, redisService){
         super({
-            jwtFromRequest: _passportjwt.ExtractJwt.fromAuthHeaderAsBearerToken(),
+            jwtFromRequest: _passportjwt.ExtractJwt.fromExtractors([
+                _passportjwt.ExtractJwt.fromAuthHeaderAsBearerToken(),
+                _passportjwt.ExtractJwt.fromUrlQueryParameter('token')
+            ]),
             ignoreExpiration: false,
             secretOrKey: configService.get('jwt.secret')
         });
+        this.redisService = redisService;
     }
-    validate(payload) {
+    async validate(payload) {
         if (!payload?.sub) {
             throw new _common.UnauthorizedException('Invalid token');
+        }
+        const invalidAfter = await this.redisService.get(`${TOKEN_INVALID_AFTER_PREFIX}${payload.sub}`);
+        if (invalidAfter && payload.iat && payload.iat < Number(invalidAfter)) {
+            throw new _common.UnauthorizedException('Session expired. Please sign in again.');
         }
         return {
             userId: payload.sub,
@@ -47,8 +57,10 @@ let JwtStrategy = class JwtStrategy extends (0, _passport.PassportStrategy)(_pas
 JwtStrategy = _ts_decorate([
     (0, _common.Injectable)(),
     _ts_param(0, (0, _common.Inject)(_config.ConfigService)),
+    _ts_param(1, (0, _common.Inject)(_redisservice.RedisService)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        void 0,
         void 0
     ])
 ], JwtStrategy);

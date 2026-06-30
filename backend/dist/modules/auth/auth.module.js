@@ -9,9 +9,10 @@ Object.defineProperty(exports, "AuthModule", {
     }
 });
 const _common = require("@nestjs/common");
-const _jwt = require("@nestjs/jwt");
 const _passport = require("@nestjs/passport");
+const _jwt = require("@nestjs/jwt");
 const _config = require("@nestjs/config");
+const _userpipelinemodule = require("../user-pipeline/user-pipeline.module");
 const _authcontroller = require("./controllers/auth.controller");
 const _authservice = require("./services/auth.service");
 const _authrepository = require("./repositories/auth.repository");
@@ -27,6 +28,7 @@ let AuthModule = class AuthModule {
 AuthModule = _ts_decorate([
     (0, _common.Module)({
         imports: [
+            (0, _common.forwardRef)(()=>_userpipelinemodule.UserPipelineModule),
             _passport.PassportModule.register({
                 defaultStrategy: 'jwt'
             }),

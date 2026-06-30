@@ -19,12 +19,20 @@ _export(exports, {
 const _classvalidator = require("class-validator");
 const _classtransformer = require("class-transformer");
 const _swagger = require("@nestjs/swagger");
+const _avatarconstants = require("../constants/avatar.constants");
+const _producttypeconstants = require("../constants/product-type.constants");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
     else for(var i = decorators.length - 1; i >= 0; i--)if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 }
+const PRODUCT_GENDERS = [
+    'MALE',
+    'FEMALE',
+    'UNISEX',
+    'OTHER'
+];
 let ProductImageDto = class ProductImageDto {
     url;
     sort_order;
@@ -55,9 +63,27 @@ let CreateProductDto = class CreateProductDto {
     sku;
     name;
     description;
+    category;
+    productType;
+    subcategory;
+    gender;
+    brand;
     category_id;
     brand_id;
     price;
+    currency;
+    color;
+    sizeOptions;
+    fabric;
+    fitType;
+    styleTags;
+    occasionTags;
+    imageUrl;
+    productUrl;
+    avatarCategory;
+    overlayOrder;
+    avatarOverlayUrl;
+    isActive;
     images;
 };
 _ts_decorate([
@@ -83,17 +109,58 @@ _ts_decorate([
 ], CreateProductDto.prototype, "description", void 0);
 _ts_decorate([
     (0, _swagger.ApiProperty)({
-        example: 'category-uuid'
+        example: 'outerwear'
     }),
     (0, _classvalidator.IsString)(),
     (0, _classvalidator.IsNotEmpty)()
-], CreateProductDto.prototype, "category_id", void 0);
+], CreateProductDto.prototype, "category", void 0);
 _ts_decorate([
     (0, _swagger.ApiProperty)({
-        example: 'brand-uuid'
+        example: 'T-Shirt',
+        enum: _producttypeconstants.PRODUCT_TYPES
+    }),
+    (0, _classvalidator.IsString)(),
+    (0, _classvalidator.IsNotEmpty)(),
+    (0, _classvalidator.IsIn)(_producttypeconstants.PRODUCT_TYPES)
+], CreateProductDto.prototype, "productType", void 0);
+_ts_decorate([
+    (0, _swagger.ApiPropertyOptional)({
+        example: 'jackets'
+    }),
+    (0, _classvalidator.IsOptional)(),
+    (0, _classvalidator.IsString)()
+], CreateProductDto.prototype, "subcategory", void 0);
+_ts_decorate([
+    (0, _swagger.ApiPropertyOptional)({
+        example: 'UNISEX',
+        enum: PRODUCT_GENDERS
+    }),
+    (0, _classvalidator.IsOptional)(),
+    (0, _classvalidator.IsString)(),
+    (0, _classvalidator.IsIn)(PRODUCT_GENDERS)
+], CreateProductDto.prototype, "gender", void 0);
+_ts_decorate([
+    (0, _swagger.ApiProperty)({
+        example: 'Levi\'s'
     }),
     (0, _classvalidator.IsString)(),
     (0, _classvalidator.IsNotEmpty)()
+], CreateProductDto.prototype, "brand", void 0);
+_ts_decorate([
+    (0, _swagger.ApiPropertyOptional)({
+        example: 'category-uuid',
+        description: 'Legacy alias for category'
+    }),
+    (0, _classvalidator.IsOptional)(),
+    (0, _classvalidator.IsString)()
+], CreateProductDto.prototype, "category_id", void 0);
+_ts_decorate([
+    (0, _swagger.ApiPropertyOptional)({
+        example: 'brand-uuid',
+        description: 'Legacy alias for brand'
+    }),
+    (0, _classvalidator.IsOptional)(),
+    (0, _classvalidator.IsString)()
 ], CreateProductDto.prototype, "brand_id", void 0);
 _ts_decorate([
     (0, _swagger.ApiProperty)({
@@ -102,6 +169,123 @@ _ts_decorate([
     (0, _classvalidator.IsNumber)(),
     (0, _classvalidator.Min)(0)
 ], CreateProductDto.prototype, "price", void 0);
+_ts_decorate([
+    (0, _swagger.ApiPropertyOptional)({
+        example: 'INR',
+        default: 'INR'
+    }),
+    (0, _classvalidator.IsOptional)(),
+    (0, _classvalidator.IsString)()
+], CreateProductDto.prototype, "currency", void 0);
+_ts_decorate([
+    (0, _swagger.ApiPropertyOptional)({
+        example: 'Navy'
+    }),
+    (0, _classvalidator.IsOptional)(),
+    (0, _classvalidator.IsString)()
+], CreateProductDto.prototype, "color", void 0);
+_ts_decorate([
+    (0, _swagger.ApiPropertyOptional)({
+        example: [
+            'S',
+            'M',
+            'L',
+            'XL'
+        ]
+    }),
+    (0, _classvalidator.IsOptional)(),
+    (0, _classvalidator.IsArray)(),
+    (0, _classvalidator.IsString)({
+        each: true
+    })
+], CreateProductDto.prototype, "sizeOptions", void 0);
+_ts_decorate([
+    (0, _swagger.ApiPropertyOptional)({
+        example: 'Denim'
+    }),
+    (0, _classvalidator.IsOptional)(),
+    (0, _classvalidator.IsString)()
+], CreateProductDto.prototype, "fabric", void 0);
+_ts_decorate([
+    (0, _swagger.ApiPropertyOptional)({
+        example: 'regular'
+    }),
+    (0, _classvalidator.IsOptional)(),
+    (0, _classvalidator.IsString)()
+], CreateProductDto.prototype, "fitType", void 0);
+_ts_decorate([
+    (0, _swagger.ApiPropertyOptional)({
+        example: [
+            'casual',
+            'streetwear'
+        ]
+    }),
+    (0, _classvalidator.IsOptional)(),
+    (0, _classvalidator.IsArray)(),
+    (0, _classvalidator.IsString)({
+        each: true
+    })
+], CreateProductDto.prototype, "styleTags", void 0);
+_ts_decorate([
+    (0, _swagger.ApiPropertyOptional)({
+        example: [
+            'weekend',
+            'travel'
+        ]
+    }),
+    (0, _classvalidator.IsOptional)(),
+    (0, _classvalidator.IsArray)(),
+    (0, _classvalidator.IsString)({
+        each: true
+    })
+], CreateProductDto.prototype, "occasionTags", void 0);
+_ts_decorate([
+    (0, _swagger.ApiPropertyOptional)({
+        example: 'https://cdn.example.com/product.jpg'
+    }),
+    (0, _classvalidator.IsOptional)(),
+    (0, _classvalidator.IsUrl)()
+], CreateProductDto.prototype, "imageUrl", void 0);
+_ts_decorate([
+    (0, _swagger.ApiPropertyOptional)({
+        example: 'https://shop.example.com/products/sku-001'
+    }),
+    (0, _classvalidator.IsOptional)(),
+    (0, _classvalidator.IsUrl)()
+], CreateProductDto.prototype, "productUrl", void 0);
+_ts_decorate([
+    (0, _swagger.ApiPropertyOptional)({
+        example: 'JACKET',
+        enum: _avatarconstants.AVATAR_CATEGORIES
+    }),
+    (0, _classvalidator.IsOptional)(),
+    (0, _classvalidator.IsString)(),
+    (0, _classvalidator.IsIn)(_avatarconstants.AVATAR_CATEGORIES)
+], CreateProductDto.prototype, "avatarCategory", void 0);
+_ts_decorate([
+    (0, _swagger.ApiPropertyOptional)({
+        example: 40,
+        description: 'Compositor z-order; lower values render behind higher values'
+    }),
+    (0, _classvalidator.IsOptional)(),
+    (0, _classvalidator.IsInt)(),
+    (0, _classvalidator.Min)(0)
+], CreateProductDto.prototype, "overlayOrder", void 0);
+_ts_decorate([
+    (0, _swagger.ApiPropertyOptional)({
+        example: 'https://cdn.example.com/avatar-overlay.png'
+    }),
+    (0, _classvalidator.IsOptional)(),
+    (0, _classvalidator.IsUrl)()
+], CreateProductDto.prototype, "avatarOverlayUrl", void 0);
+_ts_decorate([
+    (0, _swagger.ApiPropertyOptional)({
+        example: true,
+        default: true
+    }),
+    (0, _classvalidator.IsOptional)(),
+    (0, _classvalidator.IsBoolean)()
+], CreateProductDto.prototype, "isActive", void 0);
 _ts_decorate([
     (0, _swagger.ApiPropertyOptional)({
         type: [

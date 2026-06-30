@@ -53,7 +53,26 @@ async function run() {
 
   const updateProfile = await request('PUT', '/users/profile', {
     token,
-    body: { gender: 'FEMALE', age: 28, body_type: 'AVERAGE', skin_tone: 'MEDIUM' },
+    body: {
+      name: 'Smoke Tester',
+      gender: 'FEMALE',
+      age: 28,
+      height: 165,
+      weight: 58,
+      country: 'India',
+      language: 'English',
+      body_type: 'AVERAGE',
+      skin_tone: 'MEDIUM',
+      preferences: {
+        occupation: 'EMPLOYEE',
+        shopping_frequency: 'MONTHLY',
+        budget_preference: 'MID_RANGE',
+        preferred_categories: ['CASUAL', 'FORMAL'],
+        favorite_colors: ['Navy', 'White', 'Beige'],
+        favorite_brands: ['Zara'],
+        fashion_influencers: ['@styleicon'],
+      },
+    },
   });
   log(
     'PUT /users/profile',
@@ -69,6 +88,7 @@ async function run() {
       category_id: 'cat-demo',
       brand_id: 'brand-demo',
       price: 99.99,
+      color: 'Navy',
     },
   });
   const productId = createProduct.json?.data?.id;
@@ -88,7 +108,7 @@ async function run() {
 
   const order = await request('POST', '/orders', {
     token,
-    body: { total_amount: 99.99 },
+    body: { total_amount: 99.99, product_id: productId },
   });
   const orderId = order.json?.data?.id;
   log('POST /orders', order.status === 201 && Boolean(orderId));
@@ -99,8 +119,38 @@ async function run() {
   const fashionDna = await request('POST', '/fashion-dna/generate', { token });
   log('POST /fashion-dna/generate', fashionDna.status === 201 || fashionDna.status === 200);
 
-  const getFashionDna = await request('GET', '/fashion-dna', { token });
-  log('GET /fashion-dna', getFashionDna.status === 200);
+  const productView = await request('POST', '/user-activity/product-views', {
+    token,
+    body: { product_id: productId },
+  });
+  log('POST /user-activity/product-views', productView.status === 201);
+
+  const search = await request('POST', '/user-activity/searches', {
+    token,
+    body: { query: 'casual jacket' },
+  });
+  log('POST /user-activity/searches', search.status === 201);
+
+  let activityTraits = null;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const fashionDnaCheck = await request('GET', '/fashion-dna/me', { token });
+    activityTraits = fashionDnaCheck.json?.data?.activityTraits;
+    if (activityTraits?.activity_volume?.product_views >= 1) {
+      break;
+    }
+  }
+
+  const hasActivity =
+    activityTraits
+    && activityTraits.activity_volume?.wishlist >= 1
+    && activityTraits.activity_volume?.product_views >= 1
+    && activityTraits.activity_volume?.searches >= 1;
+  log(
+    'GET /fashion-dna/me (activity traits)',
+    hasActivity,
+    hasActivity ? '' : JSON.stringify(activityTraits),
+  );
 
   const recommendations = await request('GET', '/recommendations?limit=5', { token });
   log('GET /recommendations', recommendations.status === 200);

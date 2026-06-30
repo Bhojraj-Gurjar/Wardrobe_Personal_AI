@@ -44,10 +44,10 @@ _ts_decorate([
 ], QueryOrdersDto.prototype, "limit", void 0);
 _ts_decorate([
     (0, _swagger.ApiPropertyOptional)({
-        enum: _orderconstants.ORDER_STATUS_VALUES
+        description: 'Filter by order status or display group (PENDING, PROCESSING, etc.)'
     }),
     (0, _classvalidator.IsOptional)(),
-    (0, _classvalidator.IsEnum)(_orderconstants.ORDER_STATUS_VALUES)
+    (0, _classvalidator.IsString)()
 ], QueryOrdersDto.prototype, "status", void 0);
 
 //# sourceMappingURL=query-orders.dto.js.map

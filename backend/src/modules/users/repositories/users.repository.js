@@ -13,6 +13,31 @@ class UsersRepository {
     });
   }
 
+  findProfileContextByUserId(userId) {
+    return this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        email: true,
+        profile: true,
+        face_registration: {
+          select: {
+            face_image_url: true,
+            is_face_registered: true,
+            registered_at: true,
+            updated_at: true,
+          },
+        },
+        body_analysis: {
+          select: {
+            body_image_url: true,
+            height: true,
+            updated_at: true,
+          },
+        },
+      },
+    });
+  }
+
   updateProfileByUserId(userId, data) {
     return this.prisma.userProfile.update({
       where: { user_id: userId },

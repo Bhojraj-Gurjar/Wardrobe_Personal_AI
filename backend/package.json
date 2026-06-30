@@ -15,15 +15,29 @@
     "build": "swc src -d dist --strip-leading-paths",
     "docs:export": "node scripts/export-openapi.js",
     "smoke-test": "node scripts/smoke-test.js",
-    "test": "jest",
+    "test": "npm run build && jest",
     "test:cov": "jest --coverage",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "prisma:generate": "prisma generate",
     "prisma:db:push": "prisma db push",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "seed:categories": "node scripts/seed-product-categories.js",
+    "seed:catalog": "node scripts/seed-product-catalog.js",
+    "seed:backfill-product-type": "node scripts/backfill-product-type.js",
+    "seed:products": "node scripts/seed-product-categories.js && node scripts/seed-product-catalog.js",
+    "seed:try-on-products": "node scripts/seed-try-on-products.js",
+    "seed:curated-shirts": "node scripts/seed-curated-shirt-products.js",
+    "seed:curated-tshirts": "node scripts/seed-curated-tshirt-products.js",
+    "seed:curated-pants": "node scripts/seed-curated-pants-products.js",
+    "seed:curated-jackets": "node scripts/seed-curated-jackets-products.js",
+    "seed:curated-footwear": "node scripts/seed-curated-footwear-products.js",
+    "seed:admin": "node scripts/seed-admin.js",
+    "backfill:product-cms": "node scripts/backfill-product-cms.js",
+    "backfill:body-photo-processing": "node scripts/backfill-body-photo-processing.js"
   },
   "dependencies": {
+    "@nestjs/axios": "^4.0.1",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.0.1",
@@ -34,9 +48,11 @@
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "@qdrant/js-client-rest": "^1.18.0",
+    "axios": "^1.18.1",
     "bcryptjs": "^3.0.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
+    "compression": "^1.8.1",
     "dotenv": "^17.4.2",
     "helmet": "^8.2.0",
     "ioredis": "^5.11.1",
@@ -63,6 +79,8 @@
     "@swc-node/register": "^1.11.1",
     "@swc/cli": "^0.8.1",
     "@swc/core": "^1.15.41",
+    "@swc/jest": "^0.2.39",
+    "babel-jest": "^30.3.0",
     "babel-plugin-parameter-decorator": "^1.0.16",
     "eslint": "^9.39.4",
     "eslint-config-prettier": "^10.1.8",
@@ -82,6 +100,29 @@
     ],
     "rootDir": "src",
     "testRegex": ".spec.js$",
-    "coverageDirectory": "../coverage"
+    "setupFiles": ["<rootDir>/../test/jest.setup.js"],
+    "coverageDirectory": "../coverage",
+    "transform": {
+      "^.+\\.js$": [
+        "@swc/jest",
+        {
+          "jsc": {
+            "parser": {
+              "syntax": "ecmascript",
+              "decorators": true
+            },
+            "transform": {
+              "legacyDecorator": true,
+              "decoratorMetadata": true
+            },
+            "target": "es2022",
+            "keepClassNames": true
+          },
+          "module": {
+            "type": "commonjs"
+          }
+        }
+      ]
+    }
   }
 }

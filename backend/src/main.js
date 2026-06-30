@@ -4,6 +4,9 @@ import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import helmet from 'helmet';
+import compression from 'compression';
+import { join } from 'path';
+import { existsSync, mkdirSync } from 'fs';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -20,9 +23,37 @@ async function bootstrap() {
   const logger = app.get(WINSTON_MODULE_NEST_PROVIDER);
   app.useLogger(logger);
 
-  app.use(helmet());
+  app.use(compression());
+
+  app.useBodyParser('json', { limit: '20mb' });
+  app.useBodyParser('urlencoded', { extended: true, limit: '20mb' });
+
+  app.use(helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  }));
+
+  const uploadsRoot = join(
+    process.cwd(),
+    configService.get('storage.local.rootDir') || 'uploads',
+  );
+
+  if (!existsSync(uploadsRoot)) {
+    mkdirSync(uploadsRoot, { recursive: true });
+  }
+
+  app.useStaticAssets(uploadsRoot, {
+    prefix: configService.get('storage.local.publicPath') || '/uploads',
+  });
+
+  const corsOrigins = configService.get('cors.origins') || [];
+  const isProduction = configService.get('nodeEnv') === 'production';
+
   app.enableCors({
-    origin: configService.get('nodeEnv') === 'production' ? false : true,
+    origin: corsOrigins.length
+      ? corsOrigins
+      : isProduction
+        ? false
+        : true,
     credentials: true,
   });
 

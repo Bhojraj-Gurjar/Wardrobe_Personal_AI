@@ -18,6 +18,7 @@ function _ts_decorate(decorators, target, key, desc) {
 }
 let CreateOrderDto = class CreateOrderDto {
     total_amount;
+    product_id;
 };
 _ts_decorate([
     (0, _swagger.ApiProperty)({
@@ -26,5 +27,13 @@ _ts_decorate([
     (0, _classvalidator.IsNumber)(),
     (0, _classvalidator.Min)(0)
 ], CreateOrderDto.prototype, "total_amount", void 0);
+_ts_decorate([
+    (0, _swagger.ApiPropertyOptional)({
+        example: 'product-uuid',
+        description: 'Purchased product for brand affinity tracking'
+    }),
+    (0, _classvalidator.IsOptional)(),
+    (0, _classvalidator.IsString)()
+], CreateOrderDto.prototype, "product_id", void 0);
 
 //# sourceMappingURL=create-order.dto.js.map

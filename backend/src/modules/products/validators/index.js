@@ -5,3 +5,8 @@ export {
   DEFAULT_LIMIT,
   MAX_LIMIT,
 } from './product.constants';
+
+export {
+  AVATAR_CATEGORIES,
+  AVATAR_CATEGORY_OVERLAY_ORDER,
+} from '../constants/avatar.constants';

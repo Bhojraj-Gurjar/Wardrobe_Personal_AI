@@ -2,5 +2,5 @@
   "watch": ["src"],
   "ext": "js",
   "ignore": ["src/**/*.spec.js"],
-  "exec": "node index.js"
+  "exec": "npm run build && node index.js"
 }

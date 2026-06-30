@@ -10,6 +10,8 @@ Object.defineProperty(exports, "WishlistModule", {
 });
 const _common = require("@nestjs/common");
 const _authmodule = require("../auth/auth.module");
+const _fashiondnamodule = require("../fashion-dna/fashion-dna.module");
+const _productsmodule = require("../products/products.module");
 const _wishlistcontroller = require("./controllers/wishlist.controller");
 const _wishlistservice = require("./services/wishlist.service");
 const _wishlistrepository = require("./repositories/wishlist.repository");
@@ -24,7 +26,9 @@ let WishlistModule = class WishlistModule {
 WishlistModule = _ts_decorate([
     (0, _common.Module)({
         imports: [
-            _authmodule.AuthModule
+            _authmodule.AuthModule,
+            _fashiondnamodule.FashionDnaModule,
+            _productsmodule.ProductsModule
         ],
         controllers: [
             _wishlistcontroller.WishlistController

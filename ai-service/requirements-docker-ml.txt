@@ -1,0 +1,10 @@
+# Heavy ML stack — installed in a separate layer to reduce build peak memory
+insightface>=0.7.3
+onnxruntime>=1.19.0,<1.21.0
+tensorflow>=2.15.0,<2.19.0
+tf-keras>=2.15.0,<2.19.0
+deepface>=0.0.93
+retina-face>=0.0.17
+lightdsa>=0.0.3
+lightphe>=0.0.15
+sentence-transformers>=3.3.0

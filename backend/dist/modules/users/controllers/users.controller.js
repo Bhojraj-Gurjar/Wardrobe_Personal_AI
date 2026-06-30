@@ -40,6 +40,9 @@ let UsersController = class UsersController {
     updateProfile(user, dto) {
         return this.usersService.updateProfile(user.userId, dto);
     }
+    ensureArtifacts(user) {
+        return this.usersService.ensureArtifacts(user.userId);
+    }
 };
 _ts_decorate([
     (0, _common.Get)('profile'),
@@ -91,6 +94,22 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", void 0)
 ], UsersController.prototype, "updateProfile", null);
+_ts_decorate([
+    (0, _common.Post)('artifacts/ensure'),
+    (0, _swagger.ApiOperation)({
+        summary: 'Ensure face, body, avatar, and fashion DNA records exist'
+    }),
+    (0, _swagger.ApiResponse)({
+        status: 200,
+        description: 'Artifacts ensured successfully'
+    }),
+    _ts_param(0, (0, _currentuserdecorator.CurrentUser)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        void 0
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], UsersController.prototype, "ensureArtifacts", null);
 UsersController = _ts_decorate([
     (0, _swagger.ApiTags)('users'),
     (0, _swagger.ApiBearerAuth)(),

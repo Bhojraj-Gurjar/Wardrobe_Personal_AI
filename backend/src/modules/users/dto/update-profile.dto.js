@@ -1,4 +1,15 @@
-import { IsEnum, IsInt, IsNumber, IsOptional, Max, Min } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsNumber,
+  IsObject,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   BODY_TYPE_VALUES,
@@ -7,6 +18,13 @@ import {
 } from '../validators/profile.constants';
 
 export class UpdateProfileDto {
+  @ApiPropertyOptional({ example: 'Alex Johnson' })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  name;
+
   @ApiPropertyOptional({ enum: GENDER_VALUES, example: 'FEMALE' })
   @IsOptional()
   @IsEnum(GENDER_VALUES, { message: 'gender must be a valid value' })
@@ -33,6 +51,18 @@ export class UpdateProfileDto {
   @Max(500)
   weight;
 
+  @ApiPropertyOptional({ example: 'India' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  country;
+
+  @ApiPropertyOptional({ example: 'English' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  language;
+
   @ApiPropertyOptional({ enum: BODY_TYPE_VALUES, example: 'AVERAGE' })
   @IsOptional()
   @IsEnum(BODY_TYPE_VALUES, { message: 'body_type must be a valid value' })
@@ -42,4 +72,20 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsEnum(SKIN_TONE_VALUES, { message: 'skin_tone must be a valid value' })
   skin_tone;
+
+  @ApiPropertyOptional({
+    description: 'Onboarding lifestyle and style preferences',
+    example: {
+      occupation: 'EMPLOYEE',
+      shopping_frequency: 'MONTHLY',
+      budget_preference: 'MID_RANGE',
+      preferred_categories: ['CASUAL', 'FORMAL'],
+      favorite_colors: ['Navy', 'White'],
+      favorite_brands: ['Zara', 'H&M'],
+      fashion_influencers: ['@styleicon'],
+    },
+  })
+  @IsOptional()
+  @IsObject()
+  preferences;
 }

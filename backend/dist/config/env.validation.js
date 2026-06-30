@@ -28,6 +28,7 @@ let EnvironmentVariables = class EnvironmentVariables {
     QDRANT_URL;
     QDRANT_API_KEY;
     OPENAI_API_KEY;
+    AI_SERVICE_URL;
 };
 _ts_decorate([
     (0, _classvalidator.IsEnum)([
@@ -79,6 +80,10 @@ _ts_decorate([
     (0, _classvalidator.IsString)(),
     (0, _classvalidator.IsOptional)()
 ], EnvironmentVariables.prototype, "OPENAI_API_KEY", void 0);
+_ts_decorate([
+    (0, _classvalidator.IsString)(),
+    (0, _classvalidator.IsOptional)()
+], EnvironmentVariables.prototype, "AI_SERVICE_URL", void 0);
 function validateEnv(config) {
     const validated = (0, _classtransformer.plainToInstance)(EnvironmentVariables, config, {
         enableImplicitConversion: true

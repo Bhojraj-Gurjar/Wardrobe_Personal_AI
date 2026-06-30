@@ -9,6 +9,12 @@ function _export(target, all) {
     });
 }
 _export(exports, {
+    get AVATAR_CATEGORIES () {
+        return _avatarconstants.AVATAR_CATEGORIES;
+    },
+    get AVATAR_CATEGORY_OVERLAY_ORDER () {
+        return _avatarconstants.AVATAR_CATEGORY_OVERLAY_ORDER;
+    },
     get DEFAULT_LIMIT () {
         return _productconstants.DEFAULT_LIMIT;
     },
@@ -26,5 +32,6 @@ _export(exports, {
     }
 });
 const _productconstants = require("./product.constants");
+const _avatarconstants = require("../constants/avatar.constants");
 
 //# sourceMappingURL=index.js.map

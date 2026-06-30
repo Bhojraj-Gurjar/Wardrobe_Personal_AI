@@ -39,11 +39,193 @@ services:
     volumes:
       - wardrobe_qdrant_data:/qdrant/storage
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:6333/healthz']
+      test: ['CMD-SHELL', 'bash -c "exec 3<>/dev/tcp/127.0.0.1/6333"']
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 15s
+
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: wardrobe-ai-service
+    restart: unless-stopped
+    init: true
+    env_file:
+      - ./ai-service/.env
+    environment:
+      AI_SERVICE_HOST: 0.0.0.0
+      AI_SERVICE_PORT: 8000
+      HOME: /app
+      INSIGHTFACE_HOME: /app/models/insightface
+      HF_HOME: /app/models/huggingface
+      XDG_CACHE_HOME: /app/models/cache
+      TRANSFORMERS_CACHE: /app/models/huggingface
+      PYTHONDONTWRITEBYTECODE: "1"
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_CACHE_TTL: 3600
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_API_KEY: ''
+      QDRANT_FACE_COLLECTION: users_face_vectors
+      QDRANT_PRODUCT_COLLECTION: products
+      QDRANT_DNA_COLLECTION: fashion_dna_vectors
+      QDRANT_FACE_ANALYSIS_COLLECTION: face_analysis_vectors
+      QDRANT_BODY_ANALYSIS_COLLECTION: body_analysis_vectors
+      QDRANT_DIGITAL_AVATAR_COLLECTION: digital_avatar_vectors
+      INSIGHTFACE_MODEL: buffalo_sc
+      FACE_VECTOR_SIZE: 512
+      FACE_SIMILARITY_THRESHOLD: 0.38
+      FACE_REGISTRATION_DUPLICATE_THRESHOLD: 0.45
+      FACE_SIMILARITY_UNCERTAIN: 0.32
+      FACE_MIN_BLUR_VARIANCE: 45
+      FACE_LIVENESS_BLUR_VARIANCE: 22
+      FACE_LIVENESS_MIN_DETECTION_SCORE: 0.35
+      FACE_HOLD_STILL_MIN_DETECTION_SCORE: 0.38
+      FACE_MIN_EMBEDDING_CONFIDENCE: 0.35
+      FACE_ANTI_SPOOF_ENABLED: "false"
+      PRODUCT_VECTOR_SIZE: 384
+      DNA_VECTOR_SIZE: 384
+      FACE_ANALYSIS_VECTOR_SIZE: 384
+      BODY_ANALYSIS_VECTOR_SIZE: 384
+      DIGITAL_AVATAR_VECTOR_SIZE: 384
+      SENTENCE_MODEL: all-MiniLM-L6-v2
+      TRYON_FALLBACK_ON_QUOTA_EXCEEDED: ${TRYON_FALLBACK_ON_QUOTA_EXCEEDED:-true}
+      TRYON_TIMEOUT_SECONDS: ${TRYON_TIMEOUT_SECONDS:-120}
+    ports:
+      - '8000:8000'
+    volumes:
+      - wardrobe_backend_uploads:/app/uploads
+      - wardrobe_tryon_results:/app/app/generated/tryon
+      - wardrobe_ai_insightface:/app/models/insightface
+      - wardrobe_ai_huggingface:/app/models/huggingface
+    depends_on:
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'python',
+          '-c',
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 180s
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: wardrobe-backend
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: production
+      NODE_OPTIONS: --max-old-space-size=512
+      PORT: 3000
+      CORS_ORIGINS: http://localhost:3001,http://127.0.0.1:3001
+      DATABASE_URL: postgresql://wardrobe:wardrobe@postgres:5432/wardrobe_db?schema=public
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
+      JWT_EXPIRES_IN: 7d
+      JWT_REFRESH_EXPIRES_IN: 30d
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_API_KEY: ''
+      QDRANT_COLLECTION: products
+      QDRANT_VECTOR_SIZE: 128
+      QDRANT_FACE_COLLECTION: users_face_vectors
+      QDRANT_DNA_COLLECTION: fashion_dna_vectors
+      QDRANT_FACE_ANALYSIS_COLLECTION: face_analysis_vectors
+      QDRANT_BODY_ANALYSIS_COLLECTION: body_analysis_vectors
+      QDRANT_DIGITAL_AVATAR_COLLECTION: digital_avatar_vectors
+      FACE_VECTOR_SIZE: 512
+      DNA_VECTOR_SIZE: 384
+      FACE_ANALYSIS_VECTOR_SIZE: 384
+      BODY_ANALYSIS_VECTOR_SIZE: 384
+      DIGITAL_AVATAR_VECTOR_SIZE: 384
+      FACE_SIMILARITY_THRESHOLD: 0.40
+      FACE_REGISTRATION_DUPLICATE_THRESHOLD: 0.45
+      FACE_SIMILARITY_UNCERTAIN: 0.32
+      AI_SERVICE_URL: http://ai-service:8000
+      AI_SERVICE_PUBLIC_URL: http://localhost:8000
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      STORAGE_PROVIDER: local
+      SEED_PRODUCTS_ON_STARTUP: 'false'
+      STORAGE_LOCAL_ROOT: uploads
+      STORAGE_PUBLIC_BASE_URL: http://localhost:3000
+      STORAGE_INTERNAL_BASE_URL: http://backend:3000
+      STORAGE_PUBLIC_PATH: /uploads
+    ports:
+      - '3000:3000'
+    volumes:
+      - wardrobe_backend_uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      ai-service:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:3000/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: /api/v1
+        NEXT_PUBLIC_FACE_VECTOR_SIZE: 512
+        BACKEND_INTERNAL_URL: http://backend:3000
+        AI_SERVICE_INTERNAL_URL: http://ai-service:8000
+    container_name: wardrobe-frontend
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: production
+      NODE_OPTIONS: --max-old-space-size=384
+      PORT: 3001
+    ports:
+      - '3001:3001'
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3001').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+    depends_on:
+      backend:
+        condition: service_healthy
 
 volumes:
   wardrobe_postgres_data:
   wardrobe_qdrant_data:
+  wardrobe_backend_uploads:
+  wardrobe_tryon_results:
+  wardrobe_ai_insightface:
+  wardrobe_ai_huggingface:

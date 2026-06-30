@@ -1,8 +1,1 @@
-export {
-  SKIN_TONE_COLOR_MAP,
-  DEFAULT_COLOR_AFFINITY,
-  BODY_TYPE_STYLE_BOOST,
-  BODY_TYPE_LIFESTYLE_BOOST,
-  MIN_SCORE,
-  MAX_SCORE,
-} from './dna.constants';
+export { MIN_SCORE, MAX_SCORE, ONBOARDING_INPUT_FIELDS } from './dna.constants';

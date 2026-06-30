@@ -34,10 +34,91 @@ let RecommendationsController = class RecommendationsController {
     constructor(recommendationsService){
         this.recommendationsService = recommendationsService;
     }
+    getDaily(user, query) {
+        return this.recommendationsService.getRecommendations(user.userId, {
+            ...query,
+            type: 'daily'
+        });
+    }
+    getSeasonal(user, query) {
+        return this.recommendationsService.getRecommendations(user.userId, {
+            ...query,
+            type: 'seasonal'
+        });
+    }
+    getEvent(user, query) {
+        return this.recommendationsService.getRecommendations(user.userId, {
+            ...query,
+            type: 'event',
+            event: query.event
+        });
+    }
+    getTrending(user, query) {
+        return this.recommendationsService.getRecommendations(user.userId, {
+            ...query,
+            type: 'trending'
+        });
+    }
     getRecommendations(user, query) {
         return this.recommendationsService.getRecommendations(user.userId, query);
     }
 };
+_ts_decorate([
+    (0, _common.Get)('daily'),
+    (0, _swagger.ApiOperation)({
+        summary: 'Get daily personalized recommendations'
+    }),
+    _ts_param(0, (0, _currentuserdecorator.CurrentUser)()),
+    _ts_param(1, (0, _common.Query)(queryRecommendationsPipe)),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        void 0,
+        void 0
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], RecommendationsController.prototype, "getDaily", null);
+_ts_decorate([
+    (0, _common.Get)('seasonal'),
+    (0, _swagger.ApiOperation)({
+        summary: 'Get seasonal recommendations'
+    }),
+    _ts_param(0, (0, _currentuserdecorator.CurrentUser)()),
+    _ts_param(1, (0, _common.Query)(queryRecommendationsPipe)),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        void 0,
+        void 0
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], RecommendationsController.prototype, "getSeasonal", null);
+_ts_decorate([
+    (0, _common.Get)('event'),
+    (0, _swagger.ApiOperation)({
+        summary: 'Get event-based recommendations'
+    }),
+    _ts_param(0, (0, _currentuserdecorator.CurrentUser)()),
+    _ts_param(1, (0, _common.Query)(queryRecommendationsPipe)),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        void 0,
+        void 0
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], RecommendationsController.prototype, "getEvent", null);
+_ts_decorate([
+    (0, _common.Get)('trending'),
+    (0, _swagger.ApiOperation)({
+        summary: 'Get trending recommendations'
+    }),
+    _ts_param(0, (0, _currentuserdecorator.CurrentUser)()),
+    _ts_param(1, (0, _common.Query)(queryRecommendationsPipe)),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        void 0,
+        void 0
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], RecommendationsController.prototype, "getTrending", null);
 _ts_decorate([
     (0, _common.Get)(),
     (0, _swagger.ApiOperation)({

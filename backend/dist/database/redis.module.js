@@ -9,6 +9,7 @@ Object.defineProperty(exports, "RedisModule", {
     }
 });
 const _common = require("@nestjs/common");
+const _apicacheservice = require("../common/services/api-cache.service");
 const _redisservice = require("./redis.service");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -22,10 +23,12 @@ RedisModule = _ts_decorate([
     (0, _common.Global)(),
     (0, _common.Module)({
         providers: [
-            _redisservice.RedisService
+            _redisservice.RedisService,
+            _apicacheservice.ApiCacheService
         ],
         exports: [
-            _redisservice.RedisService
+            _redisservice.RedisService,
+            _apicacheservice.ApiCacheService
         ]
     })
 ], RedisModule);

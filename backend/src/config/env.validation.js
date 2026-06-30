@@ -54,6 +54,10 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   OPENAI_API_KEY;
+
+  @IsString()
+  @IsOptional()
+  AI_SERVICE_URL;
 }
 
 export function validateEnv(config) {

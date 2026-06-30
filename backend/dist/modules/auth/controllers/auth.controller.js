@@ -11,11 +11,14 @@ Object.defineProperty(exports, "AuthController", {
 const _common = require("@nestjs/common");
 const _swagger = require("@nestjs/swagger");
 const _dtovalidationpipe = require("../../../common/pipes/dto-validation.pipe");
+const _jwtauthguard = require("../../../guards/jwt-auth.guard");
+const _currentuserdecorator = require("../../../common/decorators/current-user.decorator");
 const _authservice = require("../services/auth.service");
 const _registerdto = require("../dto/register.dto");
 const _logindto = require("../dto/login.dto");
 const _refreshtokendto = require("../dto/refresh-token.dto");
 const _logoutdto = require("../dto/logout.dto");
+const _changepassworddto = require("../dto/change-password.dto");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -34,6 +37,7 @@ const registerPipe = (0, _dtovalidationpipe.DtoValidationPipe)(_registerdto.Regi
 const loginPipe = (0, _dtovalidationpipe.DtoValidationPipe)(_logindto.LoginDto);
 const refreshPipe = (0, _dtovalidationpipe.DtoValidationPipe)(_refreshtokendto.RefreshTokenDto);
 const logoutPipe = (0, _dtovalidationpipe.DtoValidationPipe)(_logoutdto.LogoutDto);
+const changePasswordPipe = (0, _dtovalidationpipe.DtoValidationPipe)(_changepassworddto.ChangePasswordDto);
 let AuthController = class AuthController {
     constructor(authService){
         this.authService = authService;
@@ -49,6 +53,12 @@ let AuthController = class AuthController {
     }
     logout(dto) {
         return this.authService.logout(dto);
+    }
+    me(user) {
+        return this.authService.getMe(user.userId);
+    }
+    changePassword(user, dto) {
+        return this.authService.changePassword(user.userId, dto);
     }
 };
 _ts_decorate([
@@ -131,6 +141,57 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", void 0)
 ], AuthController.prototype, "logout", null);
+_ts_decorate([
+    (0, _common.Get)('me'),
+    (0, _common.UseGuards)(_jwtauthguard.JwtAuthGuard),
+    (0, _swagger.ApiBearerAuth)(),
+    (0, _swagger.ApiOperation)({
+        summary: 'Get current authenticated user (role + status)'
+    }),
+    (0, _swagger.ApiResponse)({
+        status: 200,
+        description: 'Current user'
+    }),
+    (0, _swagger.ApiResponse)({
+        status: 401,
+        description: 'Unauthorized'
+    }),
+    _ts_param(0, (0, _currentuserdecorator.CurrentUser)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        void 0
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], AuthController.prototype, "me", null);
+_ts_decorate([
+    (0, _common.Post)('change-password'),
+    (0, _common.HttpCode)(200),
+    (0, _common.UseGuards)(_jwtauthguard.JwtAuthGuard),
+    (0, _swagger.ApiBearerAuth)(),
+    (0, _swagger.ApiOperation)({
+        summary: 'Change password for the authenticated user'
+    }),
+    (0, _swagger.ApiResponse)({
+        status: 200,
+        description: 'Password updated successfully'
+    }),
+    (0, _swagger.ApiResponse)({
+        status: 400,
+        description: 'Validation error'
+    }),
+    (0, _swagger.ApiResponse)({
+        status: 401,
+        description: 'Incorrect current password'
+    }),
+    _ts_param(0, (0, _currentuserdecorator.CurrentUser)()),
+    _ts_param(1, (0, _common.Body)(changePasswordPipe)),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        void 0,
+        void 0
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], AuthController.prototype, "changePassword", null);
 AuthController = _ts_decorate([
     (0, _swagger.ApiTags)('auth'),
     (0, _common.Controller)('auth'),
