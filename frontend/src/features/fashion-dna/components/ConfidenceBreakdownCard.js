@@ -1,7 +1,11 @@
 'use client';
 
 import { Progress } from '@/components/ui/progress';
-import { cn } from '@/utils/cn';
+import {
+  fashionDnaCardShell,
+  fashionDnaCardSubtitleClass,
+  fashionDnaCardTitleClass,
+} from '@/features/fashion-dna/utils/fashion-dna-card-styles';
 
 const LABELS = {
   faceAnalysis: 'Face Analysis',
@@ -31,23 +35,16 @@ export function ConfidenceBreakdownCard({ confidenceBreakdown, className }) {
   }
 
   return (
-    <section
-      className={cn(
-        'rounded-[24px] border border-dashboard-border bg-[#1A2235] p-6 shadow-lg',
-        className,
-      )}
-    >
-      <h3 className="text-base font-semibold text-dashboard-foreground">
-        DNA Confidence Breakdown
-      </h3>
-      <p className="mt-1 text-xs text-dashboard-muted">
+    <section className={fashionDnaCardShell(className)}>
+      <h3 className={fashionDnaCardTitleClass}>DNA Confidence Breakdown</h3>
+      <p className={fashionDnaCardSubtitleClass}>
         Weighted from face, body, closet, purchases, and engagement signals
       </p>
 
-      <div className="mt-5 space-y-4">
+      <div className="mt-3 space-y-3 md:mt-5 md:space-y-4">
         {entries.map((entry) => (
           <div key={entry.key} className="space-y-1.5">
-            <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center justify-between text-xs md:text-sm">
               <span className="text-dashboard-foreground">{entry.label}</span>
               <span className="font-semibold text-dashboard-foreground">{entry.value}%</span>
             </div>

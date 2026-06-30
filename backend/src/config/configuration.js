@@ -94,7 +94,8 @@ export default () => ({
     local: {
       rootDir: process.env.STORAGE_LOCAL_ROOT || 'uploads',
       publicBaseUrl:
-        process.env.STORAGE_PUBLIC_BASE_URL || 'http://localhost:3000',
+        process.env.STORAGE_PUBLIC_BASE_URL
+        || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3000'),
       publicPath: process.env.STORAGE_PUBLIC_PATH || '/uploads',
     },
     internalBaseUrl: ensureHttpUrl(

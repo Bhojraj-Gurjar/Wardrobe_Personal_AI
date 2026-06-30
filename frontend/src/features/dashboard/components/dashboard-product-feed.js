@@ -63,25 +63,25 @@ export function DashboardProductFeed() {
     <section
       ref={feedRef}
       aria-label="Personalized product collections"
-      className="relative mt-10 border-t border-dashboard-border/70 pt-10"
+      className="relative mt-6 border-t border-dashboard-border/70 pt-6 md:mt-10 md:pt-10"
     >
-      <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div className="space-y-2">
-          <div className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-            <Sparkles className="size-3.5" aria-hidden="true" />
+      <div className="mb-4 flex flex-col gap-2 md:mb-8 md:gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="space-y-1 md:space-y-2">
+          <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary md:gap-2 md:px-3 md:py-1 md:text-xs md:tracking-[0.18em]">
+            <Sparkles className="size-3 md:size-3.5" aria-hidden="true" />
             AI Shopping Feed
           </div>
-          <h2 className="text-2xl font-bold tracking-tight text-dashboard-foreground sm:text-3xl">
+          <h2 className="text-lg font-bold tracking-tight text-dashboard-foreground md:text-2xl lg:text-3xl">
             Keep exploring your style
           </h2>
-          <p className="max-w-3xl text-sm text-dashboard-muted sm:text-base">
+          <p className="max-w-3xl text-[11px] leading-snug text-dashboard-muted md:text-sm lg:text-base">
             Personalized collections powered by your Fashion DNA, face and body analysis,
             closet, wishlist, and browsing history.
           </p>
         </div>
       </div>
 
-      <div className="space-y-12">
+      <div className="space-y-8 md:space-y-12">
         {!feedInView ? (
           <FeedIntroSkeleton />
         ) : (

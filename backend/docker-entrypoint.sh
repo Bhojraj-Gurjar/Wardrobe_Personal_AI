@@ -23,6 +23,11 @@ if [ -f ./scripts/run-product-seeds-on-first-init.js ]; then
   node scripts/run-product-seeds-on-first-init.js || echo "Product seed skipped (non-fatal)."
 fi
 
+if [ -f ./scripts/sync-curated-product-assets.js ]; then
+  echo "Syncing bundled curated product images..."
+  node scripts/sync-curated-product-assets.js || echo "Curated asset sync skipped (non-fatal)."
+fi
+
 if [ "$(id -u)" = "0" ]; then
   exec gosu nodejs "$@"
 fi

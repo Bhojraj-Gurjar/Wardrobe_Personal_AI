@@ -4,14 +4,14 @@ import { memo } from 'react';
 
 export const WelcomeSection = memo(function WelcomeSection({ greeting, name }) {
   return (
-    <section className="space-y-1">
-      <p className="text-xs font-semibold tracking-[0.2em] text-dashboard-muted">
+    <section className="space-y-0.5 md:space-y-1">
+      <p className="text-[10px] font-semibold tracking-[0.16em] text-dashboard-muted md:text-xs md:tracking-[0.2em]">
         {greeting}
       </p>
-      <h2 className="text-3xl font-bold text-dashboard-foreground md:text-4xl">
+      <h2 className="text-xl font-bold leading-tight text-dashboard-foreground md:text-3xl lg:text-4xl">
         {name} ✨
       </h2>
-      <p className="text-sm text-dashboard-muted md:text-base">
+      <p className="text-[11px] leading-snug text-dashboard-muted md:text-sm lg:text-base">
         Here&apos;s your personalized fashion overview for today.
       </p>
     </section>

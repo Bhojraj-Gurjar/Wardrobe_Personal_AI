@@ -9,6 +9,7 @@ import { AdminBootstrapService } from './services/admin-bootstrap.service';
 import { AdminProductCmsService } from './services/admin-product-cms.service';
 import { AdminProductBulkService } from './services/admin-product-bulk.service';
 import { AdminRepository } from './repositories/admin.repository';
+import { AdminAnalyticsRepository } from './repositories/admin-analytics.repository';
 import { AdminProductCmsRepository } from './repositories/admin-product-cms.repository';
 
 export @Module({
@@ -20,6 +21,7 @@ export @Module({
     AdminProductCmsService,
     AdminProductBulkService,
     AdminRepository,
+    AdminAnalyticsRepository,
     AdminProductCmsRepository,
   ],
   exports: [AdminService, AdminProductCmsService],

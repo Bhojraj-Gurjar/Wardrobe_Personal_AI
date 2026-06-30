@@ -37,25 +37,25 @@ import { cn } from '@/utils/cn';
 
 function FashionDnaSkeleton() {
   return (
-    <div className="space-y-6">
-      <div className="space-y-3">
-        <Skeleton className="h-4 w-28 rounded bg-dashboard-surface" />
-        <Skeleton className="h-10 w-72 rounded-xl bg-dashboard-surface" />
-        <Skeleton className="h-4 w-56 rounded bg-dashboard-surface" />
+    <div className="space-y-4 md:space-y-6">
+      <div className="space-y-2">
+        <Skeleton className="h-3.5 w-24 rounded bg-dashboard-surface md:h-4 md:w-28" />
+        <Skeleton className="h-8 w-56 rounded-xl bg-dashboard-surface md:h-10 md:w-72" />
+        <Skeleton className="h-3.5 w-48 rounded bg-dashboard-surface md:h-4 md:w-56" />
       </div>
-      <div className="grid gap-4 xl:grid-cols-3">
+      <div className="grid gap-3 md:gap-4 xl:grid-cols-3">
         {Array.from({ length: 3 }).map((_, index) => (
           <Skeleton
             key={`row1-${index}`}
-            className="h-[420px] rounded-[24px] bg-dashboard-surface"
+            className="h-auto min-h-[220px] rounded-2xl bg-dashboard-surface md:min-h-[420px] md:rounded-[24px]"
           />
         ))}
       </div>
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-2 md:gap-4 xl:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => (
           <Skeleton
             key={`row2-${index}`}
-            className="h-[380px] rounded-[24px] bg-dashboard-surface"
+            className="h-auto min-h-[180px] rounded-2xl bg-dashboard-surface md:min-h-[380px] md:rounded-[24px]"
           />
         ))}
       </div>
@@ -93,17 +93,17 @@ export function FashionDnaView() {
       : 'Awaiting first analysis';
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="space-y-2">
-          <p className="inline-flex items-center gap-2 text-xs font-semibold tracking-[0.2em] text-[#8B5CF6]">
-            <Sparkles className="size-3.5" aria-hidden="true" />
+    <div className="mx-auto max-w-7xl space-y-4 md:space-y-6">
+      <div className="flex flex-col gap-3 md:gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="space-y-1.5 md:space-y-2">
+          <p className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#8B5CF6] md:gap-2 md:text-xs">
+            <Sparkles className="size-3 md:size-3.5" aria-hidden="true" />
             AI ANALYSIS
           </p>
-          <h2 className="text-3xl font-bold text-dashboard-foreground">
+          <h2 className="text-2xl font-bold text-dashboard-foreground md:text-3xl">
             Your Fashion DNA
           </h2>
-          <p className="text-sm text-dashboard-muted">
+          <p className="text-xs text-dashboard-muted md:text-sm">
             {lastUpdatedLabel}
             {dna.confidenceScore > 0 ? ` · Confidence score: ${dna.confidenceScore}/100` : ''}
           </p>
@@ -112,17 +112,17 @@ export function FashionDnaView() {
         {dna.weeklyGrowth > 0 ? (
           <span
             className={cn(
-              'inline-flex w-fit items-center gap-1.5 rounded-full border border-emerald-500/30',
-              'bg-emerald-500/10 px-3 py-1.5 text-sm font-medium text-emerald-400',
+              'inline-flex w-fit items-center gap-1 rounded-full border border-emerald-500/30',
+              'bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-400 md:gap-1.5 md:px-3 md:py-1.5 md:text-sm',
             )}
           >
-            <TrendingUp className="size-3.5" aria-hidden="true" />
+            <TrendingUp className="size-3 md:size-3.5" aria-hidden="true" />
             +{dna.weeklyGrowth} pts this week
           </span>
         ) : null}
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-3">
+      <div className="grid gap-3 md:gap-4 xl:grid-cols-3">
         <FashionConfidenceCard
           confidenceScore={dna.confidenceScore}
           fashionPersonality={dna.fashionPersonality}
@@ -133,7 +133,7 @@ export function FashionDnaView() {
         <ScoreHistoryChart historyTimeline={dna.historyTimeline} />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-2 md:gap-4 xl:grid-cols-4">
         <StyleAttributesCard styleAttributes={dna.styleAttributes} />
         <ColorAffinityCard
           colorAffinity={dna.colorAffinity}
@@ -152,23 +152,23 @@ export function FashionDnaView() {
         />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-3">
+      <div className="grid gap-3 md:gap-4 xl:grid-cols-3">
         <AiFashionInsightsCard insights={dna.aiInsights} className="xl:col-span-2" />
         <ConfidenceBreakdownCard confidenceBreakdown={dna.confidenceBreakdown} />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-3 md:grid-cols-2 md:gap-4">
         <StyleEvolutionCard styleEvolution={dna.styleEvolution} />
         <WardrobeBalanceCard wardrobeBalance={dna.wardrobeBalance} />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-3">
+      <div className="grid gap-3 md:gap-4 xl:grid-cols-3">
         <ShoppingInfluenceCard shoppingInfluence={dna.shoppingInfluence} />
         <SearchBehaviourCard searchBehaviour={dna.searchBehaviour} />
         <CurrentStyleMoodCard mood={dna.currentStyleMood} weeklyGrowth={dna.weeklyGrowth} />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-3 md:grid-cols-2 md:gap-4">
         <EvolutionTimelineCard
           historyTimeline={dna.historyTimeline}
           styleEvolution={dna.styleEvolution}
@@ -178,7 +178,7 @@ export function FashionDnaView() {
 
       <RecentlyInfluencedCard items={dna.recentlyInfluenced} />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+      <div className="grid gap-3 md:grid-cols-2 md:gap-4 xl:grid-cols-3 2xl:grid-cols-5">
         <DnaInsightCard
           title="Favorite Categories"
           icon={Grid3x3}
@@ -207,7 +207,7 @@ export function FashionDnaView() {
         />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-2 md:gap-4 xl:grid-cols-4">
         <DnaInsightCard
           title="Recommended Colors"
           icon={Palette}

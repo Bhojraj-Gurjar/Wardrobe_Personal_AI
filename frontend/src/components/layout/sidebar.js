@@ -20,7 +20,8 @@ import { LogoutButton } from '@/features/auth/components/logout-button';
 import { useUiStore } from '@/stores/ui-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { useProfileQuery } from '@/features/profile/hooks';
-import { useIsMobile } from '@/hooks/use-media-query';
+import { useIsMobile, useIsTablet } from '@/hooks/use-media-query';
+import { useMobileDrawer } from '@/hooks/use-mobile-drawer';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/button';
 
@@ -152,6 +153,7 @@ function SidebarFooter({
 
 export function Sidebar({ className }) {
   const isMobile = useIsMobile();
+  const isTablet = useIsTablet();
   const isOpen = useUiStore((state) => state.isMobileSidebarOpen);
   const collapsed = useUiStore((state) => state.isDashboardSidebarCollapsed);
   const toggleCollapsed = useUiStore(
@@ -164,7 +166,9 @@ export function Sidebar({ className }) {
   const displayName =
     profile?.name || user?.email?.split('@')[0] || 'Your Profile';
   const closeMobile = () => setMobileOpen(false);
-  const isCollapsedDesktop = collapsed && !isMobile;
+  const isCollapsedDesktop = (collapsed || isTablet) && !isMobile;
+
+  useMobileDrawer(isMobile && isOpen, closeMobile);
 
   const content = (
     <div className="flex h-full min-h-0 flex-col">
@@ -203,17 +207,20 @@ export function Sidebar({ className }) {
       <>
         <div
           className={cn(
-            'fixed inset-0 z-40 bg-[#060b1f]/85 backdrop-blur-sm transition-opacity',
+            'fixed inset-0 z-40 bg-[#060b1f]/85 backdrop-blur-sm transition-opacity duration-300',
             isOpen ? 'opacity-100' : 'pointer-events-none opacity-0',
           )}
           onClick={closeMobile}
           aria-hidden="true"
         />
         <aside
+          role="dialog"
+          aria-modal="true"
+          aria-label="Navigation menu"
           className={cn(
-            'fixed left-0 top-0 z-50 h-screen w-72',
+            'fixed left-0 top-0 z-50 h-[100dvh] w-[min(18rem,88vw)] safe-area-top safe-area-bottom',
             SIDEBAR_STYLES.panel,
-            'transition-transform duration-300',
+            'transition-transform duration-300 ease-out',
             isOpen ? 'translate-x-0' : '-translate-x-full',
             className,
           )}

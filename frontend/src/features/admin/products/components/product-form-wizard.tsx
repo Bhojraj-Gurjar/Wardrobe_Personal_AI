@@ -197,14 +197,15 @@ export function ProductFormWizard({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm sm:items-center sm:p-4">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="product-form-wizard-title"
         className={cn(
-          'flex max-h-[min(90vh,840px)] w-full max-w-3xl flex-col overflow-hidden',
-          'rounded-2xl border border-white/10 bg-[#0d1224]/95 shadow-[0_28px_90px_rgba(0,0,0,0.55)] backdrop-blur-xl',
+          'flex max-h-[min(92dvh,840px)] w-full max-w-3xl flex-col overflow-hidden',
+          'rounded-t-2xl border border-white/10 bg-[#0d1224]/95 shadow-[0_28px_90px_rgba(0,0,0,0.55)] backdrop-blur-xl',
+          'sm:rounded-2xl',
         )}
       >
         <div className="shrink-0 border-b border-white/10 px-6 py-5">

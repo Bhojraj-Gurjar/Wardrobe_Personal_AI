@@ -8,12 +8,12 @@ export function PageContainer({
   actions,
 }) {
   return (
-    <section className={cn('w-full', className)}>
+    <section className={cn('w-full min-w-0', className)}>
       {(title || description || actions) && (
         <div className="mb-6 flex flex-col gap-4 sm:mb-8 sm:flex-row sm:items-end sm:justify-between">
-          <div className="space-y-2">
+          <div className="min-w-0 space-y-2">
             {title ? (
-              <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+              <h1 className="page-title font-bold tracking-tight text-foreground">
                 {title}
               </h1>
             ) : null}

@@ -13,7 +13,8 @@ import { ADMIN_NAV_ITEMS } from '@/features/admin/constants/admin-nav';
 import { useUiStore } from '@/stores/ui-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAdminProfileQuery } from '@/features/admin/hooks';
-import { useIsMobile } from '@/hooks/use-media-query';
+import { useIsMobile, useIsTablet } from '@/hooks/use-media-query';
+import { useMobileDrawer } from '@/hooks/use-mobile-drawer';
 import { LogoutButton } from '@/features/auth/components/logout-button';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/button';
@@ -49,6 +50,7 @@ function NavItem({ item, collapsed, onNavigate }) {
 
 export function AdminSidebar() {
   const isMobile = useIsMobile();
+  const isTablet = useIsTablet();
   const isOpen = useUiStore((state) => state.isMobileSidebarOpen);
   const collapsed = useUiStore((state) => state.isDashboardSidebarCollapsed);
   const toggleCollapsed = useUiStore((state) => state.toggleDashboardSidebarCollapsed);
@@ -58,7 +60,9 @@ export function AdminSidebar() {
 
   const displayName = profile?.name || user?.email?.split('@')[0] || 'Admin';
   const closeMobile = () => setMobileOpen(false);
-  const isCollapsedDesktop = collapsed && !isMobile;
+  const isCollapsedDesktop = (collapsed || isTablet) && !isMobile;
+
+  useMobileDrawer(isMobile && isOpen, closeMobile);
 
   const content = (
     <div className="flex h-full min-h-0 flex-col">
@@ -154,17 +158,20 @@ export function AdminSidebar() {
   if (isMobile) {
     return (
       <>
-        {isOpen ? (
-          <button
-            type="button"
-            className="fixed inset-0 z-40 bg-black/60"
-            onClick={closeMobile}
-            aria-label="Close sidebar overlay"
-          />
-        ) : null}
-        <aside
+        <div
           className={cn(
-            'fixed inset-y-0 left-0 z-50 w-64 border-r border-dashboard-border bg-dashboard-surface transition-transform duration-300',
+            'fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-300',
+            isOpen ? 'opacity-100' : 'pointer-events-none opacity-0',
+          )}
+          onClick={closeMobile}
+          aria-hidden="true"
+        />
+        <aside
+          role="dialog"
+          aria-modal="true"
+          aria-label="Admin navigation menu"
+          className={cn(
+            'fixed inset-y-0 left-0 z-50 w-[min(16rem,88vw)] border-r border-dashboard-border bg-dashboard-surface safe-area-top safe-area-bottom transition-transform duration-300 ease-out',
             isOpen ? 'translate-x-0' : '-translate-x-full',
           )}
         >
@@ -177,7 +184,7 @@ export function AdminSidebar() {
   return (
     <aside
       className={cn(
-        'fixed inset-y-0 left-0 z-40 border-r border-dashboard-border bg-dashboard-surface transition-[width] duration-300',
+        'fixed inset-y-0 left-0 z-40 hidden border-r border-dashboard-border bg-dashboard-surface transition-[width] duration-300 md:block',
         isCollapsedDesktop ? 'w-[4.5rem]' : 'w-64',
       )}
     >

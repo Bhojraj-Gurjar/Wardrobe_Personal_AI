@@ -52,27 +52,27 @@ export function AdminHeader() {
   const breadcrumb = resolveBreadcrumb(pathname);
 
   return (
-    <header className="sticky top-0 z-30 border-b border-dashboard-border bg-dashboard-bg/95 backdrop-blur">
-      <div className="flex flex-col gap-4 px-4 py-4 lg:flex-row lg:items-center lg:px-6">
-        <div className="flex items-center gap-3">
+    <header className="safe-area-top sticky top-0 z-30 border-b border-dashboard-border bg-dashboard-bg/95 backdrop-blur">
+      <div className="flex flex-col gap-3 px-3 py-3 sm:gap-4 sm:px-4 sm:py-4 lg:flex-row lg:items-center lg:px-6">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           {isMobile ? (
             <Button
               variant="ghost"
               size="icon"
-              className="text-dashboard-muted hover:text-dashboard-foreground"
+              className="touch-target shrink-0 text-dashboard-muted hover:text-dashboard-foreground"
               onClick={toggleMobileSidebar}
               aria-label="Open menu"
             >
               <Menu className="size-5" />
             </Button>
           ) : null}
-          <div>
-            <p className="text-xs text-dashboard-muted">Admin · {breadcrumb}</p>
-            <h1 className="text-xl font-bold text-dashboard-foreground">{breadcrumb}</h1>
+          <div className="min-w-0">
+            <p className="truncate text-xs text-dashboard-muted">Admin · {breadcrumb}</p>
+            <h1 className="page-title truncate font-bold text-dashboard-foreground">{breadcrumb}</h1>
           </div>
         </div>
 
-        <div className="relative flex-1 lg:mx-auto lg:max-w-xl">
+        <div className="relative w-full min-w-0 flex-1 lg:mx-auto lg:max-w-xl">
           <Search
             className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-dashboard-muted"
             aria-hidden="true"
@@ -81,27 +81,28 @@ export function AdminHeader() {
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search styles, brands, outfits..."
-            className="h-11 border-dashboard-border bg-dashboard-surface pl-10 text-dashboard-foreground placeholder:text-dashboard-muted"
+            className="h-11 w-full border-dashboard-border bg-dashboard-surface pl-10 text-dashboard-foreground placeholder:text-dashboard-muted"
           />
         </div>
 
-        <div className="flex items-center justify-end gap-3">
+        <div className="flex shrink-0 items-center justify-end gap-2 sm:gap-3">
           <NotificationCenter isAdmin />
 
           <Link
             href={ROUTES.ADMIN.PROFILE}
-            className="hidden items-center gap-2 rounded-xl border border-dashboard-border bg-dashboard-surface px-3 py-2 sm:flex"
+            className="touch-target flex items-center gap-2 rounded-xl border border-dashboard-border bg-dashboard-surface px-2 py-1.5 sm:px-3 sm:py-2"
+            aria-label="Admin profile"
           >
-            <span className="flex size-8 items-center justify-center rounded-full bg-primary/20 text-sm font-semibold text-primary">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/20 text-sm font-semibold text-primary">
               {displayName[0]?.toUpperCase()}
             </span>
-            <div className="min-w-0">
+            <div className="hidden min-w-0 sm:block">
               <p className="truncate text-sm font-medium text-dashboard-foreground">
                 {displayName}
               </p>
               <p className="text-xs text-dashboard-muted">Administrator</p>
             </div>
-            <ChevronDown className="size-4 text-dashboard-muted" aria-hidden="true" />
+            <ChevronDown className="hidden size-4 text-dashboard-muted sm:block" aria-hidden="true" />
           </Link>
         </div>
       </div>

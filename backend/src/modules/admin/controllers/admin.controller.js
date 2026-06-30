@@ -93,11 +93,59 @@ class AdminController {
     return this.adminService.getDashboard();
   }
 
+  @Get('analytics/customers')
+  @UseGuards(...adminGuards)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Paginated customer analytics for admin' })
+  getAnalyticsCustomers(@Query() query) {
+    return this.adminService.getAnalyticsCustomers(query);
+  }
+
+  @Get('analytics/products')
+  @UseGuards(...adminGuards)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Paginated product analytics for admin' })
+  getAnalyticsProducts(@Query() query) {
+    return this.adminService.getAnalyticsProducts(query);
+  }
+
+  @Get('analytics/user-growth')
+  @UseGuards(...adminGuards)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Detailed user growth analytics' })
+  getAnalyticsUserGrowth(@Query() query) {
+    return this.adminService.getAnalyticsUserGrowth(query);
+  }
+
+  @Get('analytics/devices')
+  @UseGuards(...adminGuards)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Detailed device analytics' })
+  getAnalyticsDevices(@Query() query) {
+    return this.adminService.getAnalyticsDevices(query);
+  }
+
+  @Get('analytics/orders')
+  @UseGuards(...adminGuards)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Detailed order analytics' })
+  getAnalyticsOrders(@Query() query) {
+    return this.adminService.getAnalyticsOrders(query);
+  }
+
+  @Get('analytics/categories')
+  @UseGuards(...adminGuards)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Detailed category analytics' })
+  getAnalyticsCategories(@Query() query) {
+    return this.adminService.getAnalyticsCategories(query);
+  }
+
   @Get('analytics')
   @UseGuards(...adminGuards)
   @ApiBearerAuth()
-  getAnalytics() {
-    return this.adminService.getAnalytics();
+  getAnalytics(@Query() query) {
+    return this.adminService.getAnalytics(query);
   }
 
   @Get('users')

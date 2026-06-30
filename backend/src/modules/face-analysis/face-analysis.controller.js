@@ -6,7 +6,7 @@ import {
   HttpCode,
   Post,
   Put,
-  UploadedFile,
+  UploadedFiles,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -17,22 +17,25 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { JwtAuthGuard } from '../../guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import {
   FACE_UPLOAD_FIELD,
   FACE_UPLOAD_MAX_BYTES,
-  toFaceAuthDto,
+  toFaceAnalysisDto,
 } from '../face/utils/face-upload.util';
 import { UpdateFaceAnalysisDto } from './dto/update-face-analysis.dto';
 import { FaceAnalysisService } from './face-analysis.service';
 
-const faceUploadInterceptor = FileInterceptor(FACE_UPLOAD_FIELD, {
-  storage: memoryStorage(),
-  limits: { fileSize: FACE_UPLOAD_MAX_BYTES },
-});
+const faceUploadInterceptor = FileFieldsInterceptor(
+  [{ name: FACE_UPLOAD_FIELD, maxCount: 1 }],
+  {
+    storage: memoryStorage(),
+    limits: { fileSize: FACE_UPLOAD_MAX_BYTES },
+  },
+);
 
 export @ApiTags('face-analysis')
 @ApiBearerAuth()
@@ -60,9 +63,10 @@ class FaceAnalysisController {
   @ApiResponse({ status: 400, description: 'Invalid image or no face detected' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @UseInterceptors(faceUploadInterceptor)
-  async analyzeFace(@CurrentUser() user, @UploadedFile() file, @Body() body) {
-    const dto = await toFaceAuthDto(file, body);
-    return this.faceAnalysisService.analyzeFace(user.userId, dto);
+  async analyzeFace(@CurrentUser() user, @UploadedFiles() files, @Body() body) {
+    const dto = await toFaceAnalysisDto(files, body);
+    const captureSource = body.captureSource || body.capture_source || 'upload';
+    return this.faceAnalysisService.analyzeFace(user.userId, dto, { captureSource });
   }
 
   @Post('analyze-current')

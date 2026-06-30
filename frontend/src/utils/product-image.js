@@ -1,6 +1,4 @@
-import { API_BASE_URL } from '@/constants/api';
-
-const STORAGE_ORIGIN = API_BASE_URL.replace(/\/api\/v1\/?$/, '');
+import { API_BASE_URL, resolveStorageOrigin } from '@/constants/api';
 
 const PRODUCT_PLACEHOLDER = '/avatar/shoes/placeholder.svg';
 
@@ -24,14 +22,24 @@ export function resolveProductImageUrl(url) {
   }
 
   if (/^https?:\/\//i.test(trimmed) || trimmed.startsWith('data:')) {
+    const localUploadMatch = trimmed.match(
+      /^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?(\/uploads\/.*)$/i,
+    );
+
+    if (localUploadMatch) {
+      return `${resolveStorageOrigin()}${localUploadMatch[1]}`;
+    }
+
     return trimmed;
   }
 
+  const origin = resolveStorageOrigin();
+
   if (trimmed.startsWith('/')) {
-    return `${STORAGE_ORIGIN}${trimmed}`;
+    return `${origin}${trimmed}`;
   }
 
-  return `${STORAGE_ORIGIN}/${trimmed}`;
+  return `${origin}/${trimmed}`;
 }
 
 function readGalleryImages(product) {
