@@ -2,38 +2,39 @@
 
 import { TrendingUp } from 'lucide-react';
 import { cn } from '@/utils/cn';
+import {
+  fashionDnaCardHeaderGapClass,
+  fashionDnaCardShell,
+  fashionDnaCardSubtitleClass,
+  fashionDnaCardTitleClass,
+} from '@/features/fashion-dna/utils/fashion-dna-card-styles';
 
 export function RecentlyInfluencedCard({ items = [], className }) {
   return (
-    <section
-      className={cn(
-        'rounded-[24px] border border-dashboard-border bg-[#1A2235] p-6',
-        className,
-      )}
-    >
-      <div className="mb-5 flex items-center gap-3">
-        <div className="flex size-10 items-center justify-center rounded-2xl bg-[#8B5CF6]/15 text-[#C4B5FD]">
-          <TrendingUp className="size-5" />
+    <section className={fashionDnaCardShell(className)}>
+      <div className={cn('flex items-center gap-2.5 md:gap-3', fashionDnaCardHeaderGapClass)}>
+        <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-[#8B5CF6]/15 text-[#C4B5FD] md:size-10 md:rounded-2xl">
+          <TrendingUp className="size-4 md:size-5" />
         </div>
         <div>
-          <h3 className="text-lg font-semibold text-dashboard-foreground">Recently Influenced By</h3>
-          <p className="text-sm text-dashboard-muted">Products shaping your current DNA</p>
+          <h3 className={fashionDnaCardTitleClass}>Recently Influenced By</h3>
+          <p className={fashionDnaCardSubtitleClass}>Products shaping your current DNA</p>
         </div>
       </div>
 
       {items.length ? (
-        <div className="space-y-3">
+        <div className="space-y-2 md:space-y-3">
           {items.map((item) => (
             <div
               key={item.productId}
-              className="rounded-2xl border border-white/[0.06] bg-white/[0.03] px-4 py-3"
+              className="rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-2.5 md:rounded-2xl md:px-4 md:py-3"
             >
-              <p className="font-medium text-dashboard-foreground">{item.name}</p>
-              <p className="text-xs text-dashboard-muted">
+              <p className="text-xs font-medium text-dashboard-foreground md:text-base">{item.name}</p>
+              <p className="text-[11px] text-dashboard-muted md:text-xs">
                 {[item.brand, item.category].filter(Boolean).join(' · ')}
               </p>
               {item.sources?.length ? (
-                <div className="mt-2 flex flex-wrap gap-1.5">
+                <div className="mt-1.5 flex flex-wrap gap-1 md:mt-2 md:gap-1.5">
                   {item.sources.map((source) => (
                     <span
                       key={source}
@@ -48,7 +49,7 @@ export function RecentlyInfluencedCard({ items = [], className }) {
           ))}
         </div>
       ) : (
-        <p className="text-sm text-dashboard-muted">
+        <p className="text-xs text-dashboard-muted md:text-sm">
           View products, wishlist items, and try-ons to populate this feed.
         </p>
       )}

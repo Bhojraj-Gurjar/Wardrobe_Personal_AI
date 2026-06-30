@@ -22,11 +22,11 @@ function WelcomeSkeleton() {
 
 function StatsGridSkeleton() {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-4">
       {Array.from({ length: 4 }).map((_, index) => (
         <Skeleton
           key={index}
-          className="h-36 rounded-2xl bg-dashboard-surface"
+          className="h-[6.875rem] rounded-xl bg-dashboard-surface md:h-36 md:rounded-2xl"
         />
       ))}
     </div>
@@ -48,11 +48,11 @@ export function DashboardView() {
   } = useDashboardData();
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="mx-auto max-w-7xl space-y-4 md:space-y-6">
       <FaceAuthSuccessBanner />
       <WelcomeBanner />
 
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div className="flex flex-col gap-3 md:gap-4 lg:flex-row lg:items-start lg:justify-between">
         {profileLoading ? (
           <WelcomeSkeleton />
         ) : (
@@ -63,7 +63,7 @@ export function DashboardView() {
 
       {isLoading ? <StatsGridSkeleton /> : <StatsGrid stats={stats} />}
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
+      <div className="grid gap-4 md:gap-6 lg:grid-cols-[1fr_320px]">
         <TodaysPicks
           picks={picks}
           isLoading={picksLoading}

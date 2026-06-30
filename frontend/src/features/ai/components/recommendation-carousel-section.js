@@ -13,11 +13,11 @@ import {
 
 function CarouselSkeleton() {
   return (
-    <div className="flex gap-4 overflow-hidden">
+    <div className="flex gap-2.5 overflow-hidden md:gap-4">
       {Array.from({ length: 4 }).map((_, index) => (
         <Skeleton
           key={index}
-          className="h-[420px] min-w-[280px] shrink-0 rounded-2xl bg-dashboard-surface"
+          className="h-[220px] min-w-[148px] shrink-0 rounded-xl bg-dashboard-surface md:h-[420px] md:min-w-[280px] md:rounded-2xl"
         />
       ))}
     </div>
@@ -53,14 +53,14 @@ export function RecommendationCarouselSection({
   }
 
   return (
-    <section className={cn('space-y-4', className)}>
-      <div className="flex items-end justify-between gap-4">
-        <div className="space-y-1">
-          <h2 className="text-xl font-bold tracking-tight text-dashboard-foreground sm:text-2xl">
+    <section className={cn('space-y-3 md:space-y-4', className)}>
+      <div className="flex items-end justify-between gap-3 md:gap-4">
+        <div className="min-w-0 space-y-0.5 md:space-y-1">
+          <h2 className="truncate text-base font-bold tracking-tight text-dashboard-foreground md:text-xl lg:text-2xl">
             {title}
           </h2>
           {subtitle ? (
-            <p className="max-w-2xl text-sm text-dashboard-muted">{subtitle}</p>
+            <p className="line-clamp-2 max-w-2xl text-[11px] leading-snug text-dashboard-muted md:text-sm">{subtitle}</p>
           ) : null}
         </div>
 
@@ -89,12 +89,12 @@ export function RecommendationCarouselSection({
       ) : visibleItems.length ? (
         <div
           ref={scrollRef}
-          className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="flex snap-x snap-mandatory gap-2.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] md:gap-4 md:pb-2 [&::-webkit-scrollbar]:hidden"
         >
           {visibleItems.map((item, index) => (
             <div
               key={item.product.id}
-              className="w-[280px] shrink-0 snap-start"
+              className="w-[148px] shrink-0 snap-start sm:w-[180px] md:w-[240px] lg:w-[280px]"
             >
               <ProductCatalogCard
                 product={item.product}

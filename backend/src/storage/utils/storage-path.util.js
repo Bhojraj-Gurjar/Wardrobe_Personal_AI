@@ -147,15 +147,24 @@ export function resolvePublicAssetUrl(storagePath, publicBaseUrl) {
   }
 
   const trimmed = storagePath.trim();
+  const normalizedBase = (publicBaseUrl || '').replace(/\/$/, '');
 
   if (/^https?:\/\//i.test(trimmed)) {
+    const localUploadMatch = trimmed.match(
+      /^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?(\/uploads\/.*)$/i,
+    );
+
+    if (localUploadMatch) {
+      const uploadPath = localUploadMatch[1];
+      return normalizedBase ? `${normalizedBase}${uploadPath}` : uploadPath;
+    }
+
     return trimmed;
   }
 
-  const base = (publicBaseUrl || '').replace(/\/$/, '');
   const path = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
 
-  return `${base}${path}`;
+  return normalizedBase ? `${normalizedBase}${path}` : path;
 }
 
 export function isStoredImagePath(value) {

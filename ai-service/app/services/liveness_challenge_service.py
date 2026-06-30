@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import logging
 import math
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
 import cv2
 import numpy as np
 
 from app.config import get_settings
-from app.services.embedding_service import FaceDetection, detect_faces
+from app.services.embedding_service import FaceDetection, detect_faces_for_liveness
 from app.services.face_errors import FaceValidationError
 from app.services.liveness_service import liveness_service
 
@@ -96,31 +97,11 @@ class LivenessChallengeService:
         rgb_used: list[np.ndarray] = []
         min_detection = self._resolve_hold_still_detection_threshold()
 
-        for rgb in rgb_frames:
-            if rgb is None or rgb.size == 0:
+        frame_results = self._evaluate_frames(rgb_frames, min_detection)
+        for result in frame_results:
+            if result is None:
                 continue
-
-            frame_faces = detect_faces(rgb)
-            if len(frame_faces) != 1:
-                continue
-
-            detection = frame_faces[0]
-            if float(detection.detection_score) < min_detection:
-                logger.info(
-                    "Skipping low-confidence liveness frame | score=%.3f | min=%.3f",
-                    float(detection.detection_score),
-                    min_detection,
-                )
-                continue
-
-            try:
-                quality = liveness_service.validate_frame(rgb, detection, relaxed=True)
-                self._validate_face_geometry(rgb, detection)
-            except FaceValidationError as exc:
-                logger.info("Skipping liveness frame | code=%s", getattr(exc, "code", "validation_failed"))
-                continue
-
-            metrics = self._extract_metrics(detection, quality)
+            metrics, detection, rgb = result
             metrics_list.append(metrics)
             detections.append(detection)
             rgb_used.append(rgb)
@@ -148,6 +129,54 @@ class LivenessChallengeService:
             frame_count=len(metrics_list),
             valid_detections=tuple(detections),
         )
+
+    def _evaluate_frames(
+        self,
+        rgb_frames: list[np.ndarray],
+        min_detection: float,
+    ) -> list[tuple[FrameMetrics, FaceDetection, np.ndarray] | None]:
+        if self._settings.face_liveness_parallel_frames and len(rgb_frames) > 1:
+            max_workers = min(len(rgb_frames), 3)
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                return list(
+                    executor.map(
+                        lambda rgb: self._evaluate_single_frame(rgb, min_detection),
+                        rgb_frames,
+                    ),
+                )
+
+        return [self._evaluate_single_frame(rgb, min_detection) for rgb in rgb_frames]
+
+    def _evaluate_single_frame(
+        self,
+        rgb: np.ndarray | None,
+        min_detection: float,
+    ) -> tuple[FrameMetrics, FaceDetection, np.ndarray] | None:
+        if rgb is None or rgb.size == 0:
+            return None
+
+        frame_faces = detect_faces_for_liveness(rgb)
+        if len(frame_faces) != 1:
+            return None
+
+        detection = frame_faces[0]
+        if float(detection.detection_score) < min_detection:
+            logger.info(
+                "Skipping low-confidence liveness frame | score=%.3f | min=%.3f",
+                float(detection.detection_score),
+                min_detection,
+            )
+            return None
+
+        try:
+            quality = liveness_service.validate_frame(rgb, detection, relaxed=True)
+            self._validate_face_geometry(rgb, detection)
+        except FaceValidationError as exc:
+            logger.info("Skipping liveness frame | code=%s", getattr(exc, "code", "validation_failed"))
+            return None
+
+        metrics = self._extract_metrics(detection, quality)
+        return metrics, detection, rgb
 
     def _validate_face_geometry(self, rgb: np.ndarray, detection: FaceDetection) -> None:
         height, width = rgb.shape[:2]

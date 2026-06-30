@@ -19,49 +19,57 @@ export const StatCard = memo(function StatCard({
 }) {
   const content = (
     <>
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start justify-between gap-2 md:gap-3">
         <span
           className={cn(
-            'flex size-10 items-center justify-center rounded-xl',
+            'flex size-7 shrink-0 items-center justify-center rounded-lg md:size-10 md:rounded-xl',
             iconClassName,
           )}
         >
-          <Icon className="size-5" aria-hidden="true" />
+          <Icon className="size-3.5 md:size-5" aria-hidden="true" />
         </span>
 
-        <div className="flex flex-col items-end gap-1">
+        <div className="flex min-w-0 flex-col items-end gap-0.5 md:gap-1">
           {isMock ? (
             <Badge
               variant="secondary"
-              className="border-dashboard-border bg-dashboard-surface-elevated text-[10px] text-dashboard-muted"
+              className="border-dashboard-border bg-dashboard-surface-elevated px-1.5 py-0 text-[9px] text-dashboard-muted md:text-[10px]"
             >
-              Sample data
+              Sample
             </Badge>
           ) : null}
-          <span className="text-xs font-medium text-dashboard-muted">{trend}</span>
+          <span className="line-clamp-2 text-right text-[10px] font-medium leading-tight text-dashboard-muted md:text-xs">
+            {trend}
+          </span>
         </div>
       </div>
 
-      <div className="mt-4 space-y-1">
-        <p className="text-sm text-dashboard-muted">{title}</p>
+      <div className="mt-2 space-y-0.5 md:mt-4 md:space-y-1">
+        <p className="truncate text-[11px] text-dashboard-muted md:text-sm">{title}</p>
         {isLoading ? (
-          <Skeleton className="h-9 w-20 rounded-lg bg-dashboard-surface-elevated" />
+          <Skeleton className="h-6 w-14 rounded-lg bg-dashboard-surface-elevated md:h-9 md:w-20" />
         ) : (
-          <p className="text-3xl font-bold text-dashboard-foreground">{value}</p>
+          <p className="text-[1.375rem] font-bold leading-none text-dashboard-foreground md:text-3xl">
+            {value}
+          </p>
         )}
       </div>
     </>
+  );
+
+  const cardClassName = cn(
+    'interactive-card rounded-xl border border-dashboard-border bg-dashboard-surface',
+    'flex min-h-[6rem] max-h-[6.875rem] flex-col justify-between p-3',
+    'md:min-h-0 md:max-h-none md:rounded-2xl md:p-5',
+    isLoading && 'animate-pulse',
+    className,
   );
 
   if (href) {
     return (
       <Link
         href={href}
-        className={cn(
-          'interactive-card block rounded-2xl border border-dashboard-border bg-dashboard-surface p-5',
-          isLoading && 'animate-pulse',
-          className,
-        )}
+        className={cardClassName}
         {...(isMock ? { 'data-mock': 'true' } : {})}
       >
         {content}
@@ -71,11 +79,7 @@ export const StatCard = memo(function StatCard({
 
   return (
     <article
-      className={cn(
-        'interactive-card rounded-2xl border border-dashboard-border bg-dashboard-surface p-5',
-        isLoading && 'animate-pulse',
-        className,
-      )}
+      className={cardClassName}
       {...(isMock ? { 'data-mock': 'true' } : {})}
     >
       {content}

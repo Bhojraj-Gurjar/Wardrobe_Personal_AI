@@ -109,5 +109,12 @@ export async function toFaceAuthDto(files = {}, body = {}, options = {}) {
   return dto;
 }
 
+export async function toFaceAnalysisDto(files = {}, body = {}) {
+  return toFaceAuthDto(files, body, {
+    requireLiveness: false,
+    allowLegacyJson: true,
+  });
+}
+
 /** @deprecated Use toFaceAuthDto */
 export const toFaceEmbeddingDto = toFaceAuthDto;

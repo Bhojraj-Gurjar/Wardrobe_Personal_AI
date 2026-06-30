@@ -14,7 +14,7 @@ function ProductGridSkeleton({ compact }) {
       className={cn(
         compact
           ? 'space-y-3'
-          : 'grid gap-5 md:grid-cols-2 xl:grid-cols-4',
+          : 'grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5',
       )}
     >
       {Array.from({ length: compact ? 6 : 8 }).map((_, index) => (
@@ -86,7 +86,7 @@ export function ProductGrid({
         className={cn(
           compact
             ? 'space-y-3'
-            : 'grid gap-5 md:grid-cols-2 xl:grid-cols-4',
+            : 'grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5',
         )}
       >
         {items.map((product) => (

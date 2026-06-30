@@ -3,6 +3,11 @@
 import { Zap } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/utils/cn';
+import {
+  fashionDnaCardHeaderGapClass,
+  fashionDnaCardShell,
+  fashionDnaCardTitleClass,
+} from '@/features/fashion-dna/utils/fashion-dna-card-styles';
 
 const ATTRIBUTE_ORDER = [
   'Fit Preference',
@@ -37,22 +42,14 @@ export function StyleAttributesCard({ styleAttributes, className }) {
   })).filter((item) => item.value > 0);
 
   return (
-    <section
-      className={cn(
-        'flex h-full flex-col rounded-[24px] border border-dashboard-border',
-        'bg-[#1A2235] p-6 shadow-lg',
-        className,
-      )}
-    >
-      <div className="mb-5 flex items-center gap-2">
+    <section className={fashionDnaCardShell(className)}>
+      <div className={cn('flex items-center gap-2', fashionDnaCardHeaderGapClass)}>
         <Zap className="size-4 text-[#8B5CF6]" aria-hidden="true" />
-        <h3 className="text-base font-semibold text-dashboard-foreground">
-          Style Attributes
-        </h3>
+        <h3 className={fashionDnaCardTitleClass}>Style Attributes</h3>
       </div>
 
       {items.length ? (
-        <div className="space-y-5">
+        <div className="space-y-3 md:space-y-5">
           {items.map((item) => (
             <div key={item.label} className="space-y-2">
               <div className="flex items-center justify-between text-sm">
@@ -75,7 +72,7 @@ export function StyleAttributesCard({ styleAttributes, className }) {
           ))}
         </div>
       ) : (
-        <p className="text-sm text-dashboard-muted">
+        <p className="text-xs text-dashboard-muted md:text-sm">
           Style attributes appear once you browse, save, or purchase products.
         </p>
       )}

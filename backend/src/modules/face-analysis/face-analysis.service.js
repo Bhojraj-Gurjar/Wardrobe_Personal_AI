@@ -86,7 +86,7 @@ class FaceAnalysisService {
     };
   }
 
-  async analyzeFace(userId, imageDto) {
+  async analyzeFace(userId, imageDto, options = {}) {
     if (!imageDto?.imageBuffer?.length) {
       throw new BadRequestException('Provide a frontFace image upload.');
     }
@@ -97,7 +97,7 @@ class FaceAnalysisService {
 
     await resolveFaceService(this.moduleRef).replaceFacePhoto(userId, imageDto);
 
-    return this.persistFaceTraitAnalysis(userId, imageDto);
+    return this.persistFaceTraitAnalysis(userId, imageDto, options);
   }
 
   async analyzeStoredFace(userId) {
@@ -122,10 +122,10 @@ class FaceAnalysisService {
     return this.persistFaceTraitAnalysis(userId, {
       imageBuffer: storedImage.buffer,
       imageMimeType: storedImage.mimeType,
-    });
+    }, { captureSource: 'stored' });
   }
 
-  async persistFaceTraitAnalysis(userId, imageDto) {
+  async persistFaceTraitAnalysis(userId, imageDto, options = {}) {
     let aiResponse;
 
     try {
@@ -140,9 +140,15 @@ class FaceAnalysisService {
       throw error;
     }
 
+    const enrichedResponse = {
+      ...(aiResponse && typeof aiResponse === 'object' ? aiResponse : {}),
+      captureSource: options.captureSource || imageDto.captureSource || 'camera',
+      analyzedAt: new Date().toISOString(),
+    };
+
     const record = await this.faceAnalysisRepository.saveAnalysisFromAi(
       userId,
-      aiResponse,
+      enrichedResponse,
     );
 
     await this.faceAnalysisVectorService.syncUserVector(userId, record);

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useIsMobile } from '@/hooks/use-media-query';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Bell, CheckCheck, Search, X } from 'lucide-react';
@@ -99,6 +100,7 @@ function useFocusTrap(containerRef, active) {
 }
 
 export function NotificationCenter({ isAdmin = false, className }) {
+  const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [category, setCategory] = useState('ALL');
@@ -199,14 +201,15 @@ export function NotificationCenter({ isAdmin = false, className }) {
             role="dialog"
             aria-modal="true"
             aria-labelledby={DRAWER_TITLE_ID}
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
+            initial={isMobile ? { y: '100%' } : { x: '100%' }}
+            animate={isMobile ? { y: 0 } : { x: 0 }}
+            exit={isMobile ? { y: '100%' } : { x: '100%' }}
             transition={{ type: 'spring', stiffness: 380, damping: 36 }}
             className={cn(
-              'fixed inset-y-0 right-0 z-[110] flex h-[100dvh] w-full flex-col',
-              'border-l border-white/[0.08] bg-[#0B1020] shadow-[-12px_0_48px_rgba(0,0,0,0.45)]',
-              'md:w-[380px] lg:w-[440px]',
+              'fixed z-[110] flex flex-col border-white/[0.08] bg-[#0B1020] shadow-[-12px_0_48px_rgba(0,0,0,0.45)]',
+              isMobile
+                ? 'inset-x-0 bottom-0 max-h-[min(88dvh,640px)] rounded-t-2xl border-t safe-area-bottom'
+                : 'inset-y-0 right-0 h-[100dvh] w-full border-l md:w-[380px] lg:w-[440px]',
             )}
           >
             <div className="sticky top-0 z-10 shrink-0 border-b border-white/[0.08] bg-[#0B1020]/95 px-4 py-4 backdrop-blur-md sm:px-5">

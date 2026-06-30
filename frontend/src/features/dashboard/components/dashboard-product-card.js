@@ -19,22 +19,23 @@ export const DashboardProductCard = memo(function DashboardProductCard({
       href={href}
       prefetch
       className={cn(
-        'group relative flex min-w-[160px] flex-1 flex-col overflow-hidden rounded-2xl interactive-card cursor-pointer',
-        'border border-dashboard-border bg-dashboard-surface',
+        'group relative flex w-[120px] shrink-0 flex-col overflow-hidden rounded-xl',
+        'interactive-card cursor-pointer border border-dashboard-border bg-dashboard-surface',
+        'md:w-[160px] md:rounded-2xl',
         className,
       )}
       {...(isMock ? { 'data-mock': 'true' } : {})}
     >
-      <div className="relative aspect-[3/4] overflow-hidden bg-dashboard-surface-elevated">
+      <div className="relative h-[140px] overflow-hidden bg-dashboard-surface-elevated md:h-[180px]">
         <ProductCardImage
           src={image}
           alt={name}
-          sizes="200px"
-          imageClassName="transition-transform duration-300 group-hover:scale-105"
+          sizes="(max-width: 640px) 120px, 160px"
+          imageClassName="size-full object-cover transition-transform duration-300 md:group-hover:scale-105"
         />
         <span
           className={cn(
-            'absolute left-3 top-3 z-10 rounded-full px-2.5 py-1 text-xs font-semibold',
+            'absolute left-2 top-2 z-10 rounded-full px-1.5 py-0.5 text-[9px] font-semibold md:left-3 md:top-3 md:px-2.5 md:py-1 md:text-xs',
             'bg-dashboard-success/90 text-primary-foreground',
           )}
         >
@@ -43,16 +44,21 @@ export const DashboardProductCard = memo(function DashboardProductCard({
         <button
           type="button"
           className={cn(
-            'absolute right-3 top-3 z-10 flex size-8 items-center justify-center rounded-full',
+            'absolute right-2 top-2 z-10 flex size-8 items-center justify-center rounded-full',
             'bg-dashboard-bg/70 text-dashboard-foreground backdrop-blur',
-            'opacity-0 transition-opacity group-hover:opacity-100',
+            'md:right-3 md:top-3 md:opacity-0 md:transition-opacity md:group-hover:opacity-100',
           )}
           aria-label={`Save ${name} to wishlist`}
           onClick={(event) => event.preventDefault()}
         >
-          <Heart className="size-4" aria-hidden="true" />
+          <Heart className="size-3.5 md:size-4" />
         </button>
       </div>
+      {name ? (
+        <p className="line-clamp-2 px-2 py-1.5 text-[11px] font-medium leading-tight text-dashboard-foreground md:px-3 md:py-2 md:text-xs">
+          {name}
+        </p>
+      ) : null}
     </Link>
   );
 });

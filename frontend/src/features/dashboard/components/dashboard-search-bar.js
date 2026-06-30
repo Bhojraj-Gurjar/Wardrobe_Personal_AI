@@ -16,17 +16,21 @@ import { buildSearchResultsUrl } from '@/features/search/utils/search.utils';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/utils/cn';
 
+const searchInputClass = cn(
+  'h-10 py-0 pl-9 text-xs placeholder:text-xs',
+  'md:h-12 md:pl-10 md:text-sm md:placeholder:text-sm',
+);
+
+const searchIconClass = 'pointer-events-none absolute left-2.5 top-1/2 z-10 size-3.5 -translate-y-1/2 text-dashboard-muted md:left-3 md:size-4';
+
 function SearchInputFallback({ className }) {
   return (
-    <div className={cn('relative flex-1 lg:mx-auto lg:max-w-xl', className)}>
-      <Search
-        className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-dashboard-muted"
-        aria-hidden="true"
-      />
+    <div className={cn('relative w-full min-w-0 flex-1 lg:mx-auto lg:max-w-xl', className)}>
+      <Search className={searchIconClass} aria-hidden="true" />
       <Input
         disabled
         placeholder="Search styles, brands, outfits..."
-        className="pl-10"
+        className={searchInputClass}
       />
     </div>
   );
@@ -142,7 +146,7 @@ function DashboardSearchBarInner({ className }) {
         aria-label="Search products"
       >
         <Search
-          className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-dashboard-muted"
+          className={searchIconClass}
           aria-hidden="true"
         />
         <Input
@@ -158,7 +162,7 @@ function DashboardSearchBarInner({ className }) {
           aria-expanded={open}
           aria-autocomplete="list"
           autoComplete="off"
-          className="pl-10"
+          className={searchInputClass}
         />
       </form>
 

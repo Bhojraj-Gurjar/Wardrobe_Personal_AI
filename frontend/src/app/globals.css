@@ -192,11 +192,13 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-family);
+    overflow-x: hidden;
   }
 
   html {
     font-size: var(--font-size);
     font-family: var(--font-family);
+    overflow-x: hidden;
   }
 
   h1 {
@@ -294,13 +296,42 @@
     transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
   }
 
-  .interactive-card:hover {
-    transform: translateY(-3px);
-    border-color: rgba(139, 92, 246, 0.4);
-    box-shadow:
-      0 4px 16px rgba(0, 0, 0, 0.28),
-      0 14px 36px -10px rgba(139, 92, 246, 0.42),
-      0 0 28px -4px rgba(124, 58, 237, 0.35);
+  @media (hover: hover) and (pointer: fine) {
+    .interactive-card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(139, 92, 246, 0.4);
+      box-shadow:
+        0 4px 16px rgba(0, 0, 0, 0.28),
+        0 14px 36px -10px rgba(139, 92, 246, 0.42),
+        0 0 28px -4px rgba(124, 58, 237, 0.35);
+    }
+  }
+
+  .touch-target {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+  }
+
+  .page-title {
+    font-size: clamp(1.25rem, 2vw + 0.5rem, 1.5rem);
+    line-height: 1.25;
+  }
+
+  .page-subtitle {
+    font-size: clamp(0.75rem, 1vw + 0.5rem, 0.875rem);
+  }
+
+  .app-shell {
+    min-width: 0;
+    overflow-x: hidden;
+  }
+
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top, 0px);
   }
 
   .interactive-surface {

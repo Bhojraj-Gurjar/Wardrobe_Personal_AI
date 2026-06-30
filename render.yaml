@@ -1,0 +1,162 @@
+# Wardrobe AI — Render Blueprint
+# Connect this repo in Render Dashboard → New → Blueprint → apply this file.
+# Fill sync:false secrets in the Render dashboard after the first deploy.
+
+services:
+  # ── Frontend (Next.js) — public entry point ───────────────────────────────
+  - type: web
+    name: wardrobe-frontend
+    runtime: docker
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_BASE_URL
+        value: /api/v1
+      - key: NEXT_PUBLIC_FACE_VECTOR_SIZE
+        value: "512"
+      - key: BACKEND_INTERNAL_URL
+        fromService:
+          type: web
+          name: wardrobe-backend
+          property: hostport
+      - key: AI_SERVICE_INTERNAL_URL
+        fromService:
+          type: web
+          name: wardrobe-ai
+          property: hostport
+
+  # ── Backend (NestJS API) ──────────────────────────────────────────────────
+  - type: web
+    name: wardrobe-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: wardrobe-db
+          property: connectionString
+      - key: REDIS_HOST
+        fromService:
+          type: keyvalue
+          name: wardrobe-redis
+          property: host
+      - key: REDIS_PORT
+        fromService:
+          type: keyvalue
+          name: wardrobe-redis
+          property: port
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: 30d
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+      - key: AI_SERVICE_URL
+        fromService:
+          type: web
+          name: wardrobe-ai
+          property: hostport
+      - key: AI_SERVICE_PUBLIC_URL
+        fromService:
+          type: web
+          name: wardrobe-frontend
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: CORS_ORIGINS
+        fromService:
+          type: web
+          name: wardrobe-frontend
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: STORAGE_PROVIDER
+        value: local
+      - key: STORAGE_LOCAL_ROOT
+        value: uploads
+      - key: STORAGE_PUBLIC_BASE_URL
+        fromService:
+          type: web
+          name: wardrobe-frontend
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: STORAGE_INTERNAL_BASE_URL
+        fromService:
+          type: web
+          name: wardrobe-backend
+          property: hostport
+      - key: STORAGE_PUBLIC_PATH
+        value: /uploads
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SEED_PRODUCTS_ON_STARTUP
+        value: "false"
+
+  # ── AI Service (FastAPI) — heavy; may need Starter plan ($7/mo) for RAM ───
+  - type: web
+    name: wardrobe-ai
+    runtime: docker
+    dockerfilePath: ./ai-service/Dockerfile
+    dockerContext: ./ai-service
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: AI_SERVICE_HOST
+        value: 0.0.0.0
+      - key: REDIS_HOST
+        fromService:
+          type: keyvalue
+          name: wardrobe-redis
+          property: host
+      - key: REDIS_PORT
+        fromService:
+          type: keyvalue
+          name: wardrobe-redis
+          property: port
+      - key: REDIS_CACHE_TTL
+        value: "3600"
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+      - key: HF_TOKEN
+        sync: false
+      - key: INSIGHTFACE_MODEL
+        value: buffalo_sc
+      - key: FACE_VECTOR_SIZE
+        value: "512"
+      - key: SENTENCE_MODEL
+        value: all-MiniLM-L6-v2
+      - key: TRYON_TIMEOUT_SECONDS
+        value: "120"
+      - key: TRYON_FALLBACK_ON_QUOTA_EXCEEDED
+        value: "true"
+      - key: FACE_ANTI_SPOOF_ENABLED
+        value: "false"
+      - key: ENVIRONMENT
+        value: production
+
+  # ── Redis-compatible cache (refresh tokens, AI cache) ─────────────────────
+  - type: keyvalue
+    name: wardrobe-redis
+    plan: free
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
+
+databases:
+  - name: wardrobe-db
+    plan: free
+    databaseName: wardrobe_db
+    user: wardrobe

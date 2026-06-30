@@ -1,6 +1,11 @@
 'use client';
 
 import { cn } from '@/utils/cn';
+import {
+  fashionDnaCardHeaderGapClass,
+  fashionDnaCardShell,
+  fashionDnaCardTitleClass,
+} from '@/features/fashion-dna/utils/fashion-dna-card-styles';
 
 function renderItems(items, variant) {
   if (variant === 'chips') {
@@ -46,18 +51,12 @@ export function DnaInsightCard({
   className,
 }) {
   return (
-    <section
-      className={cn(
-        'flex h-full flex-col rounded-[24px] border border-dashboard-border',
-        'bg-[#1A2235] p-6 shadow-lg',
-        className,
-      )}
-    >
-      <div className="mb-5 flex items-center gap-2">
+    <section className={fashionDnaCardShell(className)}>
+      <div className={cn('flex items-center gap-2', fashionDnaCardHeaderGapClass)}>
         {Icon ? (
           <Icon className="size-4 text-[#8B5CF6]" aria-hidden="true" />
         ) : null}
-        <h3 className="text-base font-semibold text-dashboard-foreground">{title}</h3>
+        <h3 className={fashionDnaCardTitleClass}>{title}</h3>
       </div>
 
       <div className="flex-1">{renderItems(items, variant)}</div>

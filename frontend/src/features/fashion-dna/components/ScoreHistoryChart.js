@@ -9,7 +9,13 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { cn } from '@/utils/cn';
+import {
+  fashionDnaCardShell,
+  fashionDnaCardSubtitleClass,
+  fashionDnaCardTitleClass,
+  fashionDnaChartEmptyClass,
+  fashionDnaChartWrapClass,
+} from '@/features/fashion-dna/utils/fashion-dna-card-styles';
 
 function HistoryTooltip({ active, payload, label }) {
   if (!active || !payload?.length) {
@@ -42,23 +48,15 @@ export function ScoreHistoryChart({ historyTimeline, className }) {
     : 100;
 
   return (
-    <section
-      className={cn(
-        'flex h-full flex-col rounded-[24px] border border-dashboard-border',
-        'bg-[#1A2235] p-6 shadow-lg',
-        className,
-      )}
-    >
+    <section className={fashionDnaCardShell(className)}>
       <div>
-        <h3 className="text-base font-semibold text-dashboard-foreground">
-          Score Over Time
-        </h3>
-        <p className="mt-1 text-xs text-dashboard-muted">Monthly Fashion DNA snapshots</p>
+        <h3 className={fashionDnaCardTitleClass}>Score Over Time</h3>
+        <p className={fashionDnaCardSubtitleClass}>Monthly Fashion DNA snapshots</p>
       </div>
 
-      <div className="mt-4 min-h-[280px] flex-1">
+      <div className={fashionDnaChartWrapClass}>
         {chartData.length ? (
-          <ResponsiveContainer width="100%" height="100%" minHeight={280}>
+          <ResponsiveContainer width="100%" height="100%" minHeight={200}>
             <LineChart data={chartData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
               <CartesianGrid
                 stroke="rgba(255,255,255,0.06)"
@@ -89,7 +87,7 @@ export function ScoreHistoryChart({ historyTimeline, className }) {
             </LineChart>
           </ResponsiveContainer>
         ) : (
-          <div className="flex h-full min-h-[280px] items-center justify-center text-sm text-dashboard-muted">
+          <div className={fashionDnaChartEmptyClass}>
             Score tracking starts from your first Fashion DNA refresh.
           </div>
         )}

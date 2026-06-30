@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from dataclasses import dataclass
 
 import cv2
@@ -17,6 +18,7 @@ _face_analysis = None
 _engine_error: str | None = None
 _engine_ready = False
 _model_name: str | None = None
+_inference_lock = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -132,10 +134,27 @@ def _rgb_to_bgr(rgb: np.ndarray) -> np.ndarray:
     return cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
 
 
-def detect_faces(rgb: np.ndarray) -> list[FaceDetection]:
+def _maybe_downscale_rgb(rgb: np.ndarray, max_dim: int | None) -> np.ndarray:
+    if not max_dim or max_dim <= 0:
+        return rgb
+
+    height, width = rgb.shape[:2]
+    longest = max(height, width)
+    if longest <= max_dim:
+        return rgb
+
+    scale = max_dim / float(longest)
+    resized_width = max(1, int(round(width * scale)))
+    resized_height = max(1, int(round(height * scale)))
+    return cv2.resize(rgb, (resized_width, resized_height), interpolation=cv2.INTER_AREA)
+
+
+def detect_faces(rgb: np.ndarray, *, inference_max_dim: int | None = None) -> list[FaceDetection]:
     engine = require_embedding_engine()
-    bgr = _rgb_to_bgr(rgb)
-    faces = engine.get(bgr) or []
+    prepared = _maybe_downscale_rgb(rgb, inference_max_dim)
+    bgr = _rgb_to_bgr(prepared)
+    with _inference_lock:
+        faces = engine.get(bgr) or []
 
     detections: list[FaceDetection] = []
     for face in faces:
@@ -159,6 +178,12 @@ def detect_faces(rgb: np.ndarray) -> list[FaceDetection]:
         )
 
     return detections
+
+
+def detect_faces_for_liveness(rgb: np.ndarray) -> list[FaceDetection]:
+    """Multi-frame auth only — optional downscale; verify/single-frame paths stay full-res."""
+    settings = get_settings()
+    return detect_faces(rgb, inference_max_dim=settings.face_liveness_inference_max_dim)
 
 
 def extract_single_face_embedding(rgb: np.ndarray) -> tuple[list[float], FaceDetection]:

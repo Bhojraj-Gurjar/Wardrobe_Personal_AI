@@ -13,41 +13,42 @@ import { cn } from '@/utils/cn';
 export function TodaysPicks({ picks, isLoading = false, isEmpty = false, className }) {
   const router = useRouter();
 
-  return (    <section
+  return (
+    <section
       className={cn(
-        'interactive-card rounded-2xl border border-dashboard-border bg-dashboard-surface p-5',
+        'interactive-card rounded-xl border border-dashboard-border bg-dashboard-surface p-3 md:rounded-2xl md:p-5',
         className,
       )}
     >
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <h3 className="text-lg font-semibold text-dashboard-foreground">
+      <div className="mb-3 flex items-center justify-between gap-2 md:mb-4 md:gap-3">
+        <div className="flex min-w-0 items-center gap-1.5 md:gap-2">
+          <h3 className="truncate text-base font-semibold text-dashboard-foreground md:text-lg">
             Today&apos;s Picks
           </h3>
           <Badge
             variant="secondary"
-            className="border-primary/20 bg-dashboard-accent-soft text-primary"
+            className="shrink-0 border-primary/20 bg-dashboard-accent-soft px-1.5 py-0 text-[10px] text-primary md:px-2 md:text-xs"
           >
-            <Sparkles className="mr-1 size-3" aria-hidden="true" />
-            AI curated
+            <Sparkles className="mr-0.5 size-2.5 md:mr-1 md:size-3" aria-hidden="true" />
+            AI
           </Badge>
         </div>
         <Link
           href={ROUTES.AI.RECOMMENDATIONS}
           prefetch
-          className="flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+          className="flex shrink-0 items-center gap-0.5 text-xs font-medium text-primary hover:underline md:gap-1 md:text-sm"
         >
           View all
-          <ChevronRight className="size-4" aria-hidden="true" />
+          <ChevronRight className="size-3.5 md:size-4" aria-hidden="true" />
         </Link>
       </div>
 
       {isLoading ? (
-        <div className="flex gap-4 overflow-x-auto pb-1">
+        <div className="flex gap-2.5 overflow-x-auto pb-0.5 md:gap-4 md:pb-1">
           {Array.from({ length: 4 }).map((_, index) => (
             <Skeleton
               key={index}
-              className="h-52 min-w-[160px] flex-1 rounded-2xl bg-dashboard-surface-elevated"
+              className="h-[168px] min-w-[120px] shrink-0 rounded-xl bg-dashboard-surface-elevated md:h-52 md:min-w-[160px] md:rounded-2xl"
             />
           ))}
         </div>
@@ -58,10 +59,10 @@ export function TodaysPicks({ picks, isLoading = false, isEmpty = false, classNa
           description="Complete your profile or browse products to unlock AI picks."
           actionLabel="View recommendations"
           onAction={() => router.push(ROUTES.AI.RECOMMENDATIONS)}
-          className="border-0 bg-transparent p-6"
+          className="border-0 bg-transparent p-4 md:p-6"
         />
       ) : (
-        <div className="flex gap-4 overflow-x-auto pb-1">
+        <div className="flex gap-2.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] md:gap-4 md:pb-1 [&::-webkit-scrollbar]:hidden">
           {picks.map((pick) => (
             <DashboardProductCard
               key={pick.id}

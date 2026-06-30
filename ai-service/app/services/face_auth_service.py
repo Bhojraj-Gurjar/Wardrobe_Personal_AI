@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
 import numpy as np
@@ -80,7 +81,13 @@ class FaceAuthService:
         if not images:
             raise FaceValidationError("Invalid image.", "invalid_image")
 
-        rgb_frames = [image_to_numpy(image) for image in images]
+        frame_count = len(images)
+        max_workers = min(frame_count, 4)
+        if frame_count > 1:
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                rgb_frames = list(executor.map(image_to_numpy, images))
+        else:
+            rgb_frames = [image_to_numpy(images[0])]
         liveness_meta = {
             "liveness_score": None,
             "challenge_type": None,

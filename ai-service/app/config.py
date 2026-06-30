@@ -1,5 +1,7 @@
+import os
 from functools import lru_cache
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -8,6 +10,14 @@ class Settings(BaseSettings):
 
     ai_service_host: str = "0.0.0.0"
     ai_service_port: int = 8000
+
+    @model_validator(mode="after")
+    def apply_platform_port(self):
+        # Render/Railway inject PORT; prefer it over AI_SERVICE_PORT defaults.
+        platform_port = os.environ.get("PORT")
+        if platform_port:
+            self.ai_service_port = int(platform_port)
+        return self
 
     redis_host: str = "localhost"
     redis_port: int = 6379
@@ -49,6 +59,9 @@ class Settings(BaseSettings):
     face_anti_spoof_max_moire_ratio: float = 12.0
     face_anti_spoof_enabled: bool = False
     face_min_embedding_confidence: float = 0.35
+    # Downscale oversized liveness frames before InsightFace (0 = disabled). Login frames are ~640px.
+    face_liveness_inference_max_dim: int = 640
+    face_liveness_parallel_frames: bool = True
     environment: str = "development"
     product_vector_size: int = 384
     dna_vector_size: int = 384

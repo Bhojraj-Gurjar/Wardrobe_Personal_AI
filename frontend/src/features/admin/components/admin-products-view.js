@@ -38,7 +38,76 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/utils/cn';
 import { formatProductPrice } from '@/features/products/utils/product-catalog.utils';
+import { resolveProductImageUrl } from '@/utils/product-image';
 import { showToast } from '@/stores/toast-store';
+import {
+  ResponsiveDataTable,
+  ResponsiveTableCard,
+  ResponsiveTableRow,
+} from '@/components/shared/responsive-data-table';
+
+function ProductStatusBadge({ status }) {
+  return (
+    <Badge className={cn(
+      status === 'Published' && 'bg-emerald-500/15 text-emerald-400',
+      status === 'Draft' && 'bg-dashboard-border text-dashboard-muted',
+      status === 'Out of Stock' && 'bg-red-500/15 text-red-400',
+      status === 'Hidden' && 'bg-dashboard-border text-dashboard-muted',
+    )}>
+      {status}
+    </Badge>
+  );
+}
+
+function AdminProductMobileCard({ product, onSelect, onEdit, onToggle, onDelete }) {
+  return (
+    <ResponsiveTableCard onClick={() => onSelect(product.id)}>
+      <div className="flex items-start gap-3">
+        <span className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-dashboard-surface-elevated">
+          {product.imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={resolveProductImageUrl(product.imageUrl)} alt="" className="size-full object-cover" />
+          ) : (
+            <span className="text-sm text-dashboard-muted">{product.name?.[0]}</span>
+          )}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="truncate font-medium text-dashboard-foreground">{product.name}</p>
+              <p className="truncate text-xs text-primary">{product.brand}</p>
+            </div>
+            <div onClick={(event) => event.stopPropagation()} role="presentation">
+              <ProductActionsMenu
+                product={product}
+                onEdit={onEdit}
+                onToggle={onToggle}
+                onDelete={onDelete}
+              />
+            </div>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <ProductStatusBadge status={product.status} />
+            <span className="text-sm font-semibold text-dashboard-foreground">
+              {formatProductPrice(product.price, product.currency)}
+            </span>
+          </div>
+        </div>
+      </div>
+      <div className="mt-3 space-y-0.5 border-t border-dashboard-border/60 pt-3">
+        <ResponsiveTableRow label="Category">{product.category || '—'}</ResponsiveTableRow>
+        <ResponsiveTableRow label="Type">{formatAdminProductTypeLabel(product.productType)}</ResponsiveTableRow>
+        <ResponsiveTableRow label="Stock">
+          <span className={cn((product.stock ?? 0) <= 10 && 'text-amber-400')}>{product.stock ?? 0}</span>
+        </ResponsiveTableRow>
+        <ResponsiveTableRow label="Variants">{product.variantCount ?? 0}</ResponsiveTableRow>
+        <ResponsiveTableRow label="Created">
+          {product.createdAt ? new Date(product.createdAt).toLocaleDateString() : '—'}
+        </ResponsiveTableRow>
+      </div>
+    </ResponsiveTableCard>
+  );
+}
 
 function resolveProductStatusValue(product) {
   if (!product) return 'DRAFT';
@@ -249,7 +318,7 @@ export function AdminProductsView() {
             className="h-11 border-dashboard-border bg-dashboard-surface pl-10"
           />
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 [&_select]:min-h-10 [&_select]:flex-1 [&_select]:min-w-[calc(50%-0.25rem)] sm:[&_select]:min-w-0 sm:[&_select]:flex-none">
           <select value={category} onChange={(e) => { setCategory(e.target.value); setPage(1); }} className="h-10 rounded-lg border border-dashboard-border bg-dashboard-surface px-3 text-sm">
             <option value="">All categories</option>
             {CMS_CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}
@@ -278,9 +347,33 @@ export function AdminProductsView() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-dashboard-border bg-dashboard-surface">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1100px] text-sm">
+      <ResponsiveDataTable
+        items={products}
+        renderMobileCard={(product) => (
+          <AdminProductMobileCard
+            product={product}
+            onSelect={setSelectedProductId}
+            onEdit={(item) => { setEditingProduct(item); setWizardOpen(true); }}
+            onToggle={(item) => toggleMutation.mutate(item.id)}
+            onDelete={async (item) => {
+              if (!window.confirm(`Delete ${item.name}?`)) return;
+              try {
+                await deleteMutation.mutateAsync(item.id);
+              } catch (error) {
+                window.alert(error?.message || 'Unable to delete this product.');
+                return;
+              }
+              if (selectedProductId === item.id) setSelectedProductId(null);
+              if (editingProduct?.id === item.id) {
+                setEditingProduct(null);
+                setWizardOpen(false);
+              }
+            }}
+          />
+        )}
+      >
+        <div className="overflow-hidden rounded-2xl border border-dashboard-border bg-dashboard-surface">
+          <table className="w-full min-w-[900px] text-sm">
             <thead>
               <tr className="border-b border-dashboard-border text-left text-xs uppercase tracking-wider text-dashboard-muted">
                 <th className="px-4 py-3">Product</th>
@@ -308,7 +401,7 @@ export function AdminProductsView() {
                       <span className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-dashboard-surface-elevated">
                         {product.imageUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={product.imageUrl} alt="" className="size-full object-cover" />
+                          <img src={resolveProductImageUrl(product.imageUrl)} alt="" className="size-full object-cover" />
                         ) : (
                           <span className="text-xs text-dashboard-muted">{product.name?.[0]}</span>
                         )}
@@ -340,14 +433,7 @@ export function AdminProductsView() {
                     ) : '—'}
                   </td>
                   <td className="px-4 py-3">
-                    <Badge className={cn(
-                      product.status === 'Published' && 'bg-emerald-500/15 text-emerald-400',
-                      product.status === 'Draft' && 'bg-dashboard-border text-dashboard-muted',
-                      product.status === 'Out of Stock' && 'bg-red-500/15 text-red-400',
-                      product.status === 'Hidden' && 'bg-dashboard-border text-dashboard-muted',
-                    )}>
-                      {product.status}
-                    </Badge>
+                    <ProductStatusBadge status={product.status} />
                   </td>
                   <td className="px-4 py-3 text-xs text-dashboard-muted">
                     {product.createdAt ? new Date(product.createdAt).toLocaleDateString() : '—'}
@@ -385,9 +471,9 @@ export function AdminProductsView() {
             </tbody>
           </table>
         </div>
-      </div>
+      </ResponsiveDataTable>
 
-      <div className="flex items-center justify-between border-t border-dashboard-border pt-4 text-sm text-dashboard-muted">
+      <div className="flex flex-col gap-3 border-t border-dashboard-border pt-4 text-sm text-dashboard-muted sm:flex-row sm:items-center sm:justify-between">
         <span>{meta.total} products</span>
         <div className="flex items-center gap-2">
           <Button

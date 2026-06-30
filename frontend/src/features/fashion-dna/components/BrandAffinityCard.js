@@ -2,6 +2,11 @@
 
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/utils/cn';
+import {
+  fashionDnaCardShell,
+  fashionDnaCardSubtitleClass,
+  fashionDnaCardTitleClass,
+} from '@/features/fashion-dna/utils/fashion-dna-card-styles';
 
 function formatBrandName(key) {
   const normalized = String(key || '')
@@ -43,22 +48,14 @@ export function BrandAffinityCard({ brandAffinity, brandAffinityList, className 
   const brands = buildBrandItems(brandAffinity, brandAffinityList);
 
   return (
-    <section
-      className={cn(
-        'flex h-full flex-col rounded-[24px] border border-dashboard-border',
-        'bg-[#1A2235] p-6 shadow-lg',
-        className,
-      )}
-    >
-      <h3 className="text-base font-semibold text-dashboard-foreground">
-        Brand Affinity
-      </h3>
-      <p className="mt-1 text-xs text-dashboard-muted">
+    <section className={fashionDnaCardShell(className)}>
+      <h3 className={fashionDnaCardTitleClass}>Brand Affinity</h3>
+      <p className={fashionDnaCardSubtitleClass}>
         Only brands you viewed, saved, purchased, or added to closet
       </p>
 
       {brands.length ? (
-        <div className="mt-5 space-y-5">
+        <div className="mt-3 space-y-3 md:mt-5 md:space-y-5">
           {brands.map((brand) => (
           <div key={brand.key || brand.name} className="space-y-2">
             <div className="flex items-center gap-3">
@@ -83,7 +80,7 @@ export function BrandAffinityCard({ brandAffinity, brandAffinityList, className 
         ))}
         </div>
       ) : (
-        <p className="mt-5 text-sm text-dashboard-muted">
+        <p className="mt-3 text-xs text-dashboard-muted md:mt-5 md:text-sm">
           Brand affinity appears after you interact with products from specific labels.
         </p>
       )}
