@@ -1,0 +1,1 @@
+export const PRODUCT_PLACEHOLDER_SRC = '/avatar/shoes/placeholder.svg';

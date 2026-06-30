@@ -1,0 +1,13 @@
+export { DashboardShell } from './dashboard-shell';
+export { DashboardSidebar } from './dashboard-sidebar';
+export { DashboardHeader } from './dashboard-header';
+export { DashboardSearchBar } from './dashboard-search-bar';
+export { DashboardView } from './dashboard-view';
+export { WelcomeSection } from './welcome-section';
+export { ActionButtons } from './action-buttons';
+export { StatsGrid } from './stats-grid';
+export { StatCard } from './stat-card';
+export { TodaysPicks } from './todays-picks';
+export { DashboardProductCard } from './dashboard-product-card';
+export { FashionDNACard } from './fashion-dna-card';
+export { UserProfileCard } from './user-profile-card';

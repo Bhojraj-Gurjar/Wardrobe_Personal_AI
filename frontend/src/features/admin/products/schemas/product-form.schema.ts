@@ -1,0 +1,120 @@
+import { z } from 'zod';
+
+const variantSchema = z.object({
+  color: z.string().min(1, 'Color is required'),
+  size: z.string().min(1, 'Size is required'),
+  stock: z.coerce.number().int().min(0),
+  sku: z.string().optional(),
+  priceOverride: z.coerce.number().min(0).optional().nullable(),
+  imageUrl: z.string().optional().nullable(),
+});
+
+const imageSchema = z.object({
+  url: z.string().optional(),
+  sortOrder: z.number().optional(),
+  isPrimary: z.boolean().optional(),
+  file: z.any().optional(),
+  preview: z.string().optional(),
+}).refine((data) => Boolean(data.url || data.preview || data.file), {
+  message: 'Image asset is required',
+});
+
+export const productFormSchema = z.object({
+  name: z.string().min(2, 'Product name is required'),
+  brand: z.string().min(1, 'Brand is required'),
+  description: z.string().optional(),
+  category: z.string().min(1, 'Category is required'),
+  productType: z.string().min(1, 'Product type is required'),
+  gender: z.string().min(1, 'Gender is required'),
+  mrp: z.coerce.number().min(0),
+  sellingPrice: z.coerce.number().min(0),
+  discountPercent: z.coerce.number().min(0).max(100).optional(),
+  taxPercent: z.coerce.number().min(0).max(100).optional(),
+  stockQuantity: z.coerce.number().int().min(0).optional(),
+  sku: z.string().optional(),
+  barcode: z.string().optional(),
+  images: z.array(imageSchema).min(1, 'At least one product image is required'),
+  variants: z.array(variantSchema).optional(),
+  fabric: z.string().optional(),
+  fit: z.string().optional(),
+  pattern: z.string().optional(),
+  sleeveType: z.string().optional(),
+  neckType: z.string().optional(),
+  occasion: z.string().optional(),
+  season: z.string().optional(),
+  careInstructions: z.string().optional(),
+  countryOfOrigin: z.string().optional(),
+  material: z.string().optional(),
+  weight: z.coerce.number().optional(),
+  dimensions: z.object({
+    length: z.coerce.number().optional(),
+    width: z.coerce.number().optional(),
+    height: z.coerce.number().optional(),
+  }).optional(),
+  tags: z.array(z.string()).optional(),
+  searchKeywords: z.array(z.string()).optional(),
+  aiAttributes: z.object({
+    style: z.string().optional(),
+    bodyFit: z.string().optional(),
+    recommendedBodyTypes: z.array(z.string()).optional(),
+    recommendedFaceShapes: z.array(z.string()).optional(),
+  }).optional(),
+  visibility: z.enum(['DRAFT', 'PUBLISHED', 'HIDDEN', 'OUT_OF_STOCK']),
+  isFeatured: z.boolean().optional(),
+  isTrending: z.boolean().optional(),
+  isNewArrival: z.boolean().optional(),
+  isBestSeller: z.boolean().optional(),
+  isLimitedEdition: z.boolean().optional(),
+}).refine((data) => {
+  const effectiveMrp = data.mrp > 0 ? data.mrp : data.sellingPrice;
+  return data.sellingPrice <= effectiveMrp;
+}, {
+  message: 'Selling price cannot exceed MRP',
+  path: ['sellingPrice'],
+});
+
+export type ProductFormValues = z.infer<typeof productFormSchema>;
+
+export const defaultProductFormValues: ProductFormValues = {
+  name: '',
+  brand: '',
+  description: '',
+  category: 'Clothing',
+  productType: 'T-Shirt',
+  gender: 'Men',
+  mrp: 0,
+  sellingPrice: 0,
+  discountPercent: 0,
+  taxPercent: 0,
+  stockQuantity: 0,
+  sku: '',
+  barcode: '',
+  images: [],
+  variants: [],
+  fabric: '',
+  fit: '',
+  pattern: '',
+  sleeveType: '',
+  neckType: '',
+  occasion: '',
+  season: '',
+  careInstructions: '',
+  countryOfOrigin: '',
+  material: '',
+  weight: undefined,
+  dimensions: undefined,
+  tags: [],
+  searchKeywords: [],
+  aiAttributes: {
+    style: 'Smart Casual',
+    bodyFit: 'Regular',
+    recommendedBodyTypes: [],
+    recommendedFaceShapes: [],
+  },
+  visibility: 'DRAFT',
+  isFeatured: false,
+  isTrending: false,
+  isNewArrival: false,
+  isBestSeller: false,
+  isLimitedEdition: false,
+};
