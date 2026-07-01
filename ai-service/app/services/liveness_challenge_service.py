@@ -1,4 +1,4 @@
-"""Lightweight liveness validation for multi-frame face auth (hold-still capture)."""
+"""Active liveness validation for multi-frame face login and enrollment."""
 
 from __future__ import annotations
 
@@ -16,15 +16,19 @@ from app.services.liveness_service import liveness_service
 
 logger = logging.getLogger(__name__)
 
+LIVENESS_REJECT_MESSAGE = "Live face not detected. Please complete the verification."
+
 SUPPORTED_CHALLENGES = frozenset(
     {
         "hold_still",
-        # Legacy aliases — accepted for API compatibility, validated as hold_still.
         "blink_once",
         "blink_twice",
-        "smile",
         "turn_left",
         "turn_right",
+        "look_up",
+        "smile",
+        "nod",
+        "enrollment_live",
     },
 )
 
@@ -69,10 +73,6 @@ class LivenessChallengeService:
                 "Invalid or missing liveness challenge.",
                 "liveness_failed",
             )
-        if normalized in {"blink_once", "blink_twice"}:
-            return "blink_once"
-        if normalized in {"smile", "turn_left", "turn_right"}:
-            return "hold_still"
         return normalized
 
     def analyze_frames(
@@ -87,7 +87,7 @@ class LivenessChallengeService:
 
         if len(rgb_frames) < min_frames:
             raise FaceValidationError(
-                "Hold still for a second while we capture your face.",
+                LIVENESS_REJECT_MESSAGE,
                 "liveness_failed",
             )
         if len(rgb_frames) > max_frames:
@@ -109,15 +109,14 @@ class LivenessChallengeService:
 
         if len(metrics_list) < min_frames:
             raise FaceValidationError(
-                "We couldn't verify your face clearly. Please try again.",
+                LIVENESS_REJECT_MESSAGE,
                 "liveness_failed",
             )
 
+        if challenge != "hold_still":
+            self._validate_temporal_motion(rgb_used, detections, metrics_list)
         self._validate_anti_spoof(rgb_used, detections, metrics_list)
-        if challenge == "blink_once":
-            self._validate_blink_once(metrics_list)
-        else:
-            self._validate_hold_still(metrics_list)
+        self._validate_challenge(challenge, metrics_list)
 
         liveness_score = float(np.mean([metric.quality for metric in metrics_list]))
         logger.info(
@@ -134,6 +133,20 @@ class LivenessChallengeService:
             frame_count=len(metrics_list),
             valid_detections=tuple(detections),
         )
+
+    def _validate_challenge(self, challenge: str, metrics_list: list[FrameMetrics]) -> None:
+        validators = {
+            "blink_once": self._validate_blink_once,
+            "blink_twice": self._validate_blink_twice,
+            "turn_left": lambda metrics: self._validate_turn(metrics, "left"),
+            "turn_right": lambda metrics: self._validate_turn(metrics, "right"),
+            "look_up": self._validate_look_up,
+            "smile": self._validate_smile_challenge,
+            "nod": self._validate_nod,
+            "enrollment_live": self._validate_enrollment_live,
+            "hold_still": self._validate_hold_still,
+        }
+        validators[challenge](metrics_list)
 
     def _evaluate_frames(
         self,
@@ -224,7 +237,7 @@ class LivenessChallengeService:
         if self._settings.face_anti_spoof_enabled:
             aspect = face_width / max(face_height, 1.0)
             if aspect < 0.35 or aspect > 2.8:
-                raise FaceValidationError("Live face required.", "spoof")
+                raise FaceValidationError(LIVENESS_REJECT_MESSAGE, "spoof")
 
     @staticmethod
     def _eye_aspect_ratio(landmarks: np.ndarray, indices: tuple[int, ...]) -> float:
@@ -297,6 +310,50 @@ class LivenessChallengeService:
             detection_score=detection.detection_score,
         )
 
+    def _validate_temporal_motion(
+        self,
+        rgb_frames: list[np.ndarray],
+        detections: list[FaceDetection],
+        metrics_list: list[FrameMetrics],
+    ) -> None:
+        if len(metrics_list) < 2:
+            return
+
+        settings = self._settings
+        centers = np.array([metric.bbox_center for metric in metrics_list], dtype=np.float32)
+        frame_width = float(rgb_frames[0].shape[1])
+        step_motion = np.linalg.norm(np.diff(centers, axis=0), axis=1)
+        motion_norm = float(step_motion.sum()) / max(frame_width, 1.0)
+
+        frame_diffs: list[float] = []
+        for index in range(1, len(rgb_frames)):
+            gray_prev = cv2.cvtColor(rgb_frames[index - 1], cv2.COLOR_RGB2GRAY)
+            gray_curr = cv2.cvtColor(rgb_frames[index], cv2.COLOR_RGB2GRAY)
+            region_prev = liveness_service._crop_face_region(gray_prev, detections[index - 1].bbox)
+            region_curr = liveness_service._crop_face_region(gray_curr, detections[index].bbox)
+            if region_curr.shape != region_prev.shape:
+                region_curr = cv2.resize(
+                    region_curr,
+                    (region_prev.shape[1], region_prev.shape[0]),
+                    interpolation=cv2.INTER_AREA,
+                )
+            frame_diffs.append(float(np.mean(cv2.absdiff(region_prev, region_curr))))
+
+        mean_diff = float(np.mean(frame_diffs)) if frame_diffs else 0.0
+
+        logger.info(
+            "Temporal motion | motion_norm=%.4f | mean_diff=%.2f | frames=%s",
+            motion_norm,
+            mean_diff,
+            len(metrics_list),
+        )
+
+        if (
+            motion_norm < settings.face_anti_spoof_min_motion
+            and mean_diff < settings.face_anti_spoof_min_frame_diff
+        ):
+            raise FaceValidationError(LIVENESS_REJECT_MESSAGE, "spoof")
+
     def _validate_anti_spoof(
         self,
         rgb_frames: list[np.ndarray],
@@ -304,7 +361,7 @@ class LivenessChallengeService:
         metrics_list: list[FrameMetrics],
     ) -> None:
         if not self._settings.face_anti_spoof_enabled:
-            logger.info("Anti-spoof checks disabled for this environment")
+            logger.info("Texture anti-spoof checks disabled for this environment")
             return
 
         settings = self._settings
@@ -320,7 +377,7 @@ class LivenessChallengeService:
         logger.info("Anti-spoof metrics | specular=%.3f", mean_specular)
 
         if mean_specular > settings.face_anti_spoof_max_specular_ratio:
-            raise FaceValidationError("Live face required.", "spoof")
+            raise FaceValidationError(LIVENESS_REJECT_MESSAGE, "spoof")
 
         fft_scores: list[float] = []
         for rgb, detection in zip(rgb_frames, detections, strict=False):
@@ -333,7 +390,7 @@ class LivenessChallengeService:
             fft_scores.append(float(center / max(outer, 1e-6)))
 
         if fft_scores and float(np.mean(fft_scores)) > settings.face_anti_spoof_max_moire_ratio:
-            raise FaceValidationError("Live face required.", "spoof")
+            raise FaceValidationError(LIVENESS_REJECT_MESSAGE, "spoof")
 
     def _resolve_hold_still_detection_threshold(self) -> float:
         settings = self._settings
@@ -349,10 +406,102 @@ class LivenessChallengeService:
                 "Blink-once validation failed | ears=%s",
                 [round(value, 3) for value in ears],
             )
-            raise FaceValidationError(
-                "Blink once to verify liveness.",
-                "liveness_failed",
+            raise FaceValidationError(LIVENESS_REJECT_MESSAGE, "liveness_failed")
+
+    def _validate_blink_twice(self, metrics_list: list[FrameMetrics]) -> None:
+        ears = [metric.ear for metric in metrics_list]
+        threshold = self._settings.face_blink_ear_threshold
+        blinks = 0
+        eyes_open = ears[0] > threshold
+
+        for ear in ears[1:]:
+            if eyes_open and ear < threshold:
+                blinks += 1
+                eyes_open = False
+            elif ear > threshold:
+                eyes_open = True
+
+        if blinks < 2 or ears[-1] <= threshold:
+            logger.warning(
+                "Blink-twice validation failed | blinks=%s | ears=%s",
+                blinks,
+                [round(value, 3) for value in ears],
             )
+            raise FaceValidationError(LIVENESS_REJECT_MESSAGE, "liveness_failed")
+
+    def _validate_turn(self, metrics_list: list[FrameMetrics], direction: str) -> None:
+        yaws = [metric.yaw for metric in metrics_list]
+        min_delta = self._settings.face_head_movement_min_delta
+        span = max(yaws) - min(yaws)
+
+        if span < min_delta:
+            logger.warning("Turn validation failed | direction=%s | yaws=%s", direction, yaws)
+            raise FaceValidationError(LIVENESS_REJECT_MESSAGE, "liveness_failed")
+
+        start_yaw = yaws[0]
+        end_yaw = yaws[-1]
+        if direction == "left" and end_yaw - start_yaw < min_delta * 0.45:
+            raise FaceValidationError(LIVENESS_REJECT_MESSAGE, "liveness_failed")
+        if direction == "right" and start_yaw - end_yaw < min_delta * 0.45:
+            raise FaceValidationError(LIVENESS_REJECT_MESSAGE, "liveness_failed")
+
+    def _validate_look_up(self, metrics_list: list[FrameMetrics]) -> None:
+        pitches = [metric.pitch for metric in metrics_list]
+        threshold = self._settings.face_pitch_delta_threshold
+        uplift = pitches[0] - min(pitches)
+
+        if uplift < threshold:
+            logger.warning("Look-up validation failed | pitches=%s", [round(value, 3) for value in pitches])
+            raise FaceValidationError(LIVENESS_REJECT_MESSAGE, "liveness_failed")
+
+    def _validate_smile_challenge(self, metrics_list: list[FrameMetrics]) -> None:
+        smiles = [metric.smile_ratio for metric in metrics_list]
+        baseline = smiles[0]
+        delta = max(smiles) - baseline
+        peak = max(smiles)
+
+        if delta < self._settings.face_smile_delta_threshold:
+            logger.warning("Smile validation failed | smiles=%s", [round(value, 3) for value in smiles])
+            raise FaceValidationError(LIVENESS_REJECT_MESSAGE, "liveness_failed")
+
+        if peak < self._settings.face_smile_score_threshold * 0.85:
+            raise FaceValidationError(LIVENESS_REJECT_MESSAGE, "liveness_failed")
+
+    def _validate_nod(self, metrics_list: list[FrameMetrics]) -> None:
+        pitches = [metric.pitch for metric in metrics_list]
+        if len(pitches) < 3:
+            raise FaceValidationError(LIVENESS_REJECT_MESSAGE, "liveness_failed")
+
+        min_index = int(np.argmin(pitches))
+        if min_index == 0 or min_index == len(pitches) - 1:
+            raise FaceValidationError(LIVENESS_REJECT_MESSAGE, "liveness_failed")
+
+        threshold = self._settings.face_pitch_delta_threshold
+        down_delta = pitches[0] - pitches[min_index]
+        up_delta = pitches[-1] - pitches[min_index]
+
+        if down_delta < threshold or up_delta < threshold:
+            logger.warning(
+                "Nod validation failed | pitches=%s | down=%.3f | up=%.3f",
+                [round(value, 3) for value in pitches],
+                down_delta,
+                up_delta,
+            )
+            raise FaceValidationError(LIVENESS_REJECT_MESSAGE, "liveness_failed")
+
+    def _validate_enrollment_live(self, metrics_list: list[FrameMetrics]) -> None:
+        yaws = [metric.yaw for metric in metrics_list]
+        pitches = [metric.pitch for metric in metrics_list]
+        yaw_span = max(yaws) - min(yaws)
+        pitch_span = max(pitches) - min(pitches)
+
+        if yaw_span < self._settings.face_head_movement_min_delta * 0.75:
+            logger.warning("Enrollment pose diversity failed | yaw_span=%.3f", yaw_span)
+            raise FaceValidationError(LIVENESS_REJECT_MESSAGE, "liveness_failed")
+
+        if pitch_span < self._settings.face_pitch_delta_threshold * 0.75:
+            logger.warning("Enrollment pose diversity failed | pitch_span=%.3f", pitch_span)
+            raise FaceValidationError(LIVENESS_REJECT_MESSAGE, "liveness_failed")
 
     def _validate_hold_still(self, metrics_list: list[FrameMetrics]) -> None:
         settings = self._settings
@@ -375,11 +524,7 @@ class LivenessChallengeService:
                 scores,
                 ears,
             )
-            raise FaceValidationError(
-                "We couldn't verify your face clearly. Please try again.",
-                "liveness_failed",
-            )
+            raise FaceValidationError(LIVENESS_REJECT_MESSAGE, "liveness_failed")
 
 
 liveness_challenge_service = LivenessChallengeService()
-

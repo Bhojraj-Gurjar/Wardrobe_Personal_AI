@@ -19,6 +19,12 @@ class Settings(BaseSettings):
             self.ai_service_port = int(platform_port)
         return self
 
+    @model_validator(mode="after")
+    def apply_security_defaults(self):
+        if self.environment == "production" and "FACE_ANTI_SPOOF_ENABLED" not in os.environ:
+            self.face_anti_spoof_enabled = True
+        return self
+
     redis_url: str | None = None
     redis_host: str = "localhost"
     redis_port: int = 6379
@@ -43,19 +49,19 @@ class Settings(BaseSettings):
     face_min_brightness: float = 28.0
     face_max_brightness: float = 220.0
     face_blink_ear_threshold: float = 0.22
-    face_head_movement_min_delta: float = 8.0
+    face_head_movement_min_delta: float = 0.10
     face_smile_score_threshold: float = 0.46
     face_smile_delta_threshold: float = 0.04
     face_pitch_delta_threshold: float = 0.06
     face_liveness_required: bool = True
-    face_min_capture_frames: int = 2
+    face_min_capture_frames: int = 4
     face_max_capture_frames: int = 5
     face_hold_still_min_detection_score: float = 0.38
     face_min_area_ratio: float = 0.08
     face_max_area_ratio: float = 0.55
     face_guide_margin_ratio: float = 0.06
-    face_anti_spoof_min_motion: float = 0.7
-    face_anti_spoof_min_frame_diff: float = 1.1
+    face_anti_spoof_min_motion: float = 0.008
+    face_anti_spoof_min_frame_diff: float = 2.5
     face_anti_spoof_max_specular_ratio: float = 0.45
     face_anti_spoof_max_moire_ratio: float = 12.0
     face_anti_spoof_enabled: bool = False
