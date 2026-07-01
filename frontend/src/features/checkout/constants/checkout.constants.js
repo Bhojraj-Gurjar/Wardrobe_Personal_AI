@@ -33,10 +33,19 @@ export const OMS_TABS = [
 
 /** Summary cards — clicking filters the orders table by tab id */
 export const OMS_STAGE_CARDS = [
-  { id: 'NEW_ORDERS', title: 'New Orders', metricKey: 'new_orders', emoji: '🆕' },
-  { id: 'ACCEPTED', title: 'Accepted', metricKey: 'accepted', emoji: '✅' },
-  { id: 'PACKED_RTD', title: 'Packed / RTD', metricKey: 'packed_rtd', emoji: '📦' },
-  { id: 'IN_TRANSIT', title: 'In Transit', metricKey: 'in_transit', emoji: '🚛' },
-  { id: 'COMPLETED', title: 'Completed', metricKey: 'completed', emoji: '🎉' },
-  { id: 'TODAY_REVENUE', title: "Today's Revenue", metricKey: 'today_revenue', emoji: '💰', format: 'currency' },
+  { id: 'NEW_ORDERS', title: 'New Orders', metricKey: 'new_orders', accent: 'orange' },
+  { id: 'ACCEPTED', title: 'Accepted', metricKey: 'accepted', accent: 'blue' },
+  { id: 'PACKED_RTD', title: 'Packed / RTD', metricKey: 'packed_rtd', accent: 'amber' },
+  { id: 'IN_TRANSIT', title: 'In Transit', metricKey: 'in_transit', accent: 'teal' },
+  { id: 'COMPLETED', title: 'Completed', metricKey: 'completed', accent: 'green' },
+  { id: 'CANCELLED', title: 'Cancelled Orders', metricKey: 'cancelled', accent: 'red' },
+  { id: 'RETURNED', title: 'Returned Orders', metricKey: 'returned', accent: 'purple' },
+  {
+    id: 'TODAY_REVENUE',
+    title: "Today's Revenue",
+    metricKey: 'today_revenue',
+    format: 'currency',
+    accent: 'gold',
+    filterable: false,
+  },
 ];

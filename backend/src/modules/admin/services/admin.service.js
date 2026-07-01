@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -8,6 +9,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
+import { randomBytes } from 'crypto';
 import { AuthService } from '../../auth/services/auth.service';
 import { FaceService } from '../../face/services/face.service';
 import { OrdersService } from '../../orders/services/orders.service';
@@ -601,6 +603,39 @@ class AdminService {
     await this.productService.invalidateCatalogCache();
 
     return { message: 'User deleted successfully' };
+  }
+
+  async inviteUser(payload) {
+    const email = String(payload.email || '').trim().toLowerCase();
+    const name = String(payload.name || '').trim();
+    const plan = payload.plan || 'Free';
+
+    if (!email || !name) {
+      throw new BadRequestException('Email and name are required');
+    }
+
+    const existing = await this.adminRepository.findUserByEmail(email);
+
+    if (existing) {
+      throw new ConflictException('A user with this email already exists');
+    }
+
+    const providedPassword = String(payload.password || '').trim();
+    const temporaryPassword = providedPassword || `Wa@${randomBytes(4).toString('hex')}9`;
+    const passwordHash = await bcrypt.hash(temporaryPassword, BCRYPT_ROUNDS);
+
+    const user = await this.adminRepository.createInvitedUser({
+      email,
+      passwordHash,
+      name,
+      plan,
+    });
+
+    return {
+      message: 'User invited successfully',
+      user: this.formatAdminUser(user, true),
+      ...(providedPassword ? {} : { temporaryPassword }),
+    };
   }
 
   async getProducts(query) {

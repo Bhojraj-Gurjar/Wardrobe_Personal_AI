@@ -1,15 +1,17 @@
-/** Lightweight hold-still liveness — no blink, smile, or head-turn challenges. */
-
+/** Registration / general liveness — hold still. */
 export const FACE_LIVENESS_CHALLENGE = {
-
   id: 'hold_still',
-
   label: 'Hold still',
-
   instruction: 'Hold still for a second while we capture your face.',
-
   durationMs: 1200,
+};
 
+/** Face login — single blink, fast capture window. */
+export const FACE_LOGIN_LIVENESS_CHALLENGE = {
+  id: 'blink_once',
+  label: 'Blink once',
+  instruction: 'Look at the camera and blink once.',
+  durationMs: 1500,
 };
 
 
@@ -70,7 +72,19 @@ export function pickRandomLivenessChallenge() {
 
 export function getLivenessChallengeById(id) {
 
-  if (!id || id === 'hold_still') {
+  if (!id) {
+
+    return FACE_LIVENESS_CHALLENGE;
+
+  }
+
+  if (id === 'blink_once' || id === 'blink_twice') {
+
+    return FACE_LOGIN_LIVENESS_CHALLENGE;
+
+  }
+
+  if (id === 'hold_still') {
 
     return FACE_LIVENESS_CHALLENGE;
 

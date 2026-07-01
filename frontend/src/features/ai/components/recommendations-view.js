@@ -149,27 +149,27 @@ export function RecommendationsView() {
   }
 
   return (
-    <div className="space-y-10">
-      <header className="space-y-4">
-        <span className="inline-flex items-center gap-2 rounded-full border border-[#8B5CF6]/35 bg-[#8B5CF6]/12 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#C4B5FD]">
-          <Sparkles className="size-3.5 text-[#A78BFA]" aria-hidden="true" />
+    <div className="min-w-0 space-y-6 md:space-y-10">
+      <header className="space-y-2 md:space-y-4">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-[#8B5CF6]/35 bg-[#8B5CF6]/12 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#C4B5FD] md:gap-2 md:px-3 md:py-1 md:text-[11px] md:tracking-[0.18em]">
+          <Sparkles className="size-3 text-[#A78BFA] md:size-3.5" aria-hidden="true" />
           AI Personal Stylist
         </span>
-        <div className="space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight text-dashboard-foreground sm:text-4xl">
+        <div className="space-y-1 md:space-y-2">
+          <h1 className="text-2xl font-bold tracking-tight text-dashboard-foreground sm:text-3xl md:text-4xl">
             Your Recommendations
           </h1>
-          <p className="text-sm text-dashboard-muted sm:text-base">
+          <p className="text-xs leading-snug text-dashboard-muted md:text-sm md:leading-normal lg:text-base">
             Daily picks, seasonal styles, trending items, and complete outfits — tailored to you
           </p>
         </div>
 
         {personalizationSummary.length ? (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex snap-x gap-2 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] touch-pan-x whitespace-nowrap md:flex-wrap md:overflow-visible md:pb-0 md:whitespace-normal [&::-webkit-scrollbar]:hidden">
             {personalizationSummary.map((chip) => (
               <span
                 key={chip}
-                className="rounded-full border border-[#8B5CF6]/25 bg-[#8B5CF6]/10 px-3 py-1 text-xs font-medium text-[#DDD6FE]"
+                className="shrink-0 snap-start rounded-full border border-[#8B5CF6]/25 bg-[#8B5CF6]/10 px-2.5 py-1 text-xs font-medium text-[#DDD6FE] md:px-3"
               >
                 {chip}
               </span>
@@ -178,9 +178,9 @@ export function RecommendationsView() {
         ) : null}
       </header>
 
-      <div className="space-y-4">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex flex-wrap gap-2">
+      <div className="space-y-2.5 md:space-y-4">
+        <div className="flex flex-col gap-2.5 md:gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex snap-x gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] touch-pan-x md:flex-wrap md:overflow-visible md:pb-0 [&::-webkit-scrollbar]:hidden">
             {RECOMMENDATION_SECTION_FILTERS.map((filter) => {
               const active = activeSection === filter.id;
 
@@ -190,7 +190,7 @@ export function RecommendationsView() {
                   type="button"
                   onClick={() => setActiveSection(filter.id)}
                   className={cn(
-                    'rounded-full px-4 py-2 text-sm font-medium transition-colors',
+                    'shrink-0 snap-start whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors md:px-4 md:py-2 md:text-sm',
                     active
                       ? 'bg-[#8B5CF6] text-white shadow-md shadow-[#8B5CF6]/25'
                       : 'border border-white/10 bg-[#121820] text-dashboard-muted hover:border-white/20 hover:text-dashboard-foreground',
@@ -206,14 +206,14 @@ export function RecommendationsView() {
             type="button"
             variant="outline"
             onClick={() => setFiltersOpen((current) => !current)}
-            className="h-10 shrink-0 rounded-full border-white/10 bg-[#121820] px-4 text-dashboard-foreground hover:bg-[#1A2235]"
+            className="h-9 w-full shrink-0 rounded-full border-white/10 bg-[#121820] px-4 text-xs text-dashboard-foreground hover:bg-[#1A2235] md:h-10 md:w-auto md:text-sm"
           >
-            <SlidersHorizontal className="mr-2 size-4" />
+            <SlidersHorizontal className="mr-2 size-3.5 md:size-4" />
             Filters & Sort
           </Button>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex snap-x gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] touch-pan-x md:flex-wrap md:overflow-visible md:pb-0 [&::-webkit-scrollbar]:hidden">
           {RECOMMENDATION_CATEGORY_FILTERS.map((filter) => {
             const active = activeCategory === filter.id;
 
@@ -223,7 +223,7 @@ export function RecommendationsView() {
                 type="button"
                 onClick={() => setActiveCategory(filter.id)}
                 className={cn(
-                  'rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
+                  'shrink-0 snap-start whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors md:px-3 md:py-1.5',
                   active
                     ? 'bg-white/10 text-dashboard-foreground'
                     : 'text-dashboard-muted hover:text-dashboard-foreground',

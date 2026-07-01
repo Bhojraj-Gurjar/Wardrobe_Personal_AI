@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, TooManyRequestsException } from '@nestjs/common';
+import { HttpException, HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RedisService } from '../../../database/redis.service';
 
@@ -25,8 +25,9 @@ class FaceRateLimitService {
 
     if (locked) {
       this.logger.warn(`Face auth locked | scope=${scope} | identifier=${identifier}`);
-      throw new TooManyRequestsException(
+      throw new HttpException(
         'Too many failed face authentication attempts. Try again later.',
+        HttpStatus.TOO_MANY_REQUESTS,
       );
     }
   }
@@ -47,8 +48,9 @@ class FaceRateLimitService {
       const lockKey = `${LOCK_PREFIX}${this.buildKey(scope, identifier)}`;
       await this.redisService.setex(lockKey, this.lockSeconds, '1');
       await this.redisService.del(attemptKey);
-      throw new TooManyRequestsException(
+      throw new HttpException(
         'Too many failed face authentication attempts. Try again later.',
+        HttpStatus.TOO_MANY_REQUESTS,
       );
     }
 

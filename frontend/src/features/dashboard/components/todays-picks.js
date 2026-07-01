@@ -16,7 +16,7 @@ export function TodaysPicks({ picks, isLoading = false, isEmpty = false, classNa
   return (
     <section
       className={cn(
-        'interactive-card rounded-xl border border-dashboard-border bg-dashboard-surface p-3 md:rounded-2xl md:p-5',
+        'interactive-card min-w-0 overflow-hidden rounded-xl border border-dashboard-border bg-dashboard-surface p-3 md:rounded-2xl md:p-5',
         className,
       )}
     >
@@ -44,11 +44,11 @@ export function TodaysPicks({ picks, isLoading = false, isEmpty = false, classNa
       </div>
 
       {isLoading ? (
-        <div className="flex gap-2.5 overflow-x-auto pb-0.5 md:gap-4 md:pb-1">
+        <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-1 [-ms-overflow-style:none] [scrollbar-width:none] touch-pan-x [&::-webkit-scrollbar]:hidden md:gap-4">
           {Array.from({ length: 4 }).map((_, index) => (
             <Skeleton
               key={index}
-              className="h-[168px] min-w-[120px] shrink-0 rounded-xl bg-dashboard-surface-elevated md:h-52 md:min-w-[160px] md:rounded-2xl"
+              className="h-[172px] w-[140px] shrink-0 snap-start rounded-xl bg-dashboard-surface-elevated md:h-52 md:w-[160px] md:rounded-2xl"
             />
           ))}
         </div>
@@ -62,7 +62,7 @@ export function TodaysPicks({ picks, isLoading = false, isEmpty = false, classNa
           className="border-0 bg-transparent p-4 md:p-6"
         />
       ) : (
-        <div className="flex gap-2.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] md:gap-4 md:pb-1 [&::-webkit-scrollbar]:hidden">
+        <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-1 [-ms-overflow-style:none] [scrollbar-width:none] touch-pan-x [&::-webkit-scrollbar]:hidden md:gap-4">
           {picks.map((pick) => (
             <DashboardProductCard
               key={pick.id}
@@ -71,6 +71,7 @@ export function TodaysPicks({ picks, isLoading = false, isEmpty = false, classNa
               matchPercent={pick.matchPercent}
               href={pick.href}
               isMock={pick.isMock}
+              className="snap-start"
             />
           ))}
         </div>

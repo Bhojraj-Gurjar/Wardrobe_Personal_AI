@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger, BadRequestException, ConflictException, ServiceUnavailableException, TooManyRequestsException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { isNestHttpException, isRethrowableAiError } from '../../../common/utils/http-exception.util';
 
 const AI_TIMEOUT_MS = 30000;
 const FACE_AI_TIMEOUT_MS = 120000;
@@ -13,7 +14,22 @@ class AiService {
   }
 
   isConfigured() {
-    return Boolean(this.baseUrl);
+    if (!this.baseUrl) {
+      return false;
+    }
+
+    if (process.env.NODE_ENV === 'production') {
+      try {
+        const hostname = new URL(this.baseUrl).hostname;
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+          return false;
+        }
+      } catch {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   getConfigSummary() {
@@ -245,13 +261,7 @@ class AiService {
 
       return data;
     } catch (error) {
-      if (
-        error instanceof ServiceUnavailableException
-        || error instanceof BadRequestException
-        || error instanceof UnauthorizedException
-        || error instanceof ConflictException
-        || error instanceof TooManyRequestsException
-      ) {
+      if (isRethrowableAiError(error)) {
         throw error;
       }
 

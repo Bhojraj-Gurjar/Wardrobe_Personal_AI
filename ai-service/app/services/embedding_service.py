@@ -149,13 +149,7 @@ def _maybe_downscale_rgb(rgb: np.ndarray, max_dim: int | None) -> np.ndarray:
     return cv2.resize(rgb, (resized_width, resized_height), interpolation=cv2.INTER_AREA)
 
 
-def detect_faces(rgb: np.ndarray, *, inference_max_dim: int | None = None) -> list[FaceDetection]:
-    engine = require_embedding_engine()
-    prepared = _maybe_downscale_rgb(rgb, inference_max_dim)
-    bgr = _rgb_to_bgr(prepared)
-    with _inference_lock:
-        faces = engine.get(bgr) or []
-
+def _faces_to_detections(faces) -> list[FaceDetection]:
     detections: list[FaceDetection] = []
     for face in faces:
         bbox = tuple(float(value) for value in face.bbox)
@@ -176,8 +170,34 @@ def detect_faces(rgb: np.ndarray, *, inference_max_dim: int | None = None) -> li
                 kps=kps,
             ),
         )
-
     return detections
+
+
+def detect_faces(rgb: np.ndarray, *, inference_max_dim: int | None = None) -> list[FaceDetection]:
+    engine = require_embedding_engine()
+    prepared = _maybe_downscale_rgb(rgb, inference_max_dim)
+    bgr = _rgb_to_bgr(prepared)
+    with _inference_lock:
+        faces = engine.get(bgr) or []
+
+    return _faces_to_detections(faces)
+
+
+def detect_faces_batch(
+    rgb_frames: list[np.ndarray],
+    *,
+    inference_max_dim: int | None = None,
+) -> list[list[FaceDetection]]:
+    """Run liveness inference for multiple frames under a single model lock."""
+    if not rgb_frames:
+        return []
+
+    engine = require_embedding_engine()
+    prepared_frames = [_maybe_downscale_rgb(rgb, inference_max_dim) for rgb in rgb_frames]
+    bgr_frames = [_rgb_to_bgr(prepared) for prepared in prepared_frames]
+
+    with _inference_lock:
+        return [_faces_to_detections(engine.get(bgr) or []) for bgr in bgr_frames]
 
 
 def detect_faces_for_liveness(rgb: np.ndarray) -> list[FaceDetection]:

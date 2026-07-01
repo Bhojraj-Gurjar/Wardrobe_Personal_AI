@@ -1,8 +1,7 @@
 'use client';
 
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { ROUTES } from '@/constants/routes';
+import { useSearchParams } from 'next/navigation';
 import { ProductSidebarFilters } from '@/features/products/components/product-sidebar-filters';
 import { ProductCatalogToolbar } from '@/features/products/components/product-catalog-toolbar';
 import { ProductGrid } from '@/features/products/components/product-grid';
@@ -20,7 +19,6 @@ import {
   sortProducts,
   asArray,
 } from '@/features/products/utils/product-catalog.utils';
-import { trackSearchQuery } from '@/features/user-activity/hooks/use-user-activity';
 import { cn } from '@/utils/cn';
 
 function mapSortToApi(sortId) {
@@ -36,7 +34,6 @@ function mapSortToApi(sortId) {
 }
 
 export function ProductsView() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const urlSearch = searchParams.get('search') || searchParams.get('q') || '';
   const urlBrand = searchParams.get('brand') || '';
@@ -110,28 +107,6 @@ export function ProductsView() {
     }, null);
   }, [processedProducts, scoreByProductId]);
 
-  const handleSearchChange = (value) => {
-    setSearch(value);
-    setPage(1);
-
-    const params = new URLSearchParams(searchParams.toString());
-    const trimmed = value.trim();
-
-    if (trimmed) {
-      params.set('search', trimmed);
-      params.delete('q');
-      trackSearchQuery(trimmed);
-    } else {
-      params.delete('search');
-      params.delete('q');
-    }
-
-    const query = params.toString();
-    router.replace(query ? `${ROUTES.PRODUCTS.LIST}?${query}` : ROUTES.PRODUCTS.LIST, {
-      scroll: false,
-    });
-  };
-
   const closeFilters = () => setIsFilterOpen(false);
   const toggleFilters = () => setIsFilterOpen((open) => !open);
 
@@ -194,13 +169,13 @@ export function ProductsView() {
 
         <div className="min-w-0 space-y-6">
           <ProductCatalogToolbar
-            search={search}
+            showSearch={false}
+            showCategoryChips={false}
             uiCategory={uiCategory}
             sortId={sortId}
             viewMode={viewMode}
             resultCount={totalItems}
             isFilterOpen={isFilterOpen}
-            onSearchChange={handleSearchChange}
             onCategoryChange={(category) => {
               setUiCategory(category);
               setPage(1);

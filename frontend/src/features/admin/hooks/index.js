@@ -17,6 +17,7 @@ import {
   deactivateAdminUser,
   deleteAdminProduct,
   deleteAdminUser,
+  inviteAdminUser,
   fetchAdminAnalytics,
   fetchAdminAnalyticsCategories,
   fetchAdminAnalyticsCustomers,
@@ -294,6 +295,19 @@ export function useAdminDeleteUserMutation() {
 
   return useMutation({
     mutationFn: (id) => deleteAdminUser(id, token),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'], refetchType: 'active' });
+      queryClient.invalidateQueries({ queryKey: ['admin-dashboard'], refetchType: 'active' });
+    },
+  });
+}
+
+export function useAdminInviteUserMutation() {
+  const token = useAdminToken();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload) => inviteAdminUser(payload, token),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-users'], refetchType: 'active' });
       queryClient.invalidateQueries({ queryKey: ['admin-dashboard'], refetchType: 'active' });

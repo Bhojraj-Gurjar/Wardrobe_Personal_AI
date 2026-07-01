@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../database/prisma.service';
+import { USER_ROLE } from '../../../common/constants/user-role';
 import { ORDER_STATUS } from '../validators/order.constants';
 import {
   aggregateRequestedQuantities,
@@ -539,5 +540,16 @@ class OrdersRepository {
         where: { status: { not: ORDER_STATUS.CANCELLED } },
       }),
     ]);
+  }
+
+  findAdminUsers() {
+    return this.prisma.user.findMany({
+      where: { role: USER_ROLE.ADMIN, status: 'ACTIVE' },
+      select: {
+        id: true,
+        email: true,
+        profile: { select: { name: true } },
+      },
+    });
   }
 }

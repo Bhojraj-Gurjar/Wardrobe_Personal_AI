@@ -193,7 +193,7 @@ class OrdersService {
     });
 
     this.notificationsService.forwardOrderNotification(userId, placedNotification, order);
-    this.notificationsService.notifyAdminNewOrder(order).catch(() => null);
+    void this.notifyAdminsNewOrder(order).catch(() => null);
 
     await Promise.all(
       [...new Set(checkoutDto.items.map((item) => item.product_id))].map((productId) =>
@@ -204,6 +204,47 @@ class OrdersService {
     this.fashionDnaRegenerationService.trigger(userId, REFRESH_SOURCES.PURCHASE);
 
     return this.formatOrder(order);
+  }
+
+  async notifyAdminsNewOrder(order) {
+    const admins = await this.ordersRepository.findAdminUsers();
+
+    if (!admins.length || !order?.id) {
+      return [];
+    }
+
+    const customerName = order.user?.profile?.name
+      || order.user?.email?.split('@')[0]
+      || 'A customer';
+
+    return Promise.all(
+      admins.map(async (admin) => {
+        const notification = await this.ordersRepository.createNotification({
+          id: randomUUID(),
+          user_id: admin.id,
+          order_id: order.id,
+          type: ORDER_NOTIFICATION_TYPE.ORDER_PLACED,
+          title: 'New order received',
+          message: `${customerName} placed Order #${order.order_number}`,
+          metadata: {
+            audience: 'admin',
+            type: 'NEW_ORDER',
+            customerId: order.user_id,
+            customerName,
+            orderId: order.id,
+            orderNumber: order.order_number,
+            amount: order.total_amount,
+            priority: 'high',
+          },
+        });
+
+        return this.notificationsService.forwardOrderNotification(
+          admin.id,
+          notification,
+          order,
+        );
+      }),
+    );
   }
 
   async findAll(userId, query) {

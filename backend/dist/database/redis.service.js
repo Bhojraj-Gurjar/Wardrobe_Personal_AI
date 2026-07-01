@@ -32,6 +32,14 @@ function _ts_param(paramIndex, decorator) {
 }
 let RedisService = class RedisService extends _ioredis.default {
     constructor(configService){
+        const redisUrl = configService.get('redis.url');
+        if (redisUrl) {
+            // Upstash and other hosted Redis providers use rediss:// with TLS.
+            super(redisUrl, {
+                maxRetriesPerRequest: null
+            });
+            return;
+        }
         super({
             host: configService.get('redis.host'),
             port: configService.get('redis.port')

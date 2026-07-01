@@ -126,10 +126,10 @@ function FashionDNAMobileContent({ dna }) {
   const rank = formatRankLabel(dna.rankLabel);
 
   return (
-    <div className="flex flex-col items-center gap-2 text-center">
+    <div className="flex w-full max-w-full flex-col items-center gap-2 px-1 text-center">
       <ScoreRing score={dna.score} variant="mobile" />
 
-      <div className="space-y-0.5">
+      <div className="w-full max-w-full space-y-0.5">
         <p className="text-xs leading-none text-dashboard-foreground">
           {formatScoreFraction(dna.score)}
         </p>
@@ -139,7 +139,7 @@ function FashionDNAMobileContent({ dna }) {
       </div>
 
       {rank ? (
-        <span className="inline-flex max-w-full items-center rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium capitalize text-emerald-400">
+        <span className="inline-flex max-w-[calc(100%-0.5rem)] items-center justify-center truncate rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium capitalize text-emerald-400">
           {rank}
         </span>
       ) : null}
@@ -169,15 +169,15 @@ export function FashionDNACard({ dna, isLoading = false, className }) {
   return (
     <section
       className={cn(
-        'interactive-card w-full min-w-0 overflow-hidden rounded-2xl border border-dashboard-border',
+        'interactive-card box-border w-full min-w-0 max-w-full overflow-hidden rounded-2xl border border-dashboard-border',
         'bg-gradient-to-b from-dashboard-surface via-dashboard-surface to-dashboard-surface-elevated/70',
         'p-3 shadow-[0_8px_24px_rgba(0,0,0,0.18)] backdrop-blur-sm',
-        'md:flex md:h-full md:flex-col md:rounded-2xl md:bg-dashboard-surface md:p-5 md:shadow-none',
+        'lg:flex lg:h-full lg:flex-col lg:rounded-2xl lg:bg-dashboard-surface lg:p-5 lg:shadow-none',
         className,
       )}
     >
-      {/* Mobile layout (< md) */}
-      <div className="md:hidden">
+      {/* Mobile / tablet layout (< lg) — full-width stacked dashboard */}
+      <div className="w-full min-w-0 lg:hidden">
         <h3 className="mb-2 text-center text-base font-semibold tracking-tight text-dashboard-foreground">
           Fashion DNA
         </h3>
@@ -185,7 +185,7 @@ export function FashionDNACard({ dna, isLoading = false, className }) {
         {isLoading ? (
           <FashionDNAMobileSkeleton />
         ) : isEmpty ? (
-          <p className="py-3 text-center text-xs leading-snug text-dashboard-muted">
+          <p className="px-1 py-3 text-center text-xs leading-snug text-dashboard-muted">
             No Fashion DNA yet. Complete your profile and analysis to generate it.
           </p>
         ) : (
@@ -207,8 +207,8 @@ export function FashionDNACard({ dna, isLoading = false, className }) {
         </Button>
       </div>
 
-      {/* Desktop layout (md+) — unchanged structure */}
-      <div className="hidden md:flex md:h-full md:flex-col">
+      {/* Desktop sidebar layout (lg+) */}
+      <div className="hidden lg:flex lg:h-full lg:flex-col">
         <div className="mb-4 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Sparkles className="size-4 text-primary" aria-hidden="true" />

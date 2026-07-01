@@ -27,6 +27,11 @@ import { NotificationsService } from '../../notifications/notifications.service'
 import { APP_NOTIFICATION_TYPES } from '../../notifications/notifications.constants';
 import { USER_STATUS } from '../../../common/constants/user-status';
 import { parseDurationToSeconds } from '../../../common/utils/parse-duration';
+import {
+  getNestHttpStatus,
+  isNestHttpException,
+  isRethrowableAiError,
+} from '../../../common/utils/http-exception.util';
 
 const REFRESH_TOKEN_PREFIX = 'auth:refresh:';
 
@@ -221,18 +226,18 @@ class FaceService {
     try {
       result = await this.aiService.loginFace(dto);
     } catch (error) {
-      if (
-        error instanceof UnauthorizedException
-        || error instanceof BadRequestException
-      ) {
-        try {
-          await this.faceRateLimitService.recordFailure('login', rateLimitKey, {
-            reason: error.message,
-            challengeType: dto.challengeType,
-          });
-        } catch (lockError) {
-          if (lockError instanceof TooManyRequestsException) {
-            throw lockError;
+      if (isNestHttpException(error)) {
+        const status = getNestHttpStatus(error);
+        if (status === 401 || status === 400) {
+          try {
+            await this.faceRateLimitService.recordFailure('login', rateLimitKey, {
+              reason: error.message,
+              challengeType: dto.challengeType,
+            });
+          } catch (lockError) {
+            if (isNestHttpException(lockError) && getNestHttpStatus(lockError) === 429) {
+              throw lockError;
+            }
           }
         }
       }
@@ -326,13 +331,7 @@ class FaceService {
   }
 
   rethrowAiError(error) {
-    if (
-      error instanceof BadRequestException
-      || error instanceof UnauthorizedException
-      || error instanceof ConflictException
-      || error instanceof ServiceUnavailableException
-      || error instanceof TooManyRequestsException
-    ) {
+    if (isRethrowableAiError(error)) {
       throw error;
     }
 

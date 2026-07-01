@@ -31,6 +31,7 @@ import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { DtoValidationPipe } from '../../../common/pipes/dto-validation.pipe';
 import { AdminService } from '../services/admin.service';
 import { AdminLoginDto } from '../dto/admin-login.dto';
+import { InviteUserDto } from '../dto/invite-user.dto';
 import {
   FACE_UPLOAD_FIELD,
   FACE_UPLOAD_MAX_BYTES,
@@ -38,6 +39,7 @@ import {
 } from '../../face/utils/face-upload.util';
 
 const loginPipe = DtoValidationPipe(AdminLoginDto);
+const inviteUserPipe = DtoValidationPipe(InviteUserDto);
 const faceUploadInterceptor = FileInterceptor(FACE_UPLOAD_FIELD, {
   storage: memoryStorage(),
   limits: { fileSize: FACE_UPLOAD_MAX_BYTES },
@@ -153,6 +155,15 @@ class AdminController {
   @ApiBearerAuth()
   getUsers(@Query() query) {
     return this.adminService.getUsers(query);
+  }
+
+  @Post('users')
+  @HttpCode(201)
+  @UseGuards(...adminGuards)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Invite a new customer user' })
+  inviteUser(@Body(inviteUserPipe) payload) {
+    return this.adminService.inviteUser(payload);
   }
 
   @Get('users/:id')

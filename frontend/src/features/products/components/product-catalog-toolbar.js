@@ -13,6 +13,8 @@ export function ProductCatalogToolbar({
   viewMode,
   resultCount,
   isFilterOpen = false,
+  showSearch = true,
+  showCategoryChips = true,
   onSearchChange,
   searchReadOnly = false,
   onCategoryChange,
@@ -20,45 +22,58 @@ export function ProductCatalogToolbar({
   onViewModeChange,
   onFilterToggle,
 }) {
+  const hasTopSection = showSearch || showCategoryChips;
+
   return (
-    <div className="space-y-4">
-      <div className="relative max-w-xl">
-        <Search
-          className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-dashboard-muted"
-          aria-hidden="true"
-        />
-        <Input
-          value={search}
-          onChange={(event) => onSearchChange(event.target.value)}
-          readOnly={searchReadOnly}
-          placeholder="Search products..."
-          className="h-11 border-dashboard-border bg-dashboard-surface pl-9 text-dashboard-foreground placeholder:text-dashboard-muted"
-        />
-      </div>
+    <div className={cn(hasTopSection && 'space-y-4')}>
+      {showSearch ? (
+        <div className="relative max-w-xl">
+          <Search
+            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-dashboard-muted"
+            aria-hidden="true"
+          />
+          <Input
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+            readOnly={searchReadOnly}
+            placeholder="Search products..."
+            className="h-11 border-dashboard-border bg-dashboard-surface pl-9 text-dashboard-foreground placeholder:text-dashboard-muted"
+          />
+        </div>
+      ) : null}
 
-      <div className="flex flex-wrap gap-2">
-        {TOPBAR_CATEGORIES.map((category) => {
-          const active = uiCategory === category.id;
+      {showCategoryChips ? (
+        <div className="flex flex-wrap gap-2">
+          {TOPBAR_CATEGORIES.map((category) => {
+            const active = uiCategory === category.id;
 
-          return (
-            <button
-              key={category.id}
-              type="button"
-              onClick={() => onCategoryChange(category.id)}
-              className={cn(
-                'rounded-full px-4 py-1.5 text-sm transition-colors',
-                active
-                  ? 'bg-primary font-medium text-primary-foreground'
-                  : 'border border-dashboard-border bg-dashboard-surface text-dashboard-muted hover:text-dashboard-foreground',
-              )}
-            >
-              {category.label}
-            </button>
-          );
-        })}
-      </div>
+            return (
+              <button
+                key={category.id}
+                type="button"
+                onClick={() => onCategoryChange(category.id)}
+                className={cn(
+                  'rounded-full px-4 py-1.5 text-sm transition-colors',
+                  active
+                    ? 'bg-primary font-medium text-primary-foreground'
+                    : 'border border-dashboard-border bg-dashboard-surface text-dashboard-muted hover:text-dashboard-foreground',
+                )}
+              >
+                {category.label}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
 
-      <div className="flex flex-col gap-3 border-y border-dashboard-border/60 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div
+        className={cn(
+          'flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between',
+          hasTopSection
+            ? 'border-y border-dashboard-border/60 py-4'
+            : 'border-b border-dashboard-border/60 pb-4',
+        )}
+      >
         <p className="text-sm font-medium text-dashboard-foreground">
           Showing{' '}
           <span className="text-dashboard-muted">{resultCount}</span>

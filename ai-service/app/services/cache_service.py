@@ -12,11 +12,17 @@ class CacheService:
         settings = get_settings()
         self._ttl = settings.redis_cache_ttl
         try:
-            self._client = redis.Redis(
-                host=settings.redis_host,
-                port=settings.redis_port,
-                decode_responses=True,
-            )
+            if settings.redis_url:
+                self._client = redis.from_url(
+                    settings.redis_url,
+                    decode_responses=True,
+                )
+            else:
+                self._client = redis.Redis(
+                    host=settings.redis_host,
+                    port=settings.redis_port,
+                    decode_responses=True,
+                )
             self._client.ping()
             self._available = True
         except redis.RedisError:

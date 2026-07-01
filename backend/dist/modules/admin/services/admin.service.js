@@ -10,6 +10,7 @@ Object.defineProperty(exports, "AdminService", {
 });
 const _common = require("@nestjs/common");
 const _bcryptjs = /*#__PURE__*/ _interop_require_wildcard(require("bcryptjs"));
+const _crypto = require("crypto");
 const _authservice = require("../../auth/services/auth.service");
 const _faceservice = require("../../face/services/face.service");
 const _ordersservice = require("../../orders/services/orders.service");
@@ -24,9 +25,12 @@ const _userrole = require("../../../common/constants/user-role");
 const _orderconstants = require("../../orders/validators/order.constants");
 const _orderstatusutil = require("../../orders/utils/order-status.util");
 const _adminrepository = require("../repositories/admin.repository");
+const _adminanalyticsrepository = require("../repositories/admin-analytics.repository");
 const _adminproductcmsservice = require("./admin-product-cms.service");
 const _adminproductbulkservice = require("./admin-product-bulk.service");
 const _productservice = require("../../products/services/product.service");
+const _adminproducttypeutil = require("../utils/admin-product-type.util");
+const _adminanalyticschartsutil = require("../utils/admin-analytics-charts.util");
 function _getRequireWildcardCache(nodeInterop) {
     if (typeof WeakMap !== "function") return null;
     var cacheBabelInterop = new WeakMap();
@@ -125,8 +129,9 @@ function deriveSoldCount(orderCount = 0, sku = '') {
     return orderCount + hash;
 }
 let AdminService = class AdminService {
-    constructor(adminRepository, productCmsService, productBulkService, authService, faceService, ordersService, orderOmsService, ordersRepository, storagePathResolver, productService){
+    constructor(adminRepository, adminAnalyticsRepository, productCmsService, productBulkService, authService, faceService, ordersService, orderOmsService, ordersRepository, storagePathResolver, productService){
         this.adminRepository = adminRepository;
+        this.adminAnalyticsRepository = adminAnalyticsRepository;
         this.productCmsService = productCmsService;
         this.productBulkService = productBulkService;
         this.authService = authService;
@@ -268,28 +273,18 @@ let AdminService = class AdminService {
         this.logger.log(`Dashboard query executed — users=${totalUsers} active=${activeUsers} ordersMonth=${ordersThisMonth} revenue=${revenue}`);
         return payload;
     }
-    async getAnalytics() {
-        const [totalUsers, faceCount, bodyCount, dnaCount, [monthlyOrders, monthlyUsers], commerce] = await Promise.all([
+    async getAnalytics(query = {}) {
+        const chartBundle = await this.buildAnalyticsChartBundle({
+            period: query.period || 'monthly'
+        });
+        const [totalUsers, faceCount, bodyCount, dnaCount, commerce] = await Promise.all([
             this.adminRepository.countUsers(),
             this.adminRepository.countUsersWithFaceAnalysis(),
             this.adminRepository.countUsersWithBodyAnalysis(),
             this.adminRepository.countUsersWithFashionDna(),
-            this.adminRepository.getMonthlyStats(6),
             this.getOrdersAnalytics()
         ]);
         const aiAdoption = totalUsers ? Math.round(Math.max(faceCount, bodyCount, dnaCount) / totalUsers * 100) : 0;
-        const userGrowthChart = [];
-        for(let index = 5; index >= 0; index -= 1){
-            const date = new Date();
-            date.setMonth(date.getMonth() - index);
-            const key = `${date.getFullYear()}-${date.getMonth()}`;
-            const newUsers = monthlyUsers.filter((user)=>`${user.created_at.getFullYear()}-${user.created_at.getMonth()}` === key).length;
-            userGrowthChart.push({
-                month: MONTH_LABELS[date.getMonth()],
-                newUsers,
-                returningUsers: Math.max(0, monthlyOrders.length - newUsers)
-            });
-        }
         return {
             cards: {
                 avgSessionDuration: {
@@ -309,7 +304,11 @@ let AdminService = class AdminService {
                     trend: buildTrend(aiAdoption, aiAdoption - 5)
                 }
             },
-            userGrowthChart,
+            userGrowth: chartBundle.userGrowth,
+            userGrowthChart: chartBundle.userGrowth,
+            deviceSplit: chartBundle.deviceSplit,
+            ordersPerMonth: chartBundle.ordersPerMonth,
+            topCategories: chartBundle.topCategories,
             featureUsageChart: [
                 {
                     feature: 'Face Analysis',
@@ -329,6 +328,211 @@ let AdminService = class AdminService {
                 }
             ],
             commerce
+        };
+    }
+    async buildAnalyticsChartBundle({ period = 'monthly' } = {}) {
+        const [users, orders, supportTickets, productViews, searches, productCategories, wishlistItems, cartItems] = await Promise.all([
+            this.adminAnalyticsRepository.getUsersForGrowthAnalytics(),
+            this.adminAnalyticsRepository.getOrdersForGrowthAnalytics(),
+            this.adminAnalyticsRepository.getSupportDeviceSignals(),
+            this.adminAnalyticsRepository.getProductViewSignals(),
+            this.adminAnalyticsRepository.getSearchSignals(),
+            this.adminAnalyticsRepository.getProductCategoryCounts(),
+            this.adminAnalyticsRepository.getWishlistCategoryCounts(),
+            this.adminAnalyticsRepository.getCartCategoryCounts()
+        ]);
+        const activeUserIds = [
+            ...new Set([
+                ...orders.filter((order)=>order.user_id).map((order)=>order.user_id),
+                ...productViews.map((item)=>item.user_id),
+                ...searches.map((item)=>item.user_id)
+            ])
+        ];
+        const wishlistCounts = this.groupEngagementByCategory(wishlistItems, 'wishlist');
+        const cartCounts = this.groupEngagementByCategory(cartItems, 'cart');
+        return {
+            userGrowth: (0, _adminanalyticschartsutil.buildUserGrowthSeries)(users, orders, period),
+            deviceSplit: (0, _adminanalyticschartsutil.buildDeviceSplit)(supportTickets, activeUserIds),
+            ordersPerMonth: (0, _adminanalyticschartsutil.buildOrdersPerMonth)(orders, 6),
+            topCategories: (0, _adminanalyticschartsutil.buildTopCategories)({
+                orders,
+                products: productCategories,
+                wishlistCounts,
+                cartCounts
+            })
+        };
+    }
+    groupEngagementByCategory(items = []) {
+        const map = new Map();
+        for (const item of items){
+            const category = item.product?.category || 'Other';
+            map.set(category, (map.get(category) || 0) + 1);
+        }
+        return [
+            ...map.entries()
+        ].map(([category, count])=>({
+                category,
+                _count: {
+                    _all: count
+                }
+            }));
+    }
+    async getAnalyticsUserGrowth(query = {}) {
+        const period = query.period || 'monthly';
+        const [users, orders] = await Promise.all([
+            this.adminAnalyticsRepository.getUsersForGrowthAnalytics(),
+            this.adminAnalyticsRepository.getOrdersForGrowthAnalytics()
+        ]);
+        const filteredUsers = (0, _adminanalyticschartsutil.filterUsersForGrowth)(users, query);
+        const filteredOrders = (0, _adminanalyticschartsutil.filterOrdersForAnalytics)(orders, query);
+        const summary = (0, _adminanalyticschartsutil.summarizeUserGrowth)(filteredUsers, filteredOrders);
+        return {
+            summary,
+            series: {
+                selected: (0, _adminanalyticschartsutil.buildUserGrowthSeries)(filteredUsers, filteredOrders, period),
+                daily: (0, _adminanalyticschartsutil.buildUserGrowthSeries)(filteredUsers, filteredOrders, 'weekly'),
+                weekly: (0, _adminanalyticschartsutil.buildUserGrowthSeries)(filteredUsers, filteredOrders, 'weekly'),
+                monthly: (0, _adminanalyticschartsutil.buildUserGrowthSeries)(filteredUsers, filteredOrders, 'monthly'),
+                yearly: (0, _adminanalyticschartsutil.buildUserGrowthSeries)(filteredUsers, filteredOrders, 'yearly')
+            }
+        };
+    }
+    async getAnalyticsDevices(query = {}) {
+        const [supportTickets, productViews, searches, orders] = await Promise.all([
+            this.adminAnalyticsRepository.getSupportDeviceSignals(),
+            this.adminAnalyticsRepository.getProductViewSignals(),
+            this.adminAnalyticsRepository.getSearchSignals(),
+            this.adminAnalyticsRepository.getOrdersForGrowthAnalytics()
+        ]);
+        const activeUserIds = [
+            ...new Set([
+                ...orders.filter((order)=>order.user_id).map((order)=>order.user_id),
+                ...productViews.map((item)=>item.user_id),
+                ...searches.map((item)=>item.user_id)
+            ])
+        ];
+        const deviceSplit = (0, _adminanalyticschartsutil.buildDeviceSplit)(supportTickets, activeUserIds);
+        const rows = (0, _adminanalyticschartsutil.buildDeviceAnalyticsRows)(supportTickets, productViews, searches);
+        const browserMap = new Map();
+        const osMap = new Map();
+        for (const ticket of supportTickets){
+            const browser = (0, _adminanalyticschartsutil.parseBrowserName)(ticket.browser_info);
+            const os = ticket.os_info || 'Unknown';
+            browserMap.set(browser, (browserMap.get(browser) || 0) + 1);
+            osMap.set(os, (osMap.get(os) || 0) + 1);
+        }
+        return {
+            summary: {
+                totalSessions: productViews.length + searches.length,
+                trackedDevices: deviceSplit.length,
+                mobileShare: deviceSplit.find((item)=>item.device === 'Mobile')?.percentage || 0,
+                desktopShare: deviceSplit.find((item)=>item.device === 'Desktop')?.percentage || 0
+            },
+            deviceSplit,
+            browserDistribution: (0, _adminanalyticschartsutil.buildDistribution)([
+                ...browserMap.entries()
+            ].map(([label, count])=>({
+                    label,
+                    count
+                })), 'label', 'count'),
+            osDistribution: (0, _adminanalyticschartsutil.buildDistribution)([
+                ...osMap.entries()
+            ].map(([label, count])=>({
+                    label,
+                    count
+                })), 'label', 'count'),
+            rows
+        };
+    }
+    async getAnalyticsOrders(query = {}) {
+        const orders = await this.adminAnalyticsRepository.getOrdersWithCategory();
+        const filtered = (0, _adminanalyticschartsutil.filterOrdersForAnalytics)(orders, query);
+        const summary = (0, _adminanalyticschartsutil.summarizeOrderAnalytics)(filtered);
+        return {
+            summary,
+            ordersPerMonth: (0, _adminanalyticschartsutil.buildOrdersPerMonth)(filtered, 12),
+            statusDistribution: (0, _adminanalyticschartsutil.buildDistribution)([
+                {
+                    label: 'Delivered',
+                    count: summary.delivered
+                },
+                {
+                    label: 'Cancelled',
+                    count: summary.cancelled
+                },
+                {
+                    label: 'Returned',
+                    count: summary.returned
+                },
+                {
+                    label: 'Other',
+                    count: Math.max(0, summary.totalOrders - summary.delivered - summary.cancelled - summary.returned)
+                }
+            ], 'label', 'count'),
+            revenueTrend: (0, _adminanalyticschartsutil.buildOrdersPerMonth)(filtered, 12).map((item)=>({
+                    month: item.month,
+                    revenue: item.revenue,
+                    orders: item.orders
+                }))
+        };
+    }
+    async getAnalyticsCategories(query = {}) {
+        const [orders, productCategories, wishlistItems, cartItems, products, returnCounts] = await Promise.all([
+            this.adminAnalyticsRepository.getOrdersWithCategory(),
+            this.adminAnalyticsRepository.getProductCategoryCounts(),
+            this.adminAnalyticsRepository.getWishlistCategoryCounts(),
+            this.adminAnalyticsRepository.getCartCategoryCounts(),
+            this.adminAnalyticsRepository.findProductsForAnalytics({
+                category: query.category
+            }),
+            this.adminAnalyticsRepository.getCategoryReturnCounts()
+        ]);
+        const wishlistCounts = this.groupEngagementByCategory(wishlistItems);
+        const cartCounts = this.groupEngagementByCategory(cartItems);
+        const categories = (0, _adminanalyticschartsutil.buildTopCategories)({
+            orders: (0, _adminanalyticschartsutil.filterOrdersForAnalytics)(orders, query),
+            products: productCategories,
+            wishlistCounts,
+            cartCounts
+        });
+        const returnByProduct = new Map(returnCounts.map((entry)=>[
+                entry.product_id,
+                entry._count?._all || 0
+            ]));
+        const returnByCategory = new Map();
+        for (const product of products){
+            const returns = returnByProduct.get(product.id) || 0;
+            if (!returns) {
+                continue;
+            }
+            const category = product.category || 'Other';
+            returnByCategory.set(category, (returnByCategory.get(category) || 0) + returns);
+        }
+        const items = categories.filter((item)=>!query.category || item.category.toLowerCase() === query.category.toLowerCase()).map((item)=>({
+                ...item,
+                returns: returnByCategory.get(item.category) || 0,
+                rating: null
+            }));
+        return {
+            summary: {
+                totalCategories: items.length,
+                topCategory: items[0]?.category || '—',
+                totalRevenue: items.reduce((sum, item)=>sum + item.revenue, 0),
+                totalPurchases: items.reduce((sum, item)=>sum + item.purchases, 0)
+            },
+            items,
+            revenueByCategory: items.map((item)=>({
+                    category: item.category,
+                    revenue: item.revenue
+                })),
+            purchasesByCategory: items.map((item)=>({
+                    category: item.category,
+                    purchases: item.purchases
+                })),
+            wishlistByCategory: items.map((item)=>({
+                    category: item.category,
+                    wishlistCount: item.wishlistCount
+                }))
         };
     }
     async getUsers(query) {
@@ -387,6 +591,34 @@ let AdminService = class AdminService {
         await this.productService.invalidateCatalogCache();
         return {
             message: 'User deleted successfully'
+        };
+    }
+    async inviteUser(payload) {
+        const email = String(payload.email || '').trim().toLowerCase();
+        const name = String(payload.name || '').trim();
+        const plan = payload.plan || 'Free';
+        if (!email || !name) {
+            throw new _common.BadRequestException('Email and name are required');
+        }
+        const existing = await this.adminRepository.findUserByEmail(email);
+        if (existing) {
+            throw new _common.ConflictException('A user with this email already exists');
+        }
+        const providedPassword = String(payload.password || '').trim();
+        const temporaryPassword = providedPassword || `Wa@${(0, _crypto.randomBytes)(4).toString('hex')}9`;
+        const passwordHash = await _bcryptjs.hash(temporaryPassword, BCRYPT_ROUNDS);
+        const user = await this.adminRepository.createInvitedUser({
+            email,
+            passwordHash,
+            name,
+            plan
+        });
+        return {
+            message: 'User invited successfully',
+            user: this.formatAdminUser(user, true),
+            ...providedPassword ? {} : {
+                temporaryPassword
+            }
         };
     }
     async getProducts(query) {
@@ -748,6 +980,204 @@ let AdminService = class AdminService {
             ].map((value)=>`"${String(value ?? '').replace(/"/g, '""')}"`).join(','));
         return `${header}${rows.join('\n')}`;
     }
+    async getAnalyticsCustomers(query = {}) {
+        const monthStart = new Date();
+        monthStart.setDate(1);
+        monthStart.setHours(0, 0, 0, 0);
+        const [orderAggregates, users] = await Promise.all([
+            this.adminAnalyticsRepository.getCustomerOrderAggregates(),
+            this.adminAnalyticsRepository.findCustomersForAnalytics({
+                search: query.search,
+                status: query.status
+            })
+        ]);
+        const aggregateByUser = new Map(orderAggregates.map((entry)=>[
+                entry.user_id,
+                entry
+            ]));
+        const customersWithOrders = orderAggregates.length;
+        const returningCustomers = orderAggregates.filter((entry)=>(entry._count?._all || 0) > 1).length;
+        const totalRevenueGenerated = orderAggregates.reduce((sum, entry)=>sum + (entry._sum?.total_amount || 0), 0);
+        const [totalCustomers, activeCustomers, newCustomersThisMonth] = await Promise.all([
+            this.adminAnalyticsRepository.countCustomers(),
+            this.adminAnalyticsRepository.countCustomers({
+                status: 'ACTIVE'
+            }),
+            this.adminAnalyticsRepository.countCustomers({
+                created_at: {
+                    gte: monthStart
+                }
+            })
+        ]);
+        const rows = users.map((user)=>{
+            const aggregate = aggregateByUser.get(user.id);
+            const orderCount = aggregate?._count?._all || 0;
+            const lifetimeSpend = Math.round(aggregate?._sum?.total_amount || 0);
+            const averageOrderValue = orderCount ? Math.round(lifetimeSpend / orderCount) : 0;
+            const name = user.profile?.name || user.email?.split('@')[0] || 'User';
+            return {
+                id: user.id,
+                name,
+                email: user.email,
+                phone: user.mobile || null,
+                avatarInitial: name[0]?.toUpperCase() || 'U',
+                orderCount,
+                lifetimeSpend,
+                averageOrderValue,
+                lastOrderDate: aggregate?._max?.created_at || null,
+                status: (user.status || 'ACTIVE').toLowerCase(),
+                registrationDate: user.created_at
+            };
+        });
+        const sort = String(query.sort || 'highest_spend').toLowerCase();
+        const sorted = [
+            ...rows
+        ].sort((left, right)=>{
+            switch(sort){
+                case 'lowest_spend':
+                    return left.lifetimeSpend - right.lifetimeSpend;
+                case 'most_orders':
+                    return right.orderCount - left.orderCount;
+                case 'newest_customer':
+                    return new Date(right.registrationDate) - new Date(left.registrationDate);
+                case 'oldest_customer':
+                    return new Date(left.registrationDate) - new Date(right.registrationDate);
+                case 'highest_spend':
+                default:
+                    return right.lifetimeSpend - left.lifetimeSpend;
+            }
+        });
+        const paginated = this.adminAnalyticsRepository.paginateItems(sorted, query.page, query.limit);
+        return {
+            summary: {
+                totalCustomers,
+                activeCustomers,
+                returningCustomers,
+                newCustomersThisMonth,
+                totalRevenueGenerated: Math.round(totalRevenueGenerated),
+                averageCustomerSpend: customersWithOrders ? Math.round(totalRevenueGenerated / customersWithOrders) : 0
+            },
+            items: paginated.items,
+            meta: paginated.meta
+        };
+    }
+    async getAnalyticsProducts(query = {}) {
+        const [[purchaseAgg, returnAgg, wishlistAgg, cartAgg], products] = await Promise.all([
+            this.adminAnalyticsRepository.getProductEngagementAggregates(),
+            this.adminAnalyticsRepository.findProductsForAnalytics({
+                search: query.search,
+                category: query.category,
+                stock: query.stock
+            })
+        ]);
+        const purchasesByProduct = new Map(purchaseAgg.map((entry)=>[
+                entry.product_id,
+                entry
+            ]));
+        const returnsByProduct = new Map(returnAgg.map((entry)=>[
+                entry.product_id,
+                entry
+            ]));
+        const wishlistByProduct = new Map(wishlistAgg.map((entry)=>[
+                entry.product_id,
+                entry
+            ]));
+        const cartByProduct = new Map(cartAgg.map((entry)=>[
+                entry.product_id,
+                entry
+            ]));
+        const rows = products.map((product)=>{
+            const purchase = purchasesByProduct.get(product.id);
+            const purchaseCount = purchase?._count?._all || 0;
+            const revenueGenerated = Math.round(purchase?._sum?.total_amount || 0);
+            const returnCount = returnsByProduct.get(product.id)?._count?._all || 0;
+            const wishlistCount = wishlistByProduct.get(product.id)?._count?._all || product.wishlist_count || 0;
+            const cartCount = cartByProduct.get(product.id)?._count?._all || 0;
+            const primaryImage = product.images?.[0];
+            return {
+                id: product.id,
+                sku: product.sku,
+                name: product.name,
+                category: product.category,
+                productType: (0, _adminproducttypeutil.resolveAdminProductTypeDisplay)(product),
+                brand: product.brand,
+                imageUrl: this.storagePathResolver.toPublicUrl(primaryImage?.url || product.image_url),
+                purchaseCount,
+                revenueGenerated,
+                wishlistCount,
+                cartCount,
+                returnCount,
+                rating: product.rating_avg ?? null,
+                stock: product.stock_quantity ?? 0,
+                publishedStatus: this.productCmsService.resolveStatusLabel(product),
+                isActive: product.is_active
+            };
+        });
+        const filter = String(query.filter || '').toLowerCase();
+        const filtered = rows.filter((row)=>{
+            if (filter === 'most_wishlisted') {
+                return row.wishlistCount > 0;
+            }
+            if (filter === 'highest_returns') {
+                return row.returnCount > 0;
+            }
+            if (filter === 'lowest_stock') {
+                return row.stock <= 10;
+            }
+            return true;
+        });
+        const sort = String(query.sort || 'purchase_count').toLowerCase();
+        const sorted = [
+            ...filtered
+        ].sort((left, right)=>{
+            switch(sort){
+                case 'wishlist_count':
+                    return right.wishlistCount - left.wishlistCount;
+                case 'cart_count':
+                    return right.cartCount - left.cartCount;
+                case 'revenue':
+                    return right.revenueGenerated - left.revenueGenerated;
+                case 'returns':
+                    return right.returnCount - left.returnCount;
+                case 'rating':
+                    return (right.rating || 0) - (left.rating || 0);
+                case 'stock':
+                    return left.stock - right.stock;
+                case 'purchase_count':
+                default:
+                    return right.purchaseCount - left.purchaseCount;
+            }
+        });
+        if (filter === 'best_selling') {
+            sorted.sort((left, right)=>right.purchaseCount - left.purchaseCount);
+        } else if (filter === 'highest_revenue') {
+            sorted.sort((left, right)=>right.revenueGenerated - left.revenueGenerated);
+        } else if (filter === 'highest_rating') {
+            sorted.sort((left, right)=>(right.rating || 0) - (left.rating || 0));
+        }
+        const paginated = this.adminAnalyticsRepository.paginateItems(sorted, query.page, query.limit);
+        const bestSelling = [
+            ...rows
+        ].sort((a, b)=>b.purchaseCount - a.purchaseCount)[0] || null;
+        const mostWishlisted = [
+            ...rows
+        ].sort((a, b)=>b.wishlistCount - a.wishlistCount)[0] || null;
+        const mostAddedToCart = [
+            ...rows
+        ].sort((a, b)=>b.cartCount - a.cartCount)[0] || null;
+        return {
+            summary: {
+                bestSellingProduct: bestSelling?.name || null,
+                totalUnitsSold: rows.reduce((sum, row)=>sum + row.purchaseCount, 0),
+                totalRevenue: rows.reduce((sum, row)=>sum + row.revenueGenerated, 0),
+                totalReturns: rows.reduce((sum, row)=>sum + row.returnCount, 0),
+                mostWishlistedProduct: mostWishlisted?.name || null,
+                mostAddedToCartProduct: mostAddedToCart?.name || null
+            },
+            items: paginated.items,
+            meta: paginated.meta
+        };
+    }
     formatAdminUser(user, detailed = false) {
         const name = user.profile?.name || user.email?.split('@')[0] || 'User';
         const plan = user.profile?.preferences?.plan || 'Free';
@@ -783,17 +1213,19 @@ let AdminService = class AdminService {
 AdminService = _ts_decorate([
     (0, _common.Injectable)(),
     _ts_param(0, (0, _common.Inject)(_adminrepository.AdminRepository)),
-    _ts_param(1, (0, _common.Inject)(_adminproductcmsservice.AdminProductCmsService)),
-    _ts_param(2, (0, _common.Inject)(_adminproductbulkservice.AdminProductBulkService)),
-    _ts_param(3, (0, _common.Inject)(_authservice.AuthService)),
-    _ts_param(4, (0, _common.Inject)(_faceservice.FaceService)),
-    _ts_param(5, (0, _common.Inject)(_ordersservice.OrdersService)),
-    _ts_param(6, (0, _common.Inject)(_orderomsservice.OrderOmsService)),
-    _ts_param(7, (0, _common.Inject)(_ordersrepository.OrdersRepository)),
-    _ts_param(8, (0, _common.Inject)(_storagepathresolverservice.StoragePathResolver)),
-    _ts_param(9, (0, _common.Inject)(_productservice.ProductService)),
+    _ts_param(1, (0, _common.Inject)(_adminanalyticsrepository.AdminAnalyticsRepository)),
+    _ts_param(2, (0, _common.Inject)(_adminproductcmsservice.AdminProductCmsService)),
+    _ts_param(3, (0, _common.Inject)(_adminproductbulkservice.AdminProductBulkService)),
+    _ts_param(4, (0, _common.Inject)(_authservice.AuthService)),
+    _ts_param(5, (0, _common.Inject)(_faceservice.FaceService)),
+    _ts_param(6, (0, _common.Inject)(_ordersservice.OrdersService)),
+    _ts_param(7, (0, _common.Inject)(_orderomsservice.OrderOmsService)),
+    _ts_param(8, (0, _common.Inject)(_ordersrepository.OrdersRepository)),
+    _ts_param(9, (0, _common.Inject)(_storagepathresolverservice.StoragePathResolver)),
+    _ts_param(10, (0, _common.Inject)(_productservice.ProductService)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        void 0,
         void 0,
         void 0,
         void 0,

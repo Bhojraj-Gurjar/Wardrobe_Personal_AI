@@ -74,6 +74,11 @@ def _qdrant_health() -> dict:
         }
 
 
+@router.get("/")
+def root() -> dict:
+    return {"status": "ok", "service": "Wardrobe AI AI Service"}
+
+
 @router.get("/health")
 def health() -> dict:
     qdrant = _qdrant_health()

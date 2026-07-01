@@ -10,6 +10,7 @@ Object.defineProperty(exports, "OrdersRepository", {
 });
 const _common = require("@nestjs/common");
 const _prismaservice = require("../../../database/prisma.service");
+const _userrole = require("../../../common/constants/user-role");
 const _orderconstants = require("../validators/order.constants");
 const _inventoryutil = require("../../commerce/utils/inventory.util");
 const _orderstatusutil = require("../utils/order-status.util");
@@ -721,6 +722,23 @@ let OrdersRepository = class OrdersRepository {
                 }
             })
         ]);
+    }
+    findAdminUsers() {
+        return this.prisma.user.findMany({
+            where: {
+                role: _userrole.USER_ROLE.ADMIN,
+                status: 'ACTIVE'
+            },
+            select: {
+                id: true,
+                email: true,
+                profile: {
+                    select: {
+                        name: true
+                    }
+                }
+            }
+        });
     }
 };
 OrdersRepository = _ts_decorate([

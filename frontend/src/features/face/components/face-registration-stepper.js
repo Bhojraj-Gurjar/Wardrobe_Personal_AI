@@ -8,8 +8,9 @@ import {
   FACE_VERIFY_TIMEOUT_MESSAGE,
 } from '@/features/face/constants/face-timeouts';
 import { FACE_LIVENESS_PHASE } from '@/features/face/constants/face-liveness-challenges';
-import { useCamera, useFaceRegisterMutation } from '@/features/face/hooks';
-import { FACE_AUTH_CAPTURE_SETTINGS } from '@/features/face/constants/face-capture-settings';
+import { FACE_LOGIN_CAPTURE_SETTINGS } from '@/features/face/constants/face-login-capture-settings';
+import { useCamera, FACE_LOGIN_VIDEO_CONSTRAINTS } from '@/features/face/hooks/use-camera';
+import { useFaceRegisterMutation } from '@/features/face/hooks/use-face-register';
 import { useFaceLivenessChallenge } from '@/features/face/hooks/use-face-liveness-challenge';
 import { getFaceErrorMessage, FACE_CAPTURE_FAILED_MESSAGE } from '@/features/face/utils/face-errors';
 import { PremiumFaceScanner } from '@/features/face/components/premium-face-scanner';
@@ -31,8 +32,9 @@ const MAX_AUTO_RETRIES = 1;
 export function FaceRegistrationStepper() {
   const router = useRouter();
   const camera = useCamera({
-    captureMaxWidth: FACE_AUTH_CAPTURE_SETTINGS.captureMaxWidth,
-    captureQuality: FACE_AUTH_CAPTURE_SETTINGS.captureQuality,
+    videoConstraints: FACE_LOGIN_VIDEO_CONSTRAINTS,
+    captureMaxWidth: FACE_LOGIN_CAPTURE_SETTINGS.captureMaxWidth,
+    captureQuality: FACE_LOGIN_CAPTURE_SETTINGS.captureQuality,
   });
   const registerMutation = useFaceRegisterMutation();
   const detectorRef = useRef(null);
@@ -42,12 +44,16 @@ export function FaceRegistrationStepper() {
   const liveness = useFaceLivenessChallenge({
     camera,
     detectorRef,
-    positionStableMs: FACE_AUTH_CAPTURE_SETTINGS.positionStableMs,
-    stableFrameCount: FACE_AUTH_CAPTURE_SETTINGS.stableFrameCount,
-    maxFrames: FACE_AUTH_CAPTURE_SETTINGS.maxFrames,
-    minFrames: FACE_AUTH_CAPTURE_SETTINGS.minFrames,
-    captureIntervalMs: FACE_AUTH_CAPTURE_SETTINGS.captureIntervalMs,
-    detectionIntervalMs: FACE_AUTH_CAPTURE_SETTINGS.detectionIntervalMs,
+    positionStableMs: FACE_LOGIN_CAPTURE_SETTINGS.positionStableMs,
+    stableFrameCount: FACE_LOGIN_CAPTURE_SETTINGS.stableFrameCount,
+    maxFrames: FACE_LOGIN_CAPTURE_SETTINGS.maxFrames,
+    minFrames: FACE_LOGIN_CAPTURE_SETTINGS.minFrames,
+    captureIntervalMs: FACE_LOGIN_CAPTURE_SETTINGS.captureIntervalMs,
+    detectionIntervalMs: FACE_LOGIN_CAPTURE_SETTINGS.detectionIntervalMs,
+    captureWarmupMs: FACE_LOGIN_CAPTURE_SETTINGS.captureWarmupMs,
+    burstCapture: true,
+    skipPositioning: true,
+    skipSharpnessSort: true,
   });
 
   const [isVerifying, setIsVerifying] = useState(false);
@@ -159,11 +165,9 @@ export function FaceRegistrationStepper() {
       return undefined;
     }
 
-    const timer = setTimeout(() => {
-      void runRegistration();
-    }, 400);
+    void runRegistration();
 
-    return () => clearTimeout(timer);
+    return undefined;
   }, [camera.error, camera.isReady, errorMessage, isVerifying, runRegistration]);
 
   const isBusy = isVerifying || registerMutation.isPending;
@@ -177,25 +181,25 @@ export function FaceRegistrationStepper() {
       return null;
     }
 
-    if (showCapture && liveness.challengeLabel) {
-      return liveness.challengeLabel;
-    }
-
     if (liveness.phase === FACE_LIVENESS_PHASE.POSITIONING) {
-      return liveness.guidance || 'Look directly at the camera';
+      const hint = liveness.guidance || '';
+      if (/move your face|multiple faces|lighting|closer|back|center|look directly/i.test(hint)) {
+        return hint;
+      }
+      return null;
     }
 
-    if (isBusy) {
-      return 'Processing face registration…';
+    if (registerMutation.isPending || (isBusy && liveness.phase === FACE_LIVENESS_PHASE.COMPLETE)) {
+      return 'Processing…';
     }
 
-    return 'Camera active';
+    return null;
   })();
 
   return (
     <FaceAuthLayout
       title="Face Registration"
-      subtitle="Keep your eyes open, face the camera, and hold still for about one second"
+      subtitle="Look at the camera — we'll capture your face instantly"
       footer={
         <button
           type="button"
@@ -217,9 +221,11 @@ export function FaceRegistrationStepper() {
           progress={liveness.progress}
         />
 
-        <p className={faceAuthStatusTextClass} aria-live="polite" aria-atomic="true">
-          {progressLabel}
-        </p>
+        {progressLabel ? (
+          <p className={faceAuthStatusTextClass} aria-live="polite" aria-atomic="true">
+            {progressLabel}
+          </p>
+        ) : null}
       </div>
 
       {errorMessage ? (

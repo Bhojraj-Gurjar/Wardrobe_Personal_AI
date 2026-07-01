@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import logging
 import math
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
 import cv2
 import numpy as np
 
 from app.config import get_settings
-from app.services.embedding_service import FaceDetection, detect_faces_for_liveness
+from app.services.embedding_service import FaceDetection, detect_faces_batch, detect_faces_for_liveness
 from app.services.face_errors import FaceValidationError
 from app.services.liveness_service import liveness_service
 
@@ -70,7 +69,9 @@ class LivenessChallengeService:
                 "Invalid or missing liveness challenge.",
                 "liveness_failed",
             )
-        if normalized != "hold_still":
+        if normalized in {"blink_once", "blink_twice"}:
+            return "blink_once"
+        if normalized in {"smile", "turn_left", "turn_right"}:
             return "hold_still"
         return normalized
 
@@ -113,11 +114,15 @@ class LivenessChallengeService:
             )
 
         self._validate_anti_spoof(rgb_used, detections, metrics_list)
-        self._validate_hold_still(metrics_list)
+        if challenge == "blink_once":
+            self._validate_blink_once(metrics_list)
+        else:
+            self._validate_hold_still(metrics_list)
 
         liveness_score = float(np.mean([metric.quality for metric in metrics_list]))
         logger.info(
-            "Liveness hold-still passed | frames=%s | score=%.3f | avg_detection=%.3f",
+            "Liveness %s passed | frames=%s | score=%.3f | avg_detection=%.3f",
+            challenge,
             len(metrics_list),
             liveness_score,
             float(np.mean([metric.detection_score for metric in metrics_list])),
@@ -135,27 +140,27 @@ class LivenessChallengeService:
         rgb_frames: list[np.ndarray],
         min_detection: float,
     ) -> list[tuple[FrameMetrics, FaceDetection, np.ndarray] | None]:
-        if self._settings.face_liveness_parallel_frames and len(rgb_frames) > 1:
-            max_workers = min(len(rgb_frames), 3)
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                return list(
-                    executor.map(
-                        lambda rgb: self._evaluate_single_frame(rgb, min_detection),
-                        rgb_frames,
-                    ),
-                )
+        if len(rgb_frames) > 1:
+            frame_faces_batch = detect_faces_batch(
+                rgb_frames,
+                inference_max_dim=self._settings.face_liveness_inference_max_dim,
+            )
+            return [
+                self._evaluate_detected_frame(rgb, frame_faces, min_detection)
+                for rgb, frame_faces in zip(rgb_frames, frame_faces_batch, strict=False)
+            ]
 
         return [self._evaluate_single_frame(rgb, min_detection) for rgb in rgb_frames]
 
-    def _evaluate_single_frame(
+    def _evaluate_detected_frame(
         self,
         rgb: np.ndarray | None,
+        frame_faces: list[FaceDetection],
         min_detection: float,
     ) -> tuple[FrameMetrics, FaceDetection, np.ndarray] | None:
         if rgb is None or rgb.size == 0:
             return None
 
-        frame_faces = detect_faces_for_liveness(rgb)
         if len(frame_faces) != 1:
             return None
 
@@ -177,6 +182,17 @@ class LivenessChallengeService:
 
         metrics = self._extract_metrics(detection, quality)
         return metrics, detection, rgb
+
+    def _evaluate_single_frame(
+        self,
+        rgb: np.ndarray | None,
+        min_detection: float,
+    ) -> tuple[FrameMetrics, FaceDetection, np.ndarray] | None:
+        if rgb is None or rgb.size == 0:
+            return None
+
+        frame_faces = detect_faces_for_liveness(rgb)
+        return self._evaluate_detected_frame(rgb, frame_faces, min_detection)
 
     def _validate_face_geometry(self, rgb: np.ndarray, detection: FaceDetection) -> None:
         height, width = rgb.shape[:2]
@@ -325,6 +341,18 @@ class LivenessChallengeService:
             settings.face_liveness_min_detection_score,
             settings.face_min_embedding_confidence,
         )
+
+    def _validate_blink_once(self, metrics_list: list[FrameMetrics]) -> None:
+        ears = [metric.ear for metric in metrics_list]
+        if not liveness_service.validate_blink_sequence(ears):
+            logger.warning(
+                "Blink-once validation failed | ears=%s",
+                [round(value, 3) for value in ears],
+            )
+            raise FaceValidationError(
+                "Blink once to verify liveness.",
+                "liveness_failed",
+            )
 
     def _validate_hold_still(self, metrics_list: list[FrameMetrics]) -> None:
         settings = self._settings

@@ -219,15 +219,37 @@ class NotificationsService {
   }
 
   async notifyAdminNewOrder(order) {
-    return this.notifyAdmins({
-      type: APP_NOTIFICATION_TYPES.ADMIN_NEW_ORDER,
-      title: 'New order received',
-      description: `Order ${order.order_number} was placed.`,
-      actionPath: `/admin/orders?order=${order.id}`,
-      entityType: 'order',
-      entityId: order.id,
-      metadata: { orderId: order.id, orderNumber: order.order_number },
-    });
+    const admins = await this.repository.findAdminUsers();
+
+    if (!admins.length || !order?.id) {
+      return [];
+    }
+
+    const customerName = order.user?.profile?.name
+      || order.user?.email?.split('@')[0]
+      || 'A customer';
+
+    return Promise.all(
+      admins.map((admin) => this.createAppNotification({
+        userId: admin.id,
+        category: NOTIFICATION_CATEGORIES.ORDERS,
+        type: APP_NOTIFICATION_TYPES.ADMIN_NEW_ORDER,
+        title: 'New order received',
+        description: `${customerName} placed Order #${order.order_number}`,
+        actionPath: `/admin/orders?order=${order.id}`,
+        entityType: 'order',
+        entityId: order.id,
+        metadata: {
+          type: 'NEW_ORDER',
+          orderId: order.id,
+          orderNumber: order.order_number,
+          customerId: order.user_id,
+          customerName,
+          amount: order.total_amount,
+          priority: 'high',
+        },
+      })),
+    );
   }
 
   forwardOrderNotification(userId, notification, order = null) {

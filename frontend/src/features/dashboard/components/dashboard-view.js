@@ -63,13 +63,14 @@ export function DashboardView() {
 
       {isLoading ? <StatsGridSkeleton /> : <StatsGrid stats={stats} />}
 
-      <div className="grid gap-4 md:gap-6 lg:grid-cols-[1fr_320px]">
+      <div className="grid min-w-0 gap-4 md:gap-6 lg:grid-cols-[1fr_320px]">
         <TodaysPicks
           picks={picks}
           isLoading={picksLoading}
           isEmpty={picksEmpty}
+          className="min-w-0"
         />
-        <FashionDNACard dna={dna} isLoading={dnaLoading} />
+        <FashionDNACard dna={dna} isLoading={dnaLoading} className="min-w-0" />
       </div>
 
       <DashboardProductFeed />

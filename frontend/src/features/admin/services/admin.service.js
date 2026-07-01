@@ -134,6 +134,14 @@ export function deleteAdminUser(id, token) {
   });
 }
 
+export function inviteAdminUser(payload, token) {
+  return apiClient(API_ENDPOINTS.ADMIN.USERS, {
+    method: 'POST',
+    body: payload,
+    token,
+  });
+}
+
 export function fetchAdminProducts(params, token) {
   const query = new URLSearchParams();
   if (params?.search) query.set('search', params.search);

@@ -95,8 +95,8 @@ def log_tryon_startup_config() -> None:
     token = _resolve_hf_token()
 
     if not token:
-        logger.error(
-            "HF_TOKEN is not configured. Virtual try-on requires a Hugging Face token.",
+        logger.warning(
+            "HF_TOKEN is not configured. Virtual try-on will use overlay fallback or be unavailable.",
         )
         return
 

@@ -19,6 +19,7 @@ class Settings(BaseSettings):
             self.ai_service_port = int(platform_port)
         return self
 
+    redis_url: str | None = None
     redis_host: str = "localhost"
     redis_port: int = 6379
     redis_cache_ttl: int = 3600
@@ -47,7 +48,7 @@ class Settings(BaseSettings):
     face_smile_delta_threshold: float = 0.04
     face_pitch_delta_threshold: float = 0.06
     face_liveness_required: bool = True
-    face_min_capture_frames: int = 3
+    face_min_capture_frames: int = 2
     face_max_capture_frames: int = 5
     face_hold_still_min_detection_score: float = 0.38
     face_min_area_ratio: float = 0.08

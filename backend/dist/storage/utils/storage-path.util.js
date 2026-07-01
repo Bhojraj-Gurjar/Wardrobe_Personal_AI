@@ -209,12 +209,17 @@ function resolvePublicAssetUrl(storagePath, publicBaseUrl) {
         return null;
     }
     const trimmed = storagePath.trim();
+    const normalizedBase = (publicBaseUrl || '').replace(/\/$/, '');
     if (/^https?:\/\//i.test(trimmed)) {
+        const localUploadMatch = trimmed.match(/^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?(\/uploads\/.*)$/i);
+        if (localUploadMatch) {
+            const uploadPath = localUploadMatch[1];
+            return normalizedBase ? `${normalizedBase}${uploadPath}` : uploadPath;
+        }
         return trimmed;
     }
-    const base = (publicBaseUrl || '').replace(/\/$/, '');
     const path = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
-    return `${base}${path}`;
+    return normalizedBase ? `${normalizedBase}${path}` : path;
 }
 function isStoredImagePath(value) {
     return typeof value === 'string' && (value.startsWith(_storageconstants.AVATAR_PUBLIC_PREFIX) || value.startsWith(_storageconstants.FACE_PUBLIC_PREFIX) || value.startsWith(_storageconstants.BODY_PUBLIC_PREFIX) || value.startsWith(_storageconstants.PRODUCT_PUBLIC_PREFIX) || value.startsWith(_storageconstants.TRY_ON_PUBLIC_PREFIX) || value.startsWith(_storageconstants.USER_PNG_PUBLIC_PREFIX));

@@ -35,7 +35,7 @@ export function FaceLoginView() {
   return (
     <FaceAuthLayout
       title="Face Recognition"
-      subtitle="Look at the camera and hold still for a second"
+      subtitle="Look at the camera and hold still briefly"
       footer={
         <button
           type="button"
@@ -57,9 +57,11 @@ export function FaceLoginView() {
           progress={livenessProgress}
         />
 
-        <p className={faceAuthStatusTextClass} aria-live="polite" aria-atomic="true">
-          {bannerError ? null : (progressLabel || (isBusy ? 'Processing face sign-in…' : 'Camera active'))}
-        </p>
+        {bannerError || progressLabel || isBusy ? (
+          <p className={faceAuthStatusTextClass} aria-live="polite" aria-atomic="true">
+            {bannerError ? null : (progressLabel || (isBusy ? 'Processing…' : null))}
+          </p>
+        ) : null}
       </div>
 
       {!bannerError ? (

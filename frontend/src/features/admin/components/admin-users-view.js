@@ -10,7 +10,9 @@ import {
   useAdminUpdateUserMutation,
   useAdminDeactivateUserMutation,
   useAdminDeleteUserMutation,
+  useAdminInviteUserMutation,
 } from '@/features/admin/hooks';
+import { showToast } from '@/stores/toast-store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SelectField } from '@/components/ui/select';
@@ -130,11 +132,105 @@ function UserModal({ user, onClose, onSave, isSaving }) {
   );
 }
 
+function InviteUserModal({ open, onClose, onSubmit, isSubmitting }) {
+  const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
+  const [plan, setPlan] = useState('Free');
+  const [password, setPassword] = useState('');
+
+  if (!open) return null;
+
+  const handleSubmit = (event) => {
+    event.preventDefault();
+    const payload = {
+      email: email.trim(),
+      name: name.trim(),
+      plan,
+    };
+
+    if (password.trim()) {
+      payload.password = password.trim();
+    }
+
+    onSubmit(payload);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="w-full max-w-md rounded-2xl border border-dashboard-border bg-dashboard-surface p-6">
+        <h3 className="text-lg font-semibold text-dashboard-foreground">Invite User</h3>
+        <p className="mt-1 text-sm text-dashboard-muted">
+          Create a customer account. A temporary password is generated if you leave the password blank.
+        </p>
+        <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
+          <div>
+            <label className="text-xs text-dashboard-muted" htmlFor="invite-email">Email</label>
+            <Input
+              id="invite-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="mt-1 border-dashboard-border bg-dashboard-bg"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-dashboard-muted" htmlFor="invite-name">Name</label>
+            <Input
+              id="invite-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              className="mt-1 border-dashboard-border bg-dashboard-bg"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-dashboard-muted" htmlFor="invite-plan">Plan</label>
+            <SelectField
+              id="invite-plan"
+              value={plan}
+              onChange={(e) => setPlan(e.target.value)}
+              className="mt-1"
+            >
+              {['Free', 'Pro', 'Premium'].map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </SelectField>
+          </div>
+          <div>
+            <label className="text-xs text-dashboard-muted" htmlFor="invite-password">
+              Temporary password (optional)
+            </label>
+            <Input
+              id="invite-password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              minLength={8}
+              placeholder="Min 8 characters"
+              className="mt-1 border-dashboard-border bg-dashboard-bg"
+            />
+          </div>
+          <div className="mt-6 flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={onClose} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? 'Inviting…' : 'Send Invite'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export function AdminUsersView() {
   const [search, setSearch] = useState('');
   const [planFilter, setPlanFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [modalUser, setModalUser] = useState(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   const params = useMemo(
     () => ({
@@ -151,6 +247,7 @@ export function AdminUsersView() {
   const updateMutation = useAdminUpdateUserMutation();
   const deactivateMutation = useAdminDeactivateUserMutation();
   const deleteMutation = useAdminDeleteUserMutation();
+  const inviteMutation = useAdminInviteUserMutation();
 
   if (isLoading) {
     return <LoadingState title="Loading users…" rows={6} />;
@@ -168,7 +265,7 @@ export function AdminUsersView() {
         label="Admin"
         title="User Management"
         action={
-          <Button className="gap-2 rounded-xl">
+          <Button className="gap-2 rounded-xl" onClick={() => setInviteOpen(true)}>
             <Plus className="size-4" />
             Invite User
           </Button>
@@ -319,6 +416,29 @@ export function AdminUsersView() {
           }}
         />
       ) : null}
+
+      <InviteUserModal
+        open={inviteOpen}
+        onClose={() => setInviteOpen(false)}
+        isSubmitting={inviteMutation.isPending}
+        onSubmit={(payload) => {
+          inviteMutation.mutate(payload, {
+            onSuccess: (result) => {
+              setInviteOpen(false);
+              showToast(result?.message || 'User invited successfully');
+              if (result?.temporaryPassword) {
+                showToast(
+                  `Temporary password: ${result.temporaryPassword}`,
+                  'info',
+                );
+              }
+            },
+            onError: (error) => {
+              showToast(error?.message || 'Unable to invite user', 'error');
+            },
+          });
+        }}
+      />
     </div>
   );
 }

@@ -1,0 +1,26 @@
+.venv
+venv
+__pycache__
+**/__pycache__
+*.pyc
+.env
+.env.*
+uploads/
+app/generated/
+models/insightface/
+models/huggingface/
+models/cache/
+.insightface
+.cache
+**/.cache
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# Local test images — not needed on Hugging Face Space
+test_face*.jpg
+test_face*.png
+tmp-face-crop.jpg
+tests/
+scripts/test_*.jpg
+scripts/test_*.png
