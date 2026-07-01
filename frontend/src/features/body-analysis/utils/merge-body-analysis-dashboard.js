@@ -291,7 +291,9 @@ export function mergeBodyAnalysisDashboard(apiData, profile) {
       && !apiData?.rawAiResponse?.isDefault
     ),
   );
-  const bodyImageUrl = resolveBodyPhotoUrl(apiData, profile);
+  const bodyImageUrl = apiData?.bodyPhotoMissing
+    ? null
+    : resolveBodyPhotoUrl(apiData, profile);
   const hasBodyPhoto = Boolean(bodyImageUrl);
   const bodyType = hasAnalysis ? (apiData?.bodyType || null) : null;
   const bodyShape = hasAnalysis ? (apiData?.bodyShape || null) : null;

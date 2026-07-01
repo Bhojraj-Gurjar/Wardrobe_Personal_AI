@@ -168,7 +168,7 @@ let UsersService = class UsersService {
         const userId = profile.user_id;
         const originalPath = (0, _bodyphotodisplayutil.resolveOriginalBodyImagePath)(context.body_analysis, preferences) || (0, _userimageguardutil.sanitizeBodyPhotoPath)(context.body_analysis?.body_image_url) || (0, _userimageguardutil.sanitizeBodyPhotoPath)(preferences.bodyPhoto) || (0, _userimageguardutil.sanitizeBodyPhotoPath)(preferences.body_photo) || (0, _userimageguardutil.sanitizeBodyPhotoPath)(profile.body_image) || null;
         const transparentCandidate = (0, _bodyphotodisplayutil.resolveTransparentBodyImagePath)(userId, preferences);
-        const transparentPath = transparentCandidate && this.bodyPhotoProcessingService.transparentPngExists(userId) ? transparentCandidate : null;
+        const transparentPath = transparentCandidate && preferences.bodyPhotoProcessing?.processedTransparentImage ? transparentCandidate : null;
         const displayPath = transparentPath || originalPath;
         return {
             id: profile.id,

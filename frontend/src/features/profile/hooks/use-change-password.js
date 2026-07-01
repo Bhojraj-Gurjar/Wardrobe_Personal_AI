@@ -2,13 +2,15 @@
 
 import { useMutation } from '@tanstack/react-query';
 import { changePassword } from '@/features/profile/services';
-import { useAuthStore } from '@/stores/auth-store';
+import { AUTH_CONTEXT } from '@/features/auth/constants/auth-context';
+import { useSetUserSession, useUserAccessToken, useUserProfile } from '@/stores/auth-store';
+import { syncSessionCookies } from '@/features/auth/utils/session-cookie';
 import { showToast } from '@/stores/toast-store';
 
 export function useChangePasswordMutation() {
-  const token = useAuthStore((state) => state.accessToken);
-  const user = useAuthStore((state) => state.user);
-  const setSession = useAuthStore((state) => state.setSession);
+  const token = useUserAccessToken();
+  const user = useUserProfile();
+  const setUserSession = useSetUserSession();
 
   return useMutation({
     mutationFn: (payload) =>
@@ -22,11 +24,12 @@ export function useChangePasswordMutation() {
       ),
     onSuccess: (data) => {
       if (data?.accessToken && data?.refreshToken) {
-        setSession({
+        setUserSession({
           accessToken: data.accessToken,
           refreshToken: data.refreshToken,
           user,
         });
+        syncSessionCookies(AUTH_CONTEXT.USER, user);
       }
 
       showToast('Password updated successfully.');

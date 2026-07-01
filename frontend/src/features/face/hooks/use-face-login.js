@@ -7,14 +7,13 @@ import {
   verifyFaceForLogout,
 } from '@/features/face/services/faceService';
 import { establishSession } from '@/features/auth/utils/establish-session';
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 
 export function useFaceLoginMutation(options = {}) {
   return useMutation({
     mutationFn: (imageFile) => loginWithFaceImage(imageFile),
     onSuccess: (data) => {
-      establishSession({
-        accessToken: data.accessToken,
+      establishSession({ context: AUTH_CONTEXT.USER, accessToken: data.accessToken,
         refreshToken: data.refreshToken,
         user: data.user,
       });
@@ -24,7 +23,7 @@ export function useFaceLoginMutation(options = {}) {
 }
 
 export function useFaceVerifyMutation() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useMutation({
     mutationFn: (imageFile) => verifyFaceImage(imageFile, token),
@@ -32,7 +31,7 @@ export function useFaceVerifyMutation() {
 }
 
 export function useFaceLogoutVerifyMutation() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useMutation({
     mutationFn: (imageFile) => verifyFaceForLogout(imageFile, token),

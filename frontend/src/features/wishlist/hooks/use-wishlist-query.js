@@ -8,10 +8,10 @@ import {
   fetchWishlist,
   removeFromWishlist,
 } from '@/features/wishlist/services';
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 
 export function useWishlistQuery() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useQuery({
     queryKey: ['wishlist'],
@@ -23,7 +23,7 @@ export function useWishlistQuery() {
 
 export function useAddToWishlistMutation() {
   const queryClient = useQueryClient();
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useMutation({
     mutationFn: (productId) => addToWishlist(productId, token),
@@ -36,7 +36,7 @@ export function useAddToWishlistMutation() {
 
 export function useRemoveFromWishlistMutation() {
   const queryClient = useQueryClient();
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useMutation({
     mutationFn: (id) => removeFromWishlist(id, token),

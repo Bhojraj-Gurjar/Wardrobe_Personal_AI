@@ -130,7 +130,10 @@ function resolveEffectiveMrp(values: ProductFormValues) {
   return mrp > 0 ? mrp : sellingPrice;
 }
 
-export function buildProductMutationPayload(values: ProductFormValues) {
+export function buildProductMutationPayload(
+  values: ProductFormValues,
+  options?: { draftWizardStep?: number },
+) {
   const mrp = resolveEffectiveMrp(values);
   const sellingPrice = Number(values.sellingPrice) || 0;
 
@@ -187,5 +190,8 @@ export function buildProductMutationPayload(values: ProductFormValues) {
         sortOrder: index,
         isPrimary: image.isPrimary ?? index === 0,
       })),
+    ...(options?.draftWizardStep != null
+      ? { draftWizardStep: options.draftWizardStep }
+      : {}),
   };
 }

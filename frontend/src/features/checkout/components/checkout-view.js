@@ -17,7 +17,7 @@ import { AddressForm } from '@/features/checkout/components/address-form';
 import { PaymentSelector } from '@/features/checkout/components/payment-selector';
 import { OrderSuccess } from '@/features/checkout/components/order-success';
 import { checkoutCart, createAddress, fetchAddresses } from '@/features/checkout/services/checkout.service';
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 import { cn } from '@/utils/cn';
 
 const EMPTY_ADDRESS = {
@@ -53,7 +53,7 @@ export function CheckoutView() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const coupon = searchParams.get('coupon');
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const queryClient = useQueryClient();
 
   const [step, setStep] = useState('address');

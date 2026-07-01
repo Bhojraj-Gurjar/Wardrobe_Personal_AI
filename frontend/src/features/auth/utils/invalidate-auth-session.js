@@ -1,3 +1,4 @@
+import { AUTH_CONTEXT } from '@/features/auth/constants/auth-context';
 import { clearAuthSession } from '@/features/auth/utils/clear-auth-session';
 import { ROUTES } from '@/constants/routes';
 import { isAdminRoute } from '@/features/auth/utils/auth-routing';
@@ -10,12 +11,22 @@ const PUBLIC_PATHS = new Set([
   ROUTES.FACE.LOGIN,
 ]);
 
+export function resolveAuthContextFromPathname(pathname = '') {
+  return isAdminRoute(pathname) ? AUTH_CONTEXT.ADMIN : AUTH_CONTEXT.USER;
+}
+
 export function invalidateAuthSession({
+  context,
   redirect = true,
   preserveReturnPath = true,
   reason = 'session_expired',
 } = {}) {
-  clearAuthSession();
+  const resolvedContext = context
+    ?? (typeof window !== 'undefined'
+      ? resolveAuthContextFromPathname(window.location.pathname)
+      : AUTH_CONTEXT.USER);
+
+  clearAuthSession(resolvedContext);
 
   if (!redirect || typeof window === 'undefined') {
     return;
@@ -27,6 +38,9 @@ export function invalidateAuthSession({
     const params = new URLSearchParams();
     if (reason) {
       params.set('reason', reason);
+    }
+    if (resolvedContext === AUTH_CONTEXT.ADMIN) {
+      params.set('loginType', 'admin');
     }
     const qs = params.toString();
     window.location.replace(`${ROUTES.AUTH.LOGIN}${qs ? `?${qs}` : ''}`);
@@ -43,7 +57,7 @@ export function invalidateAuthSession({
     params.set('reason', reason);
   }
 
-  if (isAdminRoute(pathname)) {
+  if (resolvedContext === AUTH_CONTEXT.ADMIN) {
     params.set('loginType', 'admin');
   }
 

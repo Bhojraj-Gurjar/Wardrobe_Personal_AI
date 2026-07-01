@@ -94,6 +94,51 @@ export function withCacheBust(url, version) {
   return `${url}${separator}v=${encodeURIComponent(version)}`;
 }
 
+export function getUserDisplayInitials(name = '') {
+  const cleaned = String(name || '').trim();
+
+  if (!cleaned || /^your profile$/i.test(cleaned)) {
+    return 'U';
+  }
+
+  const parts = cleaned.split(/\s+/).filter(Boolean);
+
+  if (parts.length >= 2) {
+    return `${parts[0][0] || ''}${parts[1][0] || ''}`.toUpperCase();
+  }
+
+  return (parts[0]?.[0] || 'U').toUpperCase();
+}
+
+export function resolveUserDisplayName({
+  profile,
+  user,
+  fallback = 'Fashion Explorer',
+} = {}) {
+  return (
+    profile?.name?.trim()
+    || user?.name?.trim()
+    || user?.email?.split('@')[0]?.trim()
+    || fallback
+  );
+}
+
+export function resolveUserAvatarPhotoUrl(profile) {
+  const raw = profile?.faceImageUrl;
+
+  if (!raw) {
+    return null;
+  }
+
+  const normalized = String(raw).trim().toLowerCase();
+
+  if (normalized.includes('.svg')) {
+    return null;
+  }
+
+  return withCacheBust(resolveProfileImageUrl(raw), profile?.updated_at);
+}
+
 export function formatProfileDate(value) {
   if (!value) return '—';
   const date = new Date(value);

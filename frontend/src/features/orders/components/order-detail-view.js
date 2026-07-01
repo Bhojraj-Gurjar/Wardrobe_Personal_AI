@@ -12,10 +12,10 @@ import { OrderTimeline, StatusBadge } from '@/features/orders/components/order-t
 import { fetchOrderById } from '@/features/orders/services/orders.service';
 import { formatProductPrice } from '@/features/products/utils/product-catalog.utils';
 import { useOrderEvents } from '@/features/orders/hooks/use-order-events';
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 
 export function OrderDetailView({ orderId }) {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   const orderQuery = useQuery({
     queryKey: ['order', orderId],

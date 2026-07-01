@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, Download, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/utils/cn';
+import { showToast } from '@/stores/toast-store';
 import {
   downloadBulkImportTemplate,
   parseBulkImportFile,
@@ -22,10 +23,15 @@ export function BulkUploadPanel({
   const [parseError, setParseError] = useState(null);
   const [fileName, setFileName] = useState('');
   const [isDragging, setIsDragging] = useState(false);
+  const [importValidOnly, setImportValidOnly] = useState(true);
+  const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
 
   const validCount = validation?.validCount ?? 0;
-  const canImport = Boolean(validation?.canImport);
+  const invalidCount = validation?.invalidCount ?? 0;
   const isBusy = isValidating || isImporting;
+  const canImportAll = Boolean(validation?.canImport);
+  const canImportPartial = importValidOnly && validCount > 0;
+  const canImport = importValidOnly ? canImportPartial : canImportAll;
 
   const runValidation = useCallback(async (parsedRows) => {
     const result = await onValidate(parsedRows);
@@ -43,7 +49,7 @@ export function BulkUploadPanel({
 
       if (!parsedRows.length) {
         setRows([]);
-        setParseError('No product rows found. Use the Excel template and add at least one data row.');
+        setParseError('No product rows found. Delete the sample row and add your products, or use the Excel template.');
         return;
       }
 
@@ -72,13 +78,41 @@ export function BulkUploadPanel({
     }
   };
 
+  const handleDownloadTemplate = async () => {
+    try {
+      setIsDownloadingTemplate(true);
+      await downloadBulkImportTemplate();
+    } catch (error) {
+      showToast(error?.message || 'Unable to download template.', 'error');
+    } finally {
+      setIsDownloadingTemplate(false);
+    }
+  };
+
   const handleImport = async () => {
-    if (!rows.length || !canImport) {
+    if (!rows.length || !canImport || !validation) {
       return;
     }
 
-    await onImport(rows);
-    onClose();
+    const rowsToImport = importValidOnly
+      ? validation.rows.filter((row) => row.isValid).map((row) => row.data)
+      : rows;
+
+    try {
+      const result = await onImport(rowsToImport);
+      const imported = result?.imported ?? rowsToImport.length;
+      const skipped = importValidOnly ? invalidCount : 0;
+
+      showToast(
+        skipped > 0
+          ? `Imported ${imported} product${imported === 1 ? '' : 's'}. Skipped ${skipped} invalid row${skipped === 1 ? '' : 's'}.`
+          : `Successfully imported ${imported} product${imported === 1 ? '' : 's'}.`,
+        'success',
+      );
+      onClose();
+    } catch (error) {
+      showToast(error?.message || 'Bulk import failed. Please review validation errors.', 'error');
+    }
   };
 
   return (
@@ -100,19 +134,20 @@ export function BulkUploadPanel({
           <div>
             <h3 className="text-xl font-semibold text-dashboard-foreground">Bulk Product Upload</h3>
             <p className="mt-1 text-sm text-dashboard-muted">
-              Upload CSV or Excel. Review validation before importing.
+              Template columns match the Add Single Product form. Review validation before importing.
             </p>
             <button
               type="button"
-              onClick={downloadBulkImportTemplate}
+              onClick={handleDownloadTemplate}
+              disabled={isDownloadingTemplate}
               className={cn(
                 'mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-primary',
                 'transition-colors hover:text-primary/80 hover:underline',
-                'cursor-pointer',
+                'cursor-pointer disabled:opacity-60',
               )}
             >
               <Download className="size-4 shrink-0" aria-hidden="true" />
-              Download Excel Template
+              {isDownloadingTemplate ? 'Preparing template…' : 'Download Excel Template'}
             </button>
           </div>
           <Button type="button" variant="ghost" size="icon" onClick={onClose}>
@@ -173,7 +208,7 @@ export function BulkUploadPanel({
                   row
                   {validation.totalRows === 1 ? '' : 's'}
                   {' '}
-                  parsed
+                  validated
                 </span>
                 <span className="inline-flex items-center gap-1 text-emerald-400">
                   <CheckCircle2 className="size-4" />
@@ -191,8 +226,31 @@ export function BulkUploadPanel({
                 ) : null}
               </div>
 
+              {invalidCount > 0 ? (
+                <label className="flex items-start gap-2 rounded-xl border border-dashboard-border bg-dashboard-bg/30 px-3 py-2.5 text-sm text-dashboard-muted">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={importValidOnly}
+                    onChange={(event) => setImportValidOnly(event.target.checked)}
+                  />
+                  <span>
+                    Import valid rows only (skip
+                    {' '}
+                    {invalidCount}
+                    {' '}
+                    invalid row
+                    {invalidCount === 1 ? '' : 's'}
+                    )
+                  </span>
+                </label>
+              ) : null}
+
               {validation.rows?.some((row) => !row.isValid) ? (
-                <div className="max-h-48 space-y-2 overflow-y-auto rounded-xl border border-dashboard-border bg-dashboard-bg/30 p-3">
+                <div className="max-h-56 space-y-2 overflow-y-auto rounded-xl border border-dashboard-border bg-dashboard-bg/30 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-dashboard-muted">
+                    Validation report
+                  </p>
                   {validation.rows
                     .filter((row) => !row.isValid)
                     .map((row) => (
@@ -208,7 +266,11 @@ export function BulkUploadPanel({
                       </div>
                     ))}
                 </div>
-              ) : null}
+              ) : (
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+                  All rows passed validation. Ready to import.
+                </div>
+              )}
             </div>
           ) : null}
         </div>
@@ -224,7 +286,9 @@ export function BulkUploadPanel({
           >
             {isImporting
               ? 'Importing...'
-              : `Import ${validCount} product${validCount === 1 ? '' : 's'}`}
+              : importValidOnly && invalidCount > 0
+                ? `Import ${validCount} valid product${validCount === 1 ? '' : 's'}`
+                : `Import ${validCount} product${validCount === 1 ? '' : 's'}`}
           </Button>
         </div>
       </div>

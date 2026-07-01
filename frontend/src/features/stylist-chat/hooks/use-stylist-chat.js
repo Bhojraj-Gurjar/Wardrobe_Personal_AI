@@ -11,10 +11,10 @@ import {
   fetchStylistSuggestions,
   sendStylistMessage,
 } from '@/features/stylist-chat/services';
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 
 export function useStylistSuggestionsQuery() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useQuery({
     queryKey: ['stylist-suggestions'],
@@ -25,7 +25,7 @@ export function useStylistSuggestionsQuery() {
 }
 
 export function useStylistSessionsQuery() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useQuery({
     queryKey: ['stylist-sessions'],
@@ -35,7 +35,7 @@ export function useStylistSessionsQuery() {
 }
 
 export function useStylistSessionQuery(sessionId) {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useQuery({
     queryKey: ['stylist-session', sessionId],
@@ -45,7 +45,7 @@ export function useStylistSessionQuery(sessionId) {
 }
 
 export function useStylistChatMutation() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -61,7 +61,7 @@ export function useStylistChatMutation() {
 }
 
 export function useCreateStylistSessionMutation() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -73,7 +73,7 @@ export function useCreateStylistSessionMutation() {
 }
 
 export function useDeleteStylistSessionMutation() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const queryClient = useQueryClient();
 
   return useMutation({

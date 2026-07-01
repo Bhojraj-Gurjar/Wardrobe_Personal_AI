@@ -1,9 +1,14 @@
-import { useAuthStore } from '@/stores/auth-store';
-import { clearAuthSession } from '@/features/auth/utils/clear-auth-session';
+import { AUTH_CONTEXT } from '@/features/auth/constants/auth-context';
+import { setSessionSlice } from '@/stores/auth-store';
 import { syncSessionCookies } from '@/features/auth/utils/session-cookie';
 
-export function establishSession({ accessToken, refreshToken, user }) {
-  clearAuthSession();
-  useAuthStore.getState().setSession({ accessToken, refreshToken, user });
-  syncSessionCookies(user);
+export function establishSession({
+  context = AUTH_CONTEXT.USER,
+  accessToken,
+  refreshToken,
+  user,
+}) {
+  const session = { accessToken, refreshToken, user };
+  setSessionSlice(context, session);
+  syncSessionCookies(context, user);
 }

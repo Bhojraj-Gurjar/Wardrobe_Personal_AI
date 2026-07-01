@@ -235,14 +235,57 @@ export const CMS_FACE_SHAPES = [
 ];
 
 export const CMS_BULK_REQUIRED_COLUMNS = [
+  'sku',
   'name',
   'brand',
   'category',
   'productType',
   'gender',
+  'mrp',
   'sellingPrice',
   'stockQuantity',
+  'imageUrl',
+  'variantColor',
 ];
+
+export const BULK_TEMPLATE_CATEGORY_TO_CMS = {
+  Shirts: 'Clothing',
+  'T-Shirts': 'Clothing',
+  Jeans: 'Clothing',
+  Trousers: 'Clothing',
+  Jackets: 'Clothing',
+  Hoodies: 'Clothing',
+  Sweatshirts: 'Clothing',
+  Shoes: 'Footwear',
+  Sneakers: 'Footwear',
+  Sandals: 'Footwear',
+  Accessories: 'Accessories',
+  'Ethnic Wear': 'Clothing',
+  'Formal Wear': 'Clothing',
+  'Casual Wear': 'Clothing',
+  Sportswear: 'Clothing',
+  Others: 'Clothing',
+};
+
+export const BULK_GENDER_TO_CMS = {
+  Male: 'Men',
+  Female: 'Women',
+  Men: 'Men',
+  Women: 'Women',
+  Unisex: 'Unisex',
+  Kids: 'Kids',
+};
+
+export const BULK_VISIBILITY_TO_CMS = {
+  Published: 'PUBLISHED',
+  Draft: 'DRAFT',
+  Hidden: 'HIDDEN',
+  PUBLISHED: 'PUBLISHED',
+  DRAFT: 'DRAFT',
+  HIDDEN: 'HIDDEN',
+};
+
+export const BULK_SAMPLE_ROW_MARKER_SKU = 'SAMPLE-REMOVE-BEFORE-UPLOAD';
 
 /** Legacy UI categories mapped to CMS categories for backward compatibility. */
 export const LEGACY_CATEGORY_TO_CMS = {
@@ -311,5 +354,25 @@ export function normalizeCmsCategory(category) {
     return category;
   }
 
+  if (BULK_TEMPLATE_CATEGORY_TO_CMS[category]) {
+    return BULK_TEMPLATE_CATEGORY_TO_CMS[category];
+  }
+
   return LEGACY_CATEGORY_TO_CMS[category] || category;
+}
+
+export function normalizeBulkGender(gender) {
+  if (!gender) {
+    return null;
+  }
+
+  return BULK_GENDER_TO_CMS[gender] || gender;
+}
+
+export function normalizeBulkVisibility(visibility) {
+  if (!visibility) {
+    return 'DRAFT';
+  }
+
+  return BULK_VISIBILITY_TO_CMS[visibility] || String(visibility).trim().toUpperCase();
 }

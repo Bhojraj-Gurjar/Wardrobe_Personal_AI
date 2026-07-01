@@ -8,14 +8,14 @@ import {
   fetchBodyAnalysis,
   updateBodyAnalysis,
 } from '@/features/body-analysis/services';
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 
 export const BODY_ANALYSIS_QUERY_KEY = ['body-analysis'];
 
 const BODY_ANALYSIS_POLL_MS = 4000;
 
 export function useBodyAnalysisQuery() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useQuery({
     queryKey: BODY_ANALYSIS_QUERY_KEY,
@@ -34,9 +34,8 @@ export function useBodyAnalysisQuery() {
 
       const hasPhoto = Boolean(
         data?.bodyImageUrl
-        || data?.bodyPhotoUrl
-        || data?.body_image_url,
-      );
+        || data?.bodyPhotoUrl,
+      ) && !data?.bodyPhotoMissing;
       const needsAnalysis = hasPhoto && !data?.hasAnalysis;
 
       return needsAnalysis ? BODY_ANALYSIS_POLL_MS : false;
@@ -45,7 +44,7 @@ export function useBodyAnalysisQuery() {
 }
 
 export function useAnalyzeBodyMutation() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -66,7 +65,7 @@ export function useAnalyzeBodyMutation() {
 }
 
 export function useAnalyzeCurrentBodyMutation() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -86,7 +85,7 @@ export function useAnalyzeCurrentBodyMutation() {
 }
 
 export function useUpdateBodyAnalysisMutation() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const queryClient = useQueryClient();
 
   return useMutation({

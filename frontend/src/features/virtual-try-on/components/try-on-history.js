@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import {
   Check,
   Download,
@@ -99,13 +98,15 @@ export function TryOnHistory({
                 >
                   <div className="relative aspect-[3/4] overflow-hidden bg-dashboard-surface-elevated">
                     {imageUrl ? (
-                      <Image
+                      /* Native img avoids Next.js /_next/image hostname failures for try-on URLs. */
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
                         src={imageUrl}
                         alt={product?.name || 'Try-on result'}
-                        fill
-                        sizes="(max-width: 768px) 100vw, 320px"
-                        className="object-cover object-top"
                         loading="lazy"
+                        decoding="async"
+                        referrerPolicy="no-referrer"
+                        className="size-full object-cover object-top"
                       />
                     ) : null}
                   </div>

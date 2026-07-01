@@ -243,7 +243,7 @@ class UsersService {
       || null;
     const transparentCandidate = resolveTransparentBodyImagePath(userId, preferences);
     const transparentPath = transparentCandidate
-      && this.bodyPhotoProcessingService.transparentPngExists(userId)
+      && preferences.bodyPhotoProcessing?.processedTransparentImage
       ? transparentCandidate
       : null;
     const displayPath = transparentPath || originalPath;

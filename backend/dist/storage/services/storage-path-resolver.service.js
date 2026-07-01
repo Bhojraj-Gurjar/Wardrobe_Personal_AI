@@ -10,7 +10,7 @@ Object.defineProperty(exports, "StoragePathResolver", {
 });
 const _common = require("@nestjs/common");
 const _config = require("@nestjs/config");
-const _storagepathutil = require("../utils/storage-path.util");
+const _storageservice = require("./storage.service");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -26,18 +26,21 @@ function _ts_param(paramIndex, decorator) {
     };
 }
 let StoragePathResolver = class StoragePathResolver {
-    constructor(configService){
+    constructor(configService, storageService){
         this.publicBaseUrl = configService.get('storage.local.publicBaseUrl');
+        this.storageService = storageService;
     }
     toPublicUrl(storagePath) {
-        return (0, _storagepathutil.resolvePublicAssetUrl)(storagePath, this.publicBaseUrl);
+        return this.storageService.resolvePublicUrl(storagePath);
     }
 };
 StoragePathResolver = _ts_decorate([
     (0, _common.Injectable)(),
     _ts_param(0, (0, _common.Inject)(_config.ConfigService)),
+    _ts_param(1, (0, _common.Inject)(_storageservice.StorageService)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        void 0,
         void 0
     ])
 ], StoragePathResolver);

@@ -18,7 +18,7 @@ import { useOnboardingProfileMutation } from '@/features/onboarding/hooks/use-on
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { useBodyCaptureStore } from '@/stores/body-capture-store';
 import { runBodyAnalysis } from '@/features/body-analysis/utils/run-body-analysis';
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 import { GenderCardGroup } from '@/features/onboarding/components/gender-card';
 import {
   OnboardingField,
@@ -188,7 +188,7 @@ export function PersonalDetailsCard() {
       <OnboardingField
         id="body_photo"
         label="Full-body photo"
-        hint="Optional — body analysis runs automatically after upload"
+        hint="Optional — enter height first, then upload. Body analysis runs automatically on Continue."
       >
         <OnboardingInput
           id="body_photo"
@@ -206,11 +206,15 @@ export function PersonalDetailsCard() {
             const heightValue = getValues('height');
             const height = heightValue !== '' ? Number(heightValue) : null;
 
+            if (!Number.isFinite(height) || height <= 0) {
+              return;
+            }
+
             runBodyAnalysis({
-              token: useAuthStore.getState().accessToken,
+              token: getUserAccessToken(),
               queryClient,
               imageFile: file,
-              height: Number.isFinite(height) && height > 0 ? height : undefined,
+              height,
             }).catch(() => {});
           }}
         />

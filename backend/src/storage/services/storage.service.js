@@ -8,6 +8,7 @@ import {
   buildAvatarObjectKey,
   buildBodyObjectKey,
   buildFaceObjectKey,
+  buildUserPngObjectKey,
   buildProductImageObjectKey,
   buildSupportAttachmentObjectKey,
   buildOrderDocumentObjectKey,
@@ -16,6 +17,7 @@ import {
   buildTryOnResultObjectKey,
   extensionFromMimeType,
   mimeTypeFromExtension,
+  resolvePublicAssetUrl,
   toFilesystemPath,
 } from '../utils/storage-path.util';
 import {
@@ -25,22 +27,59 @@ import {
   TRY_ON_STORAGE_FOLDER,
 } from '../storage.constants';
 
+function resolveStorageProviderName(configService) {
+  const explicit = configService.get('storage.provider');
+
+  if (explicit) {
+    return explicit;
+  }
+
+  const cloudName = configService.get('storage.cloudinary.cloudName');
+  const apiKey = configService.get('storage.cloudinary.apiKey');
+  const apiSecret = configService.get('storage.cloudinary.apiSecret');
+
+  if (cloudName && apiKey && apiSecret) {
+    return 'cloudinary';
+  }
+
+  return DEFAULT_STORAGE_PROVIDER;
+}
+
 export @Injectable()
 class StorageService {
   constructor(@Inject(ConfigService) configService) {
     this.configService = configService;
     this.logger = new Logger(StorageService.name);
+    const providerName = resolveStorageProviderName(configService);
     this.provider = createStorageProvider(
-      configService.get('storage.provider'),
+      providerName,
       {
         local: configService.get('storage.local'),
+        cloudinary: configService.get('storage.cloudinary'),
       },
     );
-    this.logger.log('Avatar storage provider: local filesystem');
+    this.logger.log(`Storage provider: ${providerName}`);
   }
 
   getProviderName() {
-    return this.configService.get('storage.provider') || DEFAULT_STORAGE_PROVIDER;
+    return resolveStorageProviderName(this.configService);
+  }
+
+  resolvePublicUrl(storagePath) {
+    if (!storagePath) {
+      return null;
+    }
+
+    const providerUrl = this.provider.resolvePublicUrl?.(storagePath);
+
+    if (providerUrl) {
+      return providerUrl;
+    }
+
+    return resolvePublicAssetUrl(
+      storagePath,
+      this.configService.get('storage.local.publicBaseUrl'),
+    );
   }
 
   getPublicBaseUrl() {
@@ -77,6 +116,14 @@ class StorageService {
       buffer,
       mimeType,
       objectKey,
+    });
+  }
+
+  async uploadUserPng(userId, buffer) {
+    return this.provider.upload({
+      buffer,
+      mimeType: 'image/png',
+      objectKey: buildUserPngObjectKey(userId),
     });
   }
 
@@ -155,6 +202,10 @@ class StorageService {
       return false;
     }
 
+    if (typeof this.provider.storagePathExists === 'function') {
+      return this.provider.storagePathExists(storagePath);
+    }
+
     const rootDir = this.configService.get('storage.local.rootDir') || 'uploads';
     const absolutePath = toFilesystemPath(storagePath, rootDir);
 
@@ -201,16 +252,29 @@ class StorageService {
       return null;
     }
 
+    if (typeof this.provider.readStoragePath === 'function') {
+      return this.provider.readStoragePath(storagePath);
+    }
+
     const rootDir = this.configService.get('storage.local.rootDir') || 'uploads';
     const absolutePath = toFilesystemPath(storagePath, rootDir);
     const extension = extname(absolutePath).replace('.', '') || 'jpg';
 
-    const buffer = await readFile(absolutePath);
+    try {
+      const buffer = await readFile(absolutePath);
 
-    return {
-      buffer,
-      mimeType: mimeTypeFromExtension(extension),
-    };
+      return {
+        buffer,
+        mimeType: mimeTypeFromExtension(extension),
+      };
+    } catch (error) {
+      if (error?.code === 'ENOENT') {
+        this.logger.warn(`Stored file missing: ${storagePath}`);
+        return null;
+      }
+
+      throw error;
+    }
   }
 
   async deleteFaceImagesForUser(userId) {

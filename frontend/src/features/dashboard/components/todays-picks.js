@@ -6,21 +6,60 @@ import { ChevronRight, Sparkles } from 'lucide-react';
 import { ROUTES } from '@/constants/routes';
 import { EmptyState } from '@/components/shared/empty-state';
 import { DashboardProductCard } from '@/features/dashboard/components/dashboard-product-card';
+import {
+  getTodaysPicksRowStyle,
+  TODAYS_PICKS_CARD_SLOT_CLASS,
+  TODAYS_PICKS_ROW_CLASS,
+  TODAYS_PICKS_SKELETON_COUNT,
+} from '@/features/dashboard/constants/todays-picks-layout';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/utils/cn';
 
+function TodaysPicksRow({ count, children, className }) {
+  return (
+    <div
+      className={cn(TODAYS_PICKS_ROW_CLASS, className)}
+      style={getTodaysPicksRowStyle(count)}
+    >
+      {children}
+    </div>
+  );
+}
+
+function TodaysPicksCardSlot({ children }) {
+  return <div className={TODAYS_PICKS_CARD_SLOT_CLASS}>{children}</div>;
+}
+
+function TodaysPicksSkeletonCard() {
+  return (
+    <article className="flex h-full min-w-0 flex-col overflow-hidden rounded-[18px] border border-dashboard-border bg-dashboard-surface p-4 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
+      <Skeleton className="min-h-0 flex-[0_0_62%] w-full rounded-xl bg-dashboard-surface-elevated" />
+      <div className="flex flex-1 flex-col pt-3">
+        <Skeleton className="h-2.5 w-16 rounded bg-dashboard-surface-elevated" />
+        <Skeleton className="mt-2 h-8 w-full rounded bg-dashboard-surface-elevated" />
+        <Skeleton className="mt-3 h-4 w-24 rounded bg-dashboard-surface-elevated" />
+      </div>
+      <div className="mt-auto flex gap-2 border-t border-dashboard-border/60 pt-3">
+        <Skeleton className="h-9 flex-1 rounded-xl bg-dashboard-surface-elevated" />
+        <Skeleton className="h-9 flex-1 rounded-xl bg-dashboard-surface-elevated" />
+      </div>
+    </article>
+  );
+}
+
 export function TodaysPicks({ picks, isLoading = false, isEmpty = false, className }) {
   const router = useRouter();
+  const pickCount = isLoading ? TODAYS_PICKS_SKELETON_COUNT : picks?.length || 0;
 
   return (
     <section
       className={cn(
-        'interactive-card min-w-0 overflow-hidden rounded-xl border border-dashboard-border bg-dashboard-surface p-3 md:rounded-2xl md:p-5',
+        'interactive-card min-w-0 overflow-hidden rounded-xl border border-dashboard-border bg-dashboard-surface p-4 md:rounded-2xl md:p-5',
         className,
       )}
     >
-      <div className="mb-3 flex items-center justify-between gap-2 md:mb-4 md:gap-3">
+      <div className="mb-4 flex items-center justify-between gap-2 md:mb-5 md:gap-3">
         <div className="flex min-w-0 items-center gap-1.5 md:gap-2">
           <h3 className="truncate text-base font-semibold text-dashboard-foreground md:text-lg">
             Today&apos;s Picks
@@ -44,14 +83,13 @@ export function TodaysPicks({ picks, isLoading = false, isEmpty = false, classNa
       </div>
 
       {isLoading ? (
-        <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-1 [-ms-overflow-style:none] [scrollbar-width:none] touch-pan-x [&::-webkit-scrollbar]:hidden md:gap-4">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <Skeleton
-              key={index}
-              className="h-[172px] w-[140px] shrink-0 snap-start rounded-xl bg-dashboard-surface-elevated md:h-52 md:w-[160px] md:rounded-2xl"
-            />
+        <TodaysPicksRow count={TODAYS_PICKS_SKELETON_COUNT}>
+          {Array.from({ length: TODAYS_PICKS_SKELETON_COUNT }).map((_, index) => (
+            <TodaysPicksCardSlot key={index}>
+              <TodaysPicksSkeletonCard />
+            </TodaysPicksCardSlot>
           ))}
-        </div>
+        </TodaysPicksRow>
       ) : isEmpty || !picks?.length ? (
         <EmptyState
           icon={Sparkles}
@@ -62,19 +100,21 @@ export function TodaysPicks({ picks, isLoading = false, isEmpty = false, classNa
           className="border-0 bg-transparent p-4 md:p-6"
         />
       ) : (
-        <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-1 [-ms-overflow-style:none] [scrollbar-width:none] touch-pan-x [&::-webkit-scrollbar]:hidden md:gap-4">
+        <TodaysPicksRow count={pickCount}>
           {picks.map((pick) => (
-            <DashboardProductCard
-              key={pick.id}
-              name={pick.name}
-              image={pick.image}
-              matchPercent={pick.matchPercent}
-              href={pick.href}
-              isMock={pick.isMock}
-              className="snap-start"
-            />
+            <TodaysPicksCardSlot key={pick.id}>
+              <DashboardProductCard
+                variant="picks"
+                product={pick.product}
+                name={pick.name}
+                image={pick.image}
+                matchPercent={pick.matchPercent}
+                href={pick.href}
+                isMock={pick.isMock}
+              />
+            </TodaysPicksCardSlot>
           ))}
-        </div>
+        </TodaysPicksRow>
       )}
     </section>
   );

@@ -3,12 +3,12 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { updateFacePhoto } from '@/features/face/services/faceService';
 import { FACE_ANALYSIS_QUERY_KEY } from '@/features/face-analysis/hooks/use-face-analysis';
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 
 const PROFILE_QUERY_KEY = ['profile'];
 
 export function useUpdateFacePhotoMutation() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const queryClient = useQueryClient();
 
   return useMutation({

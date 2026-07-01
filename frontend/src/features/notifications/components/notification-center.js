@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useIsMobile } from '@/hooks/use-media-query';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Bell, CheckCheck, Search, X } from 'lucide-react';
+import { Bell, CheckCheck, Search, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/utils/cn';
@@ -15,7 +15,7 @@ import {
   useNotificationsQuery,
   useUnreadNotificationCountQuery,
 } from '../hooks/use-notifications';
-import { groupNotificationsByDate, NOTIFICATION_FILTERS } from '../utils/notification.utils';
+import { groupNotificationsByDate, NOTIFICATION_FILTERS, USER_NOTIFICATION_FILTERS } from '../utils/notification.utils';
 import { NotificationEmptyState } from './notification-empty-state';
 import { NotificationItem } from './notification-item';
 
@@ -99,7 +99,7 @@ function useFocusTrap(containerRef, active) {
   }, [active, containerRef]);
 }
 
-export function NotificationCenter({ isAdmin = false, className }) {
+export function NotificationCenter({ isAdmin = false, className, triggerClassName, minimalTrigger = false }) {
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -177,7 +177,27 @@ export function NotificationCenter({ isAdmin = false, className }) {
 
   const visibleFilters = isAdmin
     ? NOTIFICATION_FILTERS
-    : NOTIFICATION_FILTERS.filter((filter) => filter.id !== 'ADMIN');
+    : USER_NOTIFICATION_FILTERS;
+
+  const handleMarkAllRead = useCallback(() => {
+    markAllRead.mutate();
+  }, [markAllRead]);
+
+  const handleClearAll = useCallback(() => {
+    markAllRead.mutate(undefined, {
+      onSuccess: () => {
+        setCategory('ALL');
+        setSearch('');
+        setOpen(false);
+      },
+    });
+  }, [markAllRead]);
+
+  const handleViewAll = useCallback(() => {
+    setCategory('ALL');
+    setSearch('');
+    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
 
   const drawer = (
     <AnimatePresence>
@@ -206,13 +226,13 @@ export function NotificationCenter({ isAdmin = false, className }) {
             exit={isMobile ? { y: '100%' } : { x: '100%' }}
             transition={{ type: 'spring', stiffness: 380, damping: 36 }}
             className={cn(
-              'fixed z-[110] flex flex-col border-white/[0.08] bg-[#0B1020] shadow-[-12px_0_48px_rgba(0,0,0,0.45)]',
+              'fixed z-[110] flex flex-col border-white/[0.1] bg-[#0B1020]/95 shadow-[-12px_0_48px_rgba(0,0,0,0.5)] backdrop-blur-xl',
               isMobile
-                ? 'inset-x-0 bottom-0 max-h-[min(88dvh,640px)] rounded-t-2xl border-t safe-area-bottom'
-                : 'inset-y-0 right-0 h-[100dvh] w-full border-l md:w-[380px] lg:w-[440px]',
+                ? 'inset-x-0 bottom-0 max-h-[min(88dvh,640px)] rounded-t-[20px] border-t safe-area-bottom'
+                : 'inset-y-0 right-0 h-[100dvh] w-full border-l md:w-[400px] lg:w-[440px]',
             )}
           >
-            <div className="sticky top-0 z-10 shrink-0 border-b border-white/[0.08] bg-[#0B1020]/95 px-4 py-4 backdrop-blur-md sm:px-5">
+            <div className="sticky top-0 z-10 shrink-0 border-b border-white/[0.08] bg-[#0B1020]/90 px-4 py-4 backdrop-blur-xl sm:px-5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <h2
@@ -222,24 +242,38 @@ export function NotificationCenter({ isAdmin = false, className }) {
                     Notifications
                   </h2>
                   <p className="mt-0.5 text-sm text-dashboard-muted">
-                    {unreadCount} unread
+                    {unreadCount > 0 ? `${unreadCount} unread` : 'You are all caught up'}
                   </p>
                 </div>
 
                 <div className="flex shrink-0 items-center gap-1">
                   {unreadCount > 0 ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-9 px-2.5 text-xs text-dashboard-muted hover:text-dashboard-foreground sm:px-3 sm:text-sm"
-                      onClick={() => markAllRead.mutate()}
-                      disabled={markAllRead.isPending}
-                    >
-                      <CheckCheck className="mr-1.5 size-4 shrink-0" />
-                      <span className="hidden sm:inline">Mark all read</span>
-                      <span className="sm:hidden">Read all</span>
-                    </Button>
+                    <>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-9 px-2.5 text-xs text-dashboard-muted hover:text-dashboard-foreground sm:px-3 sm:text-sm"
+                        onClick={handleMarkAllRead}
+                        disabled={markAllRead.isPending}
+                      >
+                        <CheckCheck className="mr-1.5 size-4 shrink-0" />
+                        <span className="hidden sm:inline">Mark all read</span>
+                        <span className="sm:hidden">Read</span>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-9 px-2.5 text-xs text-dashboard-muted hover:text-red-300 sm:px-3 sm:text-sm"
+                        onClick={handleClearAll}
+                        disabled={markAllRead.isPending}
+                      >
+                        <Trash2 className="mr-1.5 size-4 shrink-0" />
+                        <span className="hidden sm:inline">Clear all</span>
+                        <span className="sm:hidden">Clear</span>
+                      </Button>
+                    </>
                   ) : null}
                   <button
                     type="button"
@@ -329,6 +363,21 @@ export function NotificationCenter({ isAdmin = false, className }) {
                 <p className="py-4 text-center text-xs text-dashboard-muted">Loading more...</p>
               ) : null}
             </div>
+
+            <div className="shrink-0 border-t border-white/[0.08] bg-[#0B1020]/95 px-4 py-3 backdrop-blur-xl sm:px-5">
+              <button
+                type="button"
+                onClick={handleViewAll}
+                className={cn(
+                  'flex w-full items-center justify-center rounded-xl border border-white/[0.08]',
+                  'bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-dashboard-foreground',
+                  'transition-all duration-200 hover:-translate-y-px hover:border-primary/30 hover:bg-primary/10',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50',
+                )}
+              >
+                View all notifications
+              </button>
+            </div>
           </motion.aside>
         </>
       ) : null}
@@ -341,16 +390,35 @@ export function NotificationCenter({ isAdmin = false, className }) {
         type="button"
         variant="ghost"
         size="icon"
-        className="relative text-dashboard-muted hover:text-dashboard-foreground"
+        className={cn(
+          'relative text-dashboard-muted transition-[transform,color] duration-200',
+          minimalTrigger
+            ? cn(
+                'size-10 shrink-0 rounded-md border border-transparent bg-transparent p-0 shadow-none',
+                'transition-all duration-200',
+                'hover:scale-105 hover:border-transparent hover:bg-white/[0.06] hover:text-dashboard-foreground',
+                'active:scale-95',
+                '[&_svg]:!size-[21px] [&_svg]:shrink-0',
+                open && 'bg-white/[0.06] text-dashboard-foreground',
+              )
+            : cn(
+                'hover:text-dashboard-foreground',
+                open && 'border-primary/40 bg-white/[0.1] text-dashboard-foreground shadow-[0_8px_28px_rgba(124,58,237,0.28)]',
+              ),
+          triggerClassName,
+        )}
         aria-label="Open notifications"
         aria-expanded={open}
         aria-haspopup="dialog"
-        onClick={() => setOpen(true)}
+        onClick={() => setOpen((current) => !current)}
       >
-        <Bell className="size-5" />
+        <Bell className={minimalTrigger ? 'size-[21px]' : 'size-5'} strokeWidth={2} />
         {unreadCount > 0 ? (
-          <span className="absolute right-1.5 top-1.5 flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-white">
-            {unreadCount > 99 ? '99+' : unreadCount}
+          <span className="absolute right-1.5 top-1.5 flex min-w-[1.125rem] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-white shadow-[0_0_12px_rgba(124,58,237,0.55)]">
+            <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary/70 opacity-60" />
+            <span className="relative">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
           </span>
         ) : null}
       </Button>

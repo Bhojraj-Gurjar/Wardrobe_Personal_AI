@@ -2,14 +2,14 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { registerFaceImage } from '@/features/face/services/faceService';
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 
 export function useFaceRegisterMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (payload) => {
-      const token = useAuthStore.getState().accessToken;
+      const token = getUserAccessToken();
 
       if (payload?.frames?.length) {
         return registerFaceImage(null, token, payload);

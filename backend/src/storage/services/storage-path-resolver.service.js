@@ -1,14 +1,18 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { resolvePublicAssetUrl } from '../utils/storage-path.util';
+import { StorageService } from './storage.service';
 
 export @Injectable()
 class StoragePathResolver {
-  constructor(@Inject(ConfigService) configService) {
+  constructor(
+    @Inject(ConfigService) configService,
+    @Inject(StorageService) storageService,
+  ) {
     this.publicBaseUrl = configService.get('storage.local.publicBaseUrl');
+    this.storageService = storageService;
   }
 
   toPublicUrl(storagePath) {
-    return resolvePublicAssetUrl(storagePath, this.publicBaseUrl);
+    return this.storageService.resolvePublicUrl(storagePath);
   }
 }

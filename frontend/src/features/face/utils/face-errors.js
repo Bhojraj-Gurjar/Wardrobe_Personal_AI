@@ -10,8 +10,9 @@ export const FACE_QUALITY_TOO_LOW_MESSAGE =
 
 
 const LIVENESS_HINTS = [
+  ['live face not detected', 'Live face not detected. Please complete the verification.'],
   ['hold still', 'Hold still for a second while we capture your face.'],
-  ['liveness', "Keep your eyes open, face the light, and hold still without blinking."],
+  ['liveness', 'Live face not detected. Please complete the verification.'],
   ['live face', 'Use your live camera — photos and screens are not accepted'],
   ['move closer', 'Move closer to the camera'],
   ['center your face', 'Move your face inside the camera frame.'],

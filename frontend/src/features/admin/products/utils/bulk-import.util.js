@@ -1,108 +1,12 @@
 import * as XLSX from 'xlsx';
 import {
-  BULK_IMPORT_TEMPLATE_FILENAME,
-  BULK_IMPORT_TEMPLATE_HEADERS,
-  BULK_IMPORT_TEMPLATE_SAMPLES,
-} from '../constants/bulk-import.constants';
-
-const HEADER_FIELD_MAP = {
-  title: 'name',
-  name: 'name',
-  description: 'description',
-  price: 'sellingPrice',
-  sellingprice: 'sellingPrice',
-  discount_price: 'sellingPrice',
-  stock: 'stockQuantity',
-  stockquantity: 'stockQuantity',
-  category: 'category',
-  product_type: 'productType',
-  producttype: 'productType',
-  gender: 'gender',
-  brand: 'brand',
-  image_url: 'imageUrl',
-  imageurl: 'imageUrl',
-  is_try_on_compatible: 'isTryOnCompatible',
-  istryoncompatible: 'isTryOnCompatible',
-  sku: 'sku',
-  mrp: 'mrp',
-  discount_percent: 'discountPercent',
-  discountpercent: 'discountPercent',
-  tax_percent: 'taxPercent',
-  taxpercent: 'taxPercent',
-  barcode: 'barcode',
-  visibility: 'visibility',
-  status: 'visibility',
-  fabric: 'fabric',
-  fit: 'fit',
-  pattern: 'pattern',
-  sleeve_type: 'sleeveType',
-  sleevetype: 'sleeveType',
-  neck_type: 'neckType',
-  necktype: 'neckType',
-  occasion: 'occasion',
-  season: 'season',
-  care_instructions: 'careInstructions',
-  careinstructions: 'careInstructions',
-  country_of_origin: 'countryOfOrigin',
-  countryoforigin: 'countryOfOrigin',
-  material: 'material',
-  weight_grams: 'weight',
-  weightgrams: 'weight',
-  weight: 'weight',
-  tags: 'tags',
-  search_keywords: 'searchKeywords',
-  searchkeywords: 'searchKeywords',
-  ai_style: 'aiStyle',
-  aistyle: 'aiStyle',
-  body_fit: 'bodyFit',
-  bodyfit: 'bodyFit',
-  recommended_body_types: 'recommendedBodyTypes',
-  recommendedbodytypes: 'recommendedBodyTypes',
-  recommended_face_shapes: 'recommendedFaceShapes',
-  recommendedfaceshapes: 'recommendedFaceShapes',
-  is_featured: 'isFeatured',
-  isfeatured: 'isFeatured',
-  is_trending: 'isTrending',
-  istrending: 'isTrending',
-  is_new_arrival: 'isNewArrival',
-  isnewarrival: 'isNewArrival',
-  is_best_seller: 'isBestSeller',
-  isbestseller: 'isBestSeller',
-  is_limited_edition: 'isLimitedEdition',
-  islimitededition: 'isLimitedEdition',
-  variant_color: 'variantColor',
-  variantcolor: 'variantColor',
-  variant_size: 'variantSize',
-  variantsize: 'variantSize',
-  variant_stock: 'variantStock',
-  variantstock: 'variantStock',
-  variant_sku: 'variantSku',
-  variantsku: 'variantSku',
-};
-
-function normalizeHeaderKey(header) {
-  return String(header || '')
-    .trim()
-    .replace(/\s+/g, '')
-    .replace(/_([a-z])/g, (_, char) => char.toUpperCase())
-    .replace(/^./, (char) => char.toLowerCase());
-}
-
-function resolveFieldName(header) {
-  const normalized = normalizeHeaderKey(header);
-  return HEADER_FIELD_MAP[normalized]
-    || HEADER_FIELD_MAP[String(header).trim().toLowerCase()]
-    || normalized;
-}
-
-function slugifySkuPart(value) {
-  return String(value || 'product')
-    .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 12) || 'PRODUCT';
-}
+  BULK_GENDER_TO_CMS,
+  BULK_IMPORT_REQUIRED_KEYS,
+  BULK_SAMPLE_ROW_MARKER_SKU,
+  BULK_TEMPLATE_CATEGORY_TO_CMS,
+  BULK_VISIBILITY_TO_CMS,
+  resolveBulkHeaderToField,
+} from '../constants/bulk-import-fields.constants';
 
 function isRowEmpty(row) {
   return !Object.values(row).some((value) => {
@@ -123,208 +27,212 @@ function parseOptionalNumber(value) {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function parseOptionalBoolean(value) {
-  const text = parseOptionalString(value);
-  if (text == null) return undefined;
-
-  const normalized = text.toLowerCase();
-  if (['true', '1', 'yes', 'y'].includes(normalized)) return true;
-  if (['false', '0', 'no', 'n'].includes(normalized)) return false;
-  return undefined;
-}
-
 function parseCommaSeparatedList(value) {
   const text = parseOptionalString(value);
   if (!text) return undefined;
-
   const items = text.split(',').map((item) => item.trim()).filter(Boolean);
   return items.length ? items : undefined;
 }
 
-function applyOptionalFieldTransforms(mapped) {
-  const next = { ...mapped };
+function isValidImageUrl(value) {
+  if (!value) return false;
+  return /^https?:\/\//i.test(value) || String(value).startsWith('/uploads/');
+}
 
-  const stringFields = [
-    'description',
-    'sku',
-    'barcode',
-    'visibility',
-    'fabric',
-    'fit',
-    'pattern',
-    'sleeveType',
-    'neckType',
-    'occasion',
-    'season',
-    'careInstructions',
-    'countryOfOrigin',
-    'material',
-    'aiStyle',
-    'bodyFit',
-    'variantColor',
-    'variantSize',
-    'variantSku',
-    'imageUrl',
-  ];
+function mapTemplateCategory(category) {
+  const text = parseOptionalString(category);
+  if (!text) return undefined;
+  return BULK_TEMPLATE_CATEGORY_TO_CMS[text] || text;
+}
 
-  for (const field of stringFields) {
-    if (field in next) {
-      const parsed = parseOptionalString(next[field]);
-      if (parsed == null) {
-        delete next[field];
-      } else {
-        next[field] = parsed;
+function mapTemplateGender(gender) {
+  const text = parseOptionalString(gender);
+  if (!text) return undefined;
+  return BULK_GENDER_TO_CMS[text] || text;
+}
+
+function mapTemplateVisibility(visibility) {
+  const text = parseOptionalString(visibility);
+  if (!text) return 'DRAFT';
+  return BULK_VISIBILITY_TO_CMS[text] || String(text).toUpperCase();
+}
+
+function mapRawRow(rawRow) {
+  const mapped = {};
+
+  for (const [key, value] of Object.entries(rawRow)) {
+    const field = resolveBulkHeaderToField(key);
+    if (!field) continue;
+    mapped[field] = typeof value === 'string' ? value.trim() : value;
+  }
+
+  return mapped;
+}
+
+function buildImageList(row) {
+  return [
+    row.imageUrl1,
+    row.imageUrl2,
+    row.imageUrl3,
+    row.imageUrl4,
+    row.imageUrl,
+  ]
+    .map(parseOptionalString)
+    .filter(Boolean);
+}
+
+/**
+ * Client-side validation aligned with Add Single Product + bulk rules.
+ */
+export function validateBulkImportRowsClient(rows, { existingSkus = new Set() } = {}) {
+  const seenSkus = new Set();
+  const seenNames = new Set();
+  const validated = [];
+
+  rows.forEach((row, index) => {
+    const errors = [];
+    const rowNumber = index + 2;
+
+    for (const key of BULK_IMPORT_REQUIRED_KEYS) {
+      const value = row[key];
+      if (value === undefined || value === null || String(value).trim() === '') {
+        const label = key === 'imageUrl1' ? 'Image 1 URL' : key;
+        errors.push(`Missing required field: ${label}`);
       }
     }
-  }
 
-  const numberFields = [
-    'sellingPrice',
-    'stockQuantity',
-    'mrp',
-    'discountPercent',
-    'taxPercent',
-    'weight',
-    'variantStock',
-  ];
-
-  for (const field of numberFields) {
-    if (field in next) {
-      const parsed = parseOptionalNumber(next[field]);
-      if (parsed == null) {
-        delete next[field];
-      } else {
-        next[field] = parsed;
+    if (row.sku) {
+      if (seenSkus.has(row.sku)) {
+        errors.push(`Duplicate SKU in file: ${row.sku}`);
+      }
+      seenSkus.add(row.sku);
+      if (existingSkus.has(row.sku)) {
+        errors.push(`SKU already exists in catalog: ${row.sku}`);
       }
     }
-  }
 
-  const booleanFields = [
-    'isTryOnCompatible',
-    'isFeatured',
-    'isTrending',
-    'isNewArrival',
-    'isBestSeller',
-    'isLimitedEdition',
-  ];
+    if (row.name) {
+      const normalizedName = String(row.name).trim().toLowerCase();
+      if (seenNames.has(normalizedName)) {
+        errors.push(`Duplicate product name in file: ${row.name}`);
+      }
+      seenNames.add(normalizedName);
+    }
 
-  for (const field of booleanFields) {
-    if (field in next) {
-      const parsed = parseOptionalBoolean(next[field]);
-      if (parsed == null) {
-        delete next[field];
-      } else {
-        next[field] = parsed;
+    const mrp = parseOptionalNumber(row.mrp);
+    const sellingPrice = parseOptionalNumber(row.sellingPrice);
+    const stockQuantity = parseOptionalNumber(row.stockQuantity);
+
+    if (mrp == null || mrp <= 0) {
+      errors.push('MRP must be numeric and greater than 0');
+    }
+
+    if (sellingPrice == null || sellingPrice < 0) {
+      errors.push('Selling price must be a non-negative number');
+    }
+
+    if (mrp != null && sellingPrice != null && sellingPrice > mrp) {
+      errors.push('Selling price cannot exceed MRP');
+    }
+
+    if (stockQuantity == null || !Number.isInteger(stockQuantity) || stockQuantity <= 0) {
+      errors.push('Stock quantity must be a positive integer');
+    }
+
+    const images = buildImageList(row);
+    if (!images.length || !isValidImageUrl(images[0])) {
+      errors.push('Image 1 URL is required and must be a valid image URL');
+    }
+
+    for (const imageUrl of images.slice(1)) {
+      if (!isValidImageUrl(imageUrl)) {
+        errors.push(`Invalid image URL: ${imageUrl}`);
       }
     }
-  }
 
-  if ('tags' in next) {
-    const tags = parseCommaSeparatedList(next.tags);
-    if (tags) {
-      next.tags = tags;
-    } else {
-      delete next.tags;
+    if (!row.color) {
+      errors.push('Color is required');
     }
-  }
 
-  if ('searchKeywords' in next) {
-    const keywords = parseCommaSeparatedList(next.searchKeywords);
-    if (keywords) {
-      next.searchKeywords = keywords;
-    } else {
-      delete next.searchKeywords;
+    if (!row.sizes?.length) {
+      errors.push('Sizes is required');
     }
-  }
 
-  if ('recommendedBodyTypes' in next) {
-    const bodyTypes = parseCommaSeparatedList(next.recommendedBodyTypes);
-    if (bodyTypes) {
-      next.recommendedBodyTypes = bodyTypes;
-    } else {
-      delete next.recommendedBodyTypes;
-    }
-  }
+    validated.push({
+      rowNumber,
+      data: row,
+      errors,
+      isValid: errors.length === 0,
+    });
+  });
 
-  if ('recommendedFaceShapes' in next) {
-    const faceShapes = parseCommaSeparatedList(next.recommendedFaceShapes);
-    if (faceShapes) {
-      next.recommendedFaceShapes = faceShapes;
-    } else {
-      delete next.recommendedFaceShapes;
-    }
-  }
+  const validCount = validated.filter((row) => row.isValid).length;
 
-  const aiStyle = next.aiStyle;
-  const bodyFit = next.bodyFit;
-  const recommendedBodyTypes = next.recommendedBodyTypes;
-  const recommendedFaceShapes = next.recommendedFaceShapes;
+  return {
+    totalRows: validated.length,
+    validCount,
+    invalidCount: validated.length - validCount,
+    canImport: validCount > 0,
+    canImportAll: validCount > 0 && validated.every((row) => row.isValid),
+    rows: validated,
+  };
+}
 
-  delete next.aiStyle;
-  delete next.bodyFit;
-  delete next.recommendedBodyTypes;
-  delete next.recommendedFaceShapes;
+function finalizeBulkRow(mapped, index) {
+  const category = mapTemplateCategory(mapped.category);
+  const gender = mapTemplateGender(mapped.gender);
+  const visibility = mapTemplateVisibility(mapped.visibility);
+  const images = buildImageList(mapped);
+  const sizes = parseCommaSeparatedList(mapped.sizes) || [];
+  const tags = parseCommaSeparatedList(mapped.tags);
+  const searchKeywords = parseCommaSeparatedList(mapped.searchKeywords);
+  const recommendedBodyTypes = parseCommaSeparatedList(mapped.recommendedBodyTypes);
+  const recommendedFaceShapes = parseCommaSeparatedList(mapped.recommendedFaceShapes);
 
-  if (aiStyle || bodyFit || recommendedBodyTypes || recommendedFaceShapes) {
-    next.aiAttributes = {
-      ...(aiStyle ? { style: aiStyle } : {}),
-      ...(bodyFit ? { bodyFit } : {}),
+  const base = {
+    sku: parseOptionalString(mapped.sku),
+    name: parseOptionalString(mapped.name),
+    brand: parseOptionalString(mapped.brand),
+    category,
+    productType: parseOptionalString(mapped.productType),
+    gender,
+    description: parseOptionalString(mapped.description),
+    mrp: parseOptionalNumber(mapped.mrp),
+    sellingPrice: parseOptionalNumber(mapped.sellingPrice),
+    stockQuantity: parseOptionalNumber(mapped.stockQuantity),
+    imageUrl: images[0],
+    imageUrls: images,
+    fabric: parseOptionalString(mapped.fabric),
+    pattern: parseOptionalString(mapped.pattern),
+    sleeveType: parseOptionalString(mapped.sleeveType),
+    neckType: parseOptionalString(mapped.neckType),
+    occasion: parseOptionalString(mapped.occasion),
+    season: parseOptionalString(mapped.season),
+    careInstructions: parseOptionalString(mapped.careInstructions),
+    material: parseOptionalString(mapped.material),
+    countryOfOrigin: parseOptionalString(mapped.countryOfOrigin),
+    weight: parseOptionalNumber(mapped.weight),
+    tags,
+    searchKeywords,
+    visibility,
+    variantColor: parseOptionalString(mapped.color),
+    sizes,
+  };
+
+  if (mapped.style || mapped.bodyFit || recommendedBodyTypes || recommendedFaceShapes) {
+    base.aiAttributes = {
+      ...(mapped.style ? { style: parseOptionalString(mapped.style) } : {}),
+      ...(mapped.bodyFit ? { bodyFit: parseOptionalString(mapped.bodyFit) } : {}),
       ...(recommendedBodyTypes ? { recommendedBodyTypes } : {}),
       ...(recommendedFaceShapes ? { recommendedFaceShapes } : {}),
     };
   }
 
-  return next;
+  return base;
 }
 
-/**
- * Map a parsed spreadsheet row to the bulk import API shape.
- */
 export function normalizeBulkImportRow(rawRow, index = 0) {
-  const mapped = {};
-
-  for (const [key, value] of Object.entries(rawRow)) {
-    const field = resolveFieldName(key);
-    mapped[field] = typeof value === 'string' ? value.trim() : value;
-  }
-
-  if (!mapped.name && mapped.title) {
-    mapped.name = mapped.title;
-  }
-
-  if (mapped.sellingPrice == null && mapped.price != null) {
-    mapped.sellingPrice = mapped.price;
-  }
-
-  if (mapped.stockQuantity == null && mapped.stock != null) {
-    mapped.stockQuantity = mapped.stock;
-  }
-
-  if (mapped.productType == null && mapped.product_type != null) {
-    mapped.productType = mapped.product_type;
-  }
-
-  if (mapped.imageUrl == null && mapped.image_url != null) {
-    mapped.imageUrl = mapped.image_url;
-  }
-
-  const normalized = applyOptionalFieldTransforms(mapped);
-
-  if (!normalized.sku && normalized.name) {
-    normalized.sku = `BULK-${slugifySkuPart(normalized.name)}-${String(index + 1).padStart(3, '0')}`;
-  }
-
-  if (normalized.mrp == null && normalized.sellingPrice != null) {
-    normalized.mrp = normalized.sellingPrice;
-  }
-
-  delete normalized.title;
-  delete normalized.price;
-  delete normalized.stock;
-  delete normalized.product_type;
-  delete normalized.image_url;
-
-  return normalized;
+  return finalizeBulkRow(mapRawRow(rawRow), index);
 }
 
 export function normalizeBulkImportRows(rows) {
@@ -332,14 +240,17 @@ export function normalizeBulkImportRows(rows) {
     return [];
   }
 
-  return rows
+  const filtered = rows
     .filter((row) => !isRowEmpty(row))
-    .map((row, index) => normalizeBulkImportRow(row, index));
+    .filter((row) => {
+      const mapped = mapRawRow(row);
+      return mapped.sku !== BULK_SAMPLE_ROW_MARKER_SKU;
+    });
+
+  const normalized = filtered.map((row, index) => normalizeBulkImportRow(row, index));
+  return normalized;
 }
 
-/**
- * Parse CSV or Excel file into normalized bulk import rows.
- */
 export function parseBulkImportFile(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -373,20 +284,4 @@ export function parseBulkImportFile(file) {
   });
 }
 
-/**
- * Generate and download the Excel template workbook client-side.
- */
-export function downloadBulkImportTemplate() {
-  const worksheet = XLSX.utils.aoa_to_sheet([
-    BULK_IMPORT_TEMPLATE_HEADERS,
-    ...BULK_IMPORT_TEMPLATE_SAMPLES,
-  ]);
-
-  worksheet['!cols'] = BULK_IMPORT_TEMPLATE_HEADERS.map((header) => ({
-    wch: Math.max(header.length + 4, 18),
-  }));
-
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Products');
-  XLSX.writeFile(workbook, BULK_IMPORT_TEMPLATE_FILENAME);
-}
+export { downloadBulkImportTemplate } from './bulk-import-template.util';

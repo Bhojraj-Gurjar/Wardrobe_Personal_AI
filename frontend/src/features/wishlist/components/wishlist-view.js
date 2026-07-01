@@ -18,7 +18,7 @@ import { EmptyState } from '@/components/shared/empty-state';
 import { ErrorState } from '@/components/shared/error-state';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 import { cn } from '@/utils/cn';
 function WishlistSkeleton() {
   return (
@@ -51,7 +51,7 @@ function WishlistSkeleton() {
 export function WishlistView() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const [movingAll, setMovingAll] = useState(false);
   const [moveAllError, setMoveAllError] = useState('');
   const [removingId, setRemovingId] = useState(null);

@@ -51,6 +51,12 @@ let BodyImageStorageService = class BodyImageStorageService {
         }
         return this.storageService.readStoredFile(storagePath);
     }
+    async bodyImageExists(storagePath) {
+        if (!storagePath) {
+            return false;
+        }
+        return this.storageService.storedFileExists(storagePath);
+    }
 };
 BodyImageStorageService = _ts_decorate([
     (0, _common.Injectable)(),

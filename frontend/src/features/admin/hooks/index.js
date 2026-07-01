@@ -2,10 +2,11 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { QUERY_STALE_TIME } from '@/constants/app';
+import { AUTH_CONTEXT } from '@/features/auth/constants/auth-context';
 import { useSession } from '@/features/auth/components/session-provider';
 import { isAdminUser } from '@/features/admin/utils/is-admin-user';
 import { establishSession } from '@/features/auth/utils/establish-session';
-import { useAuthStore } from '@/stores/auth-store';
+import { useAdminAccessToken, useAdminProfile } from '@/stores/auth-store';
 import {
   adminFaceLogin,
   adminLogin,
@@ -45,9 +46,9 @@ import {
 } from '@/features/admin/services/admin.service';
 
 export function useAdminToken() {
-  const token = useAuthStore((state) => state.accessToken);
-  const user = useAuthStore((state) => state.user);
-  const { isAuthenticated, isVerified } = useSession();
+  const token = useAdminAccessToken();
+  const user = useAdminProfile();
+  const { isAuthenticated, isVerified } = useSession(AUTH_CONTEXT.ADMIN);
 
   if (!token || !isVerified || !isAuthenticated || !isAdminUser(user)) {
     return null;
@@ -64,6 +65,7 @@ function invalidateUserCatalogQueries(queryClient) {
 
 function invalidateAdminProductQueries(queryClient, productId = null) {
   queryClient.invalidateQueries({ queryKey: ['admin-products'], refetchType: 'active' });
+  queryClient.invalidateQueries({ queryKey: ['admin-product-drafts'], refetchType: 'active' });
 
   if (productId) {
     queryClient.invalidateQueries({
@@ -83,6 +85,10 @@ function invalidateAdminOrderQueries(queryClient) {
   queryClient.invalidateQueries({ queryKey: ['admin-orders'], refetchType: 'active' });
   queryClient.invalidateQueries({ queryKey: ['admin-orders-summary'], refetchType: 'active' });
   queryClient.invalidateQueries({ queryKey: ['admin-oms-summary'], refetchType: 'active' });
+  queryClient.invalidateQueries({ queryKey: ['admin-dashboard'], refetchType: 'active' });
+  queryClient.invalidateQueries({ queryKey: ['admin-orders-analytics'], refetchType: 'active' });
+  queryClient.invalidateQueries({ queryKey: ['admin-analytics-orders-detail'], refetchType: 'active' });
+  queryClient.invalidateQueries({ queryKey: ['admin-analytics'], refetchType: 'active' });
 }
 
 export function useAdminLoginMutation() {
@@ -90,6 +96,7 @@ export function useAdminLoginMutation() {
     mutationFn: adminLogin,
     onSuccess: (data) => {
       establishSession({
+        context: AUTH_CONTEXT.ADMIN,
         accessToken: data.accessToken,
         refreshToken: data.refreshToken,
         user: data.user,
@@ -103,6 +110,7 @@ export function useAdminFaceLoginMutation(options = {}) {
     mutationFn: adminFaceLogin,
     onSuccess: (data, ...args) => {
       establishSession({
+        context: AUTH_CONTEXT.ADMIN,
         accessToken: data.accessToken,
         refreshToken: data.refreshToken,
         user: data.user,
@@ -322,6 +330,17 @@ export function useAdminProductsQuery(params = {}) {
     queryKey: ['admin-products', params],
     queryFn: () => fetchAdminProducts(params, token),
     enabled: Boolean(token),
+    staleTime: QUERY_STALE_TIME.SHORT,
+  });
+}
+
+export function useAdminDraftProductsQuery(params = {}, options = {}) {
+  const token = useAdminToken();
+
+  return useQuery({
+    queryKey: ['admin-product-drafts', params],
+    queryFn: () => fetchAdminProducts({ ...params, visibility: 'DRAFT' }, token),
+    enabled: Boolean(token) && (options.enabled ?? true),
     staleTime: QUERY_STALE_TIME.SHORT,
   });
 }

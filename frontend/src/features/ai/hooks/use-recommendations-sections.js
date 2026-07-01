@@ -8,10 +8,10 @@ import {
   fetchSeasonalRecommendations,
   fetchTrendingRecommendations,
 } from '@/features/ai/services';
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 
 export function useRecommendationsSections({ limit = 12 } = {}) {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   const results = useQueries({
     queries: [

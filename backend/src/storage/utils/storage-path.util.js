@@ -1,5 +1,6 @@
 import { join } from 'path';
 import { LocalStorageProvider } from '../providers/local-storage.provider';
+import { CloudinaryStorageProvider } from '../providers/cloudinary-storage.provider';
 import {
   AVATAR_PUBLIC_PREFIX,
   BODY_PUBLIC_PREFIX,
@@ -81,6 +82,10 @@ export function buildOrderDocumentStoragePath(orderId, fileId, extension = 'pdf'
 
 export function buildUserPngStoragePath(userId) {
   return `${USER_PNG_PUBLIC_PREFIX}/${userId}.png`;
+}
+
+export function buildUserPngObjectKey(userId) {
+  return `user-png/${userId}.png`;
 }
 
 export function buildTryOnPersonProcessedStoragePath(userId) {
@@ -214,9 +219,7 @@ export function createStorageProvider(providerName, config) {
   }
 
   if (normalized === STORAGE_PROVIDERS.CLOUDINARY) {
-    throw new Error(
-      'Cloudinary storage is not enabled. Configure local storage or implement the Cloudinary provider.',
-    );
+    return new CloudinaryStorageProvider(config.cloudinary);
   }
 
   throw new Error(`Unsupported storage provider: ${providerName}`);

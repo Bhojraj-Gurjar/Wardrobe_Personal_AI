@@ -28,17 +28,42 @@ function _ts_param(paramIndex, decorator) {
         decorator(target, key, paramIndex);
     };
 }
+function resolveStorageProviderName(configService) {
+    const explicit = configService.get('storage.provider');
+    if (explicit) {
+        return explicit;
+    }
+    const cloudName = configService.get('storage.cloudinary.cloudName');
+    const apiKey = configService.get('storage.cloudinary.apiKey');
+    const apiSecret = configService.get('storage.cloudinary.apiSecret');
+    if (cloudName && apiKey && apiSecret) {
+        return 'cloudinary';
+    }
+    return _storageconstants.DEFAULT_STORAGE_PROVIDER;
+}
 let StorageService = class StorageService {
     constructor(configService){
         this.configService = configService;
         this.logger = new _common.Logger(StorageService.name);
-        this.provider = (0, _storagepathutil.createStorageProvider)(configService.get('storage.provider'), {
-            local: configService.get('storage.local')
+        const providerName = resolveStorageProviderName(configService);
+        this.provider = (0, _storagepathutil.createStorageProvider)(providerName, {
+            local: configService.get('storage.local'),
+            cloudinary: configService.get('storage.cloudinary')
         });
-        this.logger.log('Avatar storage provider: local filesystem');
+        this.logger.log(`Storage provider: ${providerName}`);
     }
     getProviderName() {
-        return this.configService.get('storage.provider') || _storageconstants.DEFAULT_STORAGE_PROVIDER;
+        return resolveStorageProviderName(this.configService);
+    }
+    resolvePublicUrl(storagePath) {
+        if (!storagePath) {
+            return null;
+        }
+        const providerUrl = this.provider.resolvePublicUrl?.(storagePath);
+        if (providerUrl) {
+            return providerUrl;
+        }
+        return (0, _storagepathutil.resolvePublicAssetUrl)(storagePath, this.configService.get('storage.local.publicBaseUrl'));
     }
     getPublicBaseUrl() {
         return this.configService.get('storage.local.publicBaseUrl');
@@ -68,6 +93,13 @@ let StorageService = class StorageService {
             buffer,
             mimeType,
             objectKey
+        });
+    }
+    async uploadUserPng(userId, buffer) {
+        return this.provider.upload({
+            buffer,
+            mimeType: 'image/png',
+            objectKey: (0, _storagepathutil.buildUserPngObjectKey)(userId)
         });
     }
     async uploadTryOnPersonImage({ userId, buffer, mimeType }) {
@@ -131,6 +163,9 @@ let StorageService = class StorageService {
         if (!storagePath) {
             return false;
         }
+        if (typeof this.provider.storagePathExists === 'function') {
+            return this.provider.storagePathExists(storagePath);
+        }
         const rootDir = this.configService.get('storage.local.rootDir') || 'uploads';
         const absolutePath = (0, _storagepathutil.toFilesystemPath)(storagePath, rootDir);
         try {
@@ -167,14 +202,25 @@ let StorageService = class StorageService {
         if (!storagePath) {
             return null;
         }
+        if (typeof this.provider.readStoragePath === 'function') {
+            return this.provider.readStoragePath(storagePath);
+        }
         const rootDir = this.configService.get('storage.local.rootDir') || 'uploads';
         const absolutePath = (0, _storagepathutil.toFilesystemPath)(storagePath, rootDir);
         const extension = (0, _path.extname)(absolutePath).replace('.', '') || 'jpg';
-        const buffer = await (0, _promises.readFile)(absolutePath);
-        return {
-            buffer,
-            mimeType: (0, _storagepathutil.mimeTypeFromExtension)(extension)
-        };
+        try {
+            const buffer = await (0, _promises.readFile)(absolutePath);
+            return {
+                buffer,
+                mimeType: (0, _storagepathutil.mimeTypeFromExtension)(extension)
+            };
+        } catch (error) {
+            if (error?.code === 'ENOENT') {
+                this.logger.warn(`Stored file missing: ${storagePath}`);
+                return null;
+            }
+            throw error;
+        }
     }
     async deleteFaceImagesForUser(userId) {
         return this.provider.deleteFolder(`${_storageconstants.FACE_STORAGE_FOLDER}/${userId}`);

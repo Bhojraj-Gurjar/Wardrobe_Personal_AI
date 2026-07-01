@@ -1,6 +1,6 @@
 'use client';
 
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 import {
   recordProductView,
   recordSearchQuery,
@@ -8,7 +8,7 @@ import {
 import { scheduleFashionDnaInvalidation } from '@/features/fashion-dna/utils/schedule-fashion-dna-invalidation';
 
 export function trackProductView(productId) {
-  const token = useAuthStore.getState().accessToken;
+  const token = getUserAccessToken();
   if (!token || !productId) return Promise.resolve(null);
 
   return recordProductView(productId, token)
@@ -20,7 +20,7 @@ export function trackProductView(productId) {
 }
 
 export function trackSearchQuery(query) {
-  const token = useAuthStore.getState().accessToken;
+  const token = getUserAccessToken();
   const normalized = String(query || '').trim();
   if (!token || !normalized) return Promise.resolve(null);
 

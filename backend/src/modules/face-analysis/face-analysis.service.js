@@ -83,6 +83,7 @@ class FaceAnalysisService {
       face_image_url: facePhoto.face_image_url,
       faceImageUrl: facePhoto.faceImageUrl,
       is_face_registered: facePhoto.is_face_registered,
+      facePhotoMissing: Boolean(facePhoto.facePhotoMissing),
     };
   }
 
@@ -116,7 +117,9 @@ class FaceAnalysisService {
     );
 
     if (!storedImage?.buffer?.length) {
-      throw new NotFoundException('Stored face photo could not be loaded.');
+      throw new BadRequestException(
+        'Your saved face photo is no longer available. Upload a new photo to run analysis.',
+      );
     }
 
     return this.persistFaceTraitAnalysis(userId, {

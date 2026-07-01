@@ -3,6 +3,11 @@ import { PrismaService } from '../../../database/prisma.service';
 import { USER_ROLE } from '../../../common/constants/user-role';
 import { ORDER_STATUS } from '../../orders/validators/order.constants';
 import { resolveStatusFilterValues } from '../../orders/utils/order-status.util';
+import {
+  buildCompletedRevenueWhereForRange,
+  buildRefundRevenueWhereForRange,
+  COMPLETED_REVENUE_STATUSES,
+} from '../../orders/utils/order-revenue.util';
 import { buildAdminProductListFilter } from '../../products/utils/catalog-visibility.util';
 
 const PRODUCT_INCLUDE = {
@@ -352,19 +357,134 @@ class AdminRepository {
     });
   }
 
+  async aggregateNetRecognizedRevenue(start, end) {
+    const [recognized, refunds] = await Promise.all([
+      this.prisma.order.aggregate({
+        where: buildCompletedRevenueWhereForRange(start, end),
+        _sum: { total_amount: true },
+      }),
+      this.prisma.order.aggregate({
+        where: buildRefundRevenueWhereForRange(start, end),
+        _sum: { total_amount: true },
+      }),
+    ]);
+
+    const gross = recognized._sum.total_amount || 0;
+    const refundTotal = refunds._sum.total_amount || 0;
+
+    return {
+      gross: Math.round(gross),
+      refunds: Math.round(refundTotal),
+      net: Math.round(gross - refundTotal),
+    };
+  }
+
+  countRecognizedOrdersInRange(start, end) {
+    return this.prisma.order.count({
+      where: buildCompletedRevenueWhereForRange(start, end),
+    });
+  }
+
+  countOrdersCreatedInRange(start, end) {
+    return this.prisma.order.count({
+      where: {
+        created_at: { gte: start, lte: end },
+        status: { not: ORDER_STATUS.CANCELLED },
+      },
+    });
+  }
+
+  countProductViewsInRange(start, end) {
+    return this.prisma.productView.count({
+      where: {
+        viewed_at: { gte: start, lte: end },
+      },
+    });
+  }
+
+  async countEngagedUsersInRange(start, end) {
+    const [orderUsers, viewUsers] = await Promise.all([
+      this.prisma.order.findMany({
+        where: {
+          created_at: { gte: start, lte: end },
+          user_id: { not: null },
+        },
+        select: { user_id: true },
+        distinct: ['user_id'],
+      }),
+      this.prisma.productView.findMany({
+        where: {
+          viewed_at: { gte: start, lte: end },
+          user_id: { not: null },
+        },
+        select: { user_id: true },
+        distinct: ['user_id'],
+      }),
+    ]);
+
+    return new Set([
+      ...orderUsers.map((row) => row.user_id),
+      ...viewUsers.map((row) => row.user_id),
+    ]).size;
+  }
+
+  getRevenueOrdersSince(start) {
+    return this.prisma.order.findMany({
+      where: {
+        OR: [
+          {
+            status: { in: COMPLETED_REVENUE_STATUSES },
+            OR: [
+              { completed_at: { gte: start } },
+              { delivered_at: { gte: start } },
+            ],
+          },
+          {
+            status: { in: [ORDER_STATUS.REFUNDED, ORDER_STATUS.RETURNED] },
+            updated_at: { gte: start },
+          },
+          {
+            created_at: { gte: start },
+            status: { not: ORDER_STATUS.CANCELLED },
+          },
+        ],
+      },
+      select: {
+        total_amount: true,
+        status: true,
+        created_at: true,
+        completed_at: true,
+        delivered_at: true,
+        updated_at: true,
+        user_id: true,
+      },
+    });
+  }
+
+  groupOrdersByCategory({ since = null } = {}) {
+    const and = [{ status: { in: COMPLETED_REVENUE_STATUSES } }];
+
+    if (since) {
+      and.push({
+        OR: [
+          { completed_at: { gte: since } },
+          { delivered_at: { gte: since } },
+        ],
+      });
+    }
+
+    return this.prisma.order.findMany({
+      where: { AND: and },
+      include: {
+        product: { select: { category: true, product_type: true, price: true } },
+      },
+    });
+  }
+
   groupOrdersByStatus() {
     return this.prisma.order.groupBy({
       by: ['status'],
       _count: { status: true },
-    });
-  }
-
-  groupOrdersByCategory() {
-    return this.prisma.order.findMany({
-      where: { status: { not: ORDER_STATUS.CANCELLED } },
-      include: {
-        product: { select: { category: true, product_type: true, price: true } },
-      },
     });
   }
 

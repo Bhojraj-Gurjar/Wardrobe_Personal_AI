@@ -77,7 +77,8 @@ let FaceAnalysisService = class FaceAnalysisService {
             ...record,
             face_image_url: facePhoto.face_image_url,
             faceImageUrl: facePhoto.faceImageUrl,
-            is_face_registered: facePhoto.is_face_registered
+            is_face_registered: facePhoto.is_face_registered,
+            facePhotoMissing: Boolean(facePhoto.facePhotoMissing)
         };
     }
     async analyzeFace(userId, imageDto, options = {}) {
@@ -100,7 +101,7 @@ let FaceAnalysisService = class FaceAnalysisService {
         }
         const storedImage = await this.faceImageStorageService.readFaceImage(facePhoto.face_image_url);
         if (!storedImage?.buffer?.length) {
-            throw new _common.NotFoundException('Stored face photo could not be loaded.');
+            throw new _common.BadRequestException('Your saved face photo is no longer available. Upload a new photo to run analysis.');
         }
         return this.persistFaceTraitAnalysis(userId, {
             imageBuffer: storedImage.buffer,

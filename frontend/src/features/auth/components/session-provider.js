@@ -9,28 +9,74 @@ import {
   useRef,
   useState,
 } from 'react';
-import { useAuthStore } from '@/stores/auth-store';
+import { AUTH_CONTEXT } from '@/features/auth/constants/auth-context';
+import {
+  clearSessionSlice,
+  setSessionSlice,
+  useAuthStore,
+} from '@/stores/auth-store';
 import { useAuthHydrated } from '@/features/auth/hooks/use-auth-hydrated';
 import { validateSession } from '@/features/auth/utils/validate-session';
 import { invalidateAuthSession } from '@/features/auth/utils/invalidate-auth-session';
 import { syncSessionCookies } from '@/features/auth/utils/session-cookie';
 import { isAdminRoute } from '@/features/auth/utils/auth-routing';
+import { isAdminUser } from '@/features/admin/utils/is-admin-user';
+import { ROUTES } from '@/constants/routes';
+
+const PUBLIC_PATHS = new Set([
+  ROUTES.HOME,
+  ROUTES.AUTH.LOGIN,
+  ROUTES.AUTH.REGISTER,
+  ROUTES.AUTH.FORGOT_PASSWORD,
+  ROUTES.FACE.LOGIN,
+]);
+
+function shouldInvalidateRedirect(context, pathname) {
+  if (context === AUTH_CONTEXT.ADMIN) {
+    return isAdminRoute(pathname);
+  }
+
+  return !isAdminRoute(pathname) && !PUBLIC_PATHS.has(pathname);
+}
 
 const SessionContext = createContext({
-  status: 'loading',
-  isAuthenticated: false,
-  isVerified: false,
-  revalidate: () => {},
+  user: {
+    status: 'loading',
+    isAuthenticated: false,
+    isVerified: false,
+    revalidate: () => {},
+  },
+  admin: {
+    status: 'loading',
+    isAuthenticated: false,
+    isVerified: false,
+    revalidate: () => {},
+  },
 });
 
 const TRANSIENT_RETRY_LIMIT = 3;
 const TRANSIENT_RETRY_DELAY_MS = 1200;
 
-export function SessionProvider({ children }) {
+function createIdleSessionState() {
+  return {
+    status: 'loading',
+    isAuthenticated: false,
+    isVerified: false,
+  };
+}
+
+function useContextSessionValidation(context) {
   const hydrated = useAuthHydrated();
-  const accessToken = useAuthStore((state) => state.accessToken);
-  const refreshToken = useAuthStore((state) => state.refreshToken);
-  const setSession = useAuthStore((state) => state.setSession);
+  const accessToken = useAuthStore((state) => (
+    context === AUTH_CONTEXT.ADMIN
+      ? state.adminSession.accessToken
+      : state.userSession.accessToken
+  ));
+  const refreshToken = useAuthStore((state) => (
+    context === AUTH_CONTEXT.ADMIN
+      ? state.adminSession.refreshToken
+      : state.userSession.refreshToken
+  ));
   const [status, setStatus] = useState('loading');
   const [isVerified, setIsVerified] = useState(false);
   const transientRetriesRef = useRef(0);
@@ -73,11 +119,15 @@ export function SessionProvider({ children }) {
       revalidateInFlightRef.current = false;
       setStatus('unauthenticated');
       setIsVerified(true);
-      invalidateAuthSession({
-        redirect: true,
-        preserveReturnPath: true,
-        reason: 'session_expired',
-      });
+      clearSessionSlice(context);
+      if (typeof window !== 'undefined' && shouldInvalidateRedirect(context, window.location.pathname)) {
+        invalidateAuthSession({
+          context,
+          redirect: true,
+          preserveReturnPath: true,
+          reason: 'session_expired',
+        });
+      }
       return;
     }
 
@@ -86,42 +136,41 @@ export function SessionProvider({ children }) {
     const nextUser = result.session?.user || result.user;
     const nextAccessToken = result.session?.accessToken || accessToken;
     const nextRefreshToken = result.session?.refreshToken || refreshToken;
-    const cachedUser = useAuthStore.getState().user;
 
-    if (cachedUser?.id && nextUser?.id && cachedUser.id !== nextUser.id) {
-      if (process.env.NODE_ENV === 'development') {
-        console.warn('[Session] persisted user mismatch — replacing with server identity');
-      }
-    }
-
-    const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
-    if (isAdminRoute(pathname) && nextUser?.role !== 'ADMIN') {
+    if (context === AUTH_CONTEXT.ADMIN && !isAdminUser(nextUser)) {
       revalidateInFlightRef.current = false;
       setStatus('unauthenticated');
       setIsVerified(true);
-      invalidateAuthSession({
-        redirect: true,
-        preserveReturnPath: true,
-        reason: 'forbidden',
-      });
+      clearSessionSlice(context);
+      if (typeof window !== 'undefined' && shouldInvalidateRedirect(context, window.location.pathname)) {
+        invalidateAuthSession({
+          context,
+          redirect: true,
+          preserveReturnPath: true,
+          reason: 'forbidden',
+        });
+      }
       return;
     }
 
-    setSession({
+    setSessionSlice(context, {
       accessToken: nextAccessToken,
       refreshToken: nextRefreshToken,
       user: nextUser,
     });
-    syncSessionCookies(nextUser);
+    syncSessionCookies(context, nextUser);
 
     revalidateInFlightRef.current = false;
     setStatus('authenticated');
     setIsVerified(true);
 
     if (process.env.NODE_ENV === 'development') {
-      console.log('[Session] verified', { userId: nextUser?.id, role: nextUser?.role });
+      console.log(`[Session:${context}] verified`, {
+        userId: nextUser?.id,
+        role: nextUser?.role,
+      });
     }
-  }, [accessToken, hydrated, refreshToken, setSession]);
+  }, [accessToken, context, hydrated, refreshToken]);
 
   useEffect(() => {
     if (!hydrated) {
@@ -136,7 +185,7 @@ export function SessionProvider({ children }) {
   const resolvedStatus = hydrated ? status : 'loading';
   const resolvedVerified = hydrated ? isVerified : false;
 
-  const value = useMemo(
+  return useMemo(
     () => ({
       status: resolvedStatus,
       isAuthenticated: resolvedStatus === 'authenticated' && resolvedVerified,
@@ -144,6 +193,19 @@ export function SessionProvider({ children }) {
       revalidate,
     }),
     [revalidate, resolvedStatus, resolvedVerified],
+  );
+}
+
+export function SessionProvider({ children }) {
+  const userSession = useContextSessionValidation(AUTH_CONTEXT.USER);
+  const adminSession = useContextSessionValidation(AUTH_CONTEXT.ADMIN);
+
+  const value = useMemo(
+    () => ({
+      user: userSession,
+      admin: adminSession,
+    }),
+    [adminSession, userSession],
   );
 
   return (
@@ -153,6 +215,7 @@ export function SessionProvider({ children }) {
   );
 }
 
-export function useSession() {
-  return useContext(SessionContext);
+export function useSession(context = AUTH_CONTEXT.USER) {
+  const sessions = useContext(SessionContext);
+  return sessions[context] ?? createIdleSessionState();
 }

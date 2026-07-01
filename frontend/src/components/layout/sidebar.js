@@ -18,7 +18,7 @@ import { isNavItemActive } from '@/features/dashboard/utils/nav-active.util';
 import { UserProfileCard } from '@/features/dashboard/components/user-profile-card';
 import { LogoutButton } from '@/features/auth/components/logout-button';
 import { useUiStore } from '@/stores/ui-store';
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 import { useProfileQuery } from '@/features/profile/hooks';
 import { useIsMobile, useIsTablet } from '@/hooks/use-media-query';
 import { useMobileDrawer } from '@/hooks/use-mobile-drawer';
@@ -160,7 +160,7 @@ export function Sidebar({ className }) {
     (state) => state.toggleDashboardSidebarCollapsed,
   );
   const setMobileOpen = useUiStore((state) => state.setMobileSidebarOpen);
-  const user = useAuthStore((state) => state.user);
+  const user = useUserProfile();
   const { data: profile } = useProfileQuery();
 
   const displayName =

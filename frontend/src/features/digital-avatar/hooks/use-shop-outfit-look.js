@@ -6,7 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { ROUTES } from '@/constants/routes';
 import { addCartItem } from '@/features/cart/services';
 import { getSelectedOutfitProducts } from '@/features/digital-avatar/utils/outfit-builder.util';
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 
 export function useShopOutfitLook() {
   const router = useRouter();
@@ -22,7 +22,7 @@ export function useShopOutfitLook() {
       return false;
     }
 
-    const token = useAuthStore.getState().accessToken;
+    const token = getUserAccessToken();
 
     if (!token) {
       router.push(ROUTES.AUTH.LOGIN);

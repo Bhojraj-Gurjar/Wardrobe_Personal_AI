@@ -10,11 +10,11 @@ import {
   removeCartItem,
   updateCartItem,
 } from '@/features/cart/services';
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 
 export function useCheckoutCartMutation() {
   const queryClient = useQueryClient();
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useMutation({
     mutationFn: (couponCode) => checkoutCart(token, couponCode),
@@ -27,7 +27,7 @@ export function useCheckoutCartMutation() {
 
 export function useAddCartItemMutation() {
   const queryClient = useQueryClient();
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useMutation({
     mutationFn: ({ productId, quantity = 1 }) =>
@@ -40,7 +40,7 @@ export function useAddCartItemMutation() {
 }
 
 export function useCartQuery(coupon) {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useQuery({
     queryKey: ['cart', coupon || null],
@@ -52,7 +52,7 @@ export function useCartQuery(coupon) {
 
 export function useUpdateCartItemMutation() {
   const queryClient = useQueryClient();
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useMutation({
     mutationFn: ({ id, quantity }) => updateCartItem(id, quantity, token),
@@ -65,7 +65,7 @@ export function useUpdateCartItemMutation() {
 
 export function useRemoveCartItemMutation() {
   const queryClient = useQueryClient();
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useMutation({
     mutationFn: (id) => removeCartItem(id, token),

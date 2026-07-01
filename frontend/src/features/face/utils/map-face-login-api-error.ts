@@ -52,7 +52,7 @@ export function mapFaceLoginApiError(err: unknown): FaceLoginError {
     return FaceLoginError.BACKEND_ERROR;
   }
 
-  if (includesAny(message, ['blink once', 'hold still', "couldn't verify your face", 'liveness', 'verify your face clearly'])) {
+  if (includesAny(message, ['blink once', 'blink twice', 'hold still', "couldn't verify your face", 'liveness', 'verify your face clearly', 'live face not detected', 'complete the verification'])) {
     return FaceLoginError.LIVENESS_FAILED;
   }
 

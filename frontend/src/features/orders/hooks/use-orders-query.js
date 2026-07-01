@@ -3,10 +3,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { QUERY_STALE_TIME } from '@/constants/app';
 import { fetchOrders } from '@/features/orders/services';
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 
 export function useOrdersQuery(params = {}) {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useQuery({
     queryKey: ['orders', params],

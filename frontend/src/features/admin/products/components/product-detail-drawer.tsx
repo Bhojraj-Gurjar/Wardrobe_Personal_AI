@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Edit, Minus, Plus, Star, X } from 'lucide-react';
 import { formatProductPrice } from '@/features/products/utils/product-catalog.utils';
 import { Button } from '@/components/ui/button';
@@ -162,6 +162,120 @@ function formatLogDate(value?: string) {
   });
 }
 
+function ProductImageGallery({
+  images,
+  fallbackUrl,
+  isLoading,
+  productName,
+}: {
+  images: Array<{ url?: string; isPrimary?: boolean }>;
+  fallbackUrl: string | null;
+  isLoading: boolean;
+  productName: string;
+}) {
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const galleryUrls = useMemo(() => {
+    const urls = images
+      .map((image) => image.url)
+      .filter((url): url is string => Boolean(url));
+
+    if (urls.length) {
+      return urls;
+    }
+
+    return fallbackUrl ? [fallbackUrl] : [];
+  }, [fallbackUrl, images]);
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [galleryUrls.join('|')]);
+
+  const activeUrl = galleryUrls[activeIndex] || galleryUrls[0];
+
+  return (
+    <div className="mx-auto w-full max-w-[320px] shrink-0 lg:mx-0">
+      <div
+        className={cn(
+          'group relative h-[320px] w-full max-w-[320px] overflow-hidden rounded-2xl',
+          'border border-white/[0.08] bg-dashboard-bg/50 shadow-[0_12px_40px_rgba(0,0,0,0.28)]',
+        )}
+      >
+        {isLoading ? (
+          <Skeleton className="size-full rounded-2xl bg-dashboard-bg" />
+        ) : activeUrl ? (
+          <div className="flex size-full items-center justify-center p-[18px]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={activeUrl}
+              alt={productName}
+              className={cn(
+                'size-full object-contain object-center',
+                'transition-transform duration-300 ease-out motion-safe:group-hover:scale-[1.03]',
+              )}
+            />
+          </div>
+        ) : (
+          <div className="flex size-full items-center justify-center text-sm text-dashboard-muted">
+            No image
+          </div>
+        )}
+      </div>
+
+      {!isLoading && galleryUrls.length > 1 ? (
+        <div className="mt-3 flex flex-wrap justify-center gap-2 lg:justify-start">
+          {galleryUrls.map((url, index) => (
+            <button
+              key={`${url}-${index}`}
+              type="button"
+              onClick={() => setActiveIndex(index)}
+              className={cn(
+                'flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-dashboard-bg/40 p-1.5 transition-all duration-200',
+                'hover:border-primary/40 hover:shadow-[0_4px_16px_rgba(124,58,237,0.18)]',
+                activeIndex === index
+                  ? 'border-primary/60 ring-2 ring-primary/30'
+                  : 'border-white/[0.08]',
+              )}
+              aria-label={`View image ${index + 1}`}
+              aria-pressed={activeIndex === index}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={url} alt="" className="size-full object-contain object-center" />
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function InfoBadge({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium text-dashboard-foreground',
+        className,
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+function ChipList({ items }: { items: string[] }) {
+  if (!items.length) {
+    return <span className="text-sm text-dashboard-muted">—</span>;
+  }
+
+  return (
+    <div className="flex flex-wrap justify-end gap-1.5">
+      {items.map((item) => (
+        <InfoBadge key={item}>{item}</InfoBadge>
+      ))}
+    </div>
+  );
+}
+
 export function ProductDetailDrawer({
   product,
   isLoading = false,
@@ -206,6 +320,33 @@ export function ProductDetailDrawer({
   const imageUrl = product
     ? product.imageUrl || images.find((image) => image.isPrimary)?.url || images[0]?.url
     : null;
+
+  const colorOptions = useMemo(() => {
+    const fromProduct = Array.isArray(product?.colors)
+      ? (product.colors as string[]).filter(Boolean)
+      : [];
+    const fromVariants = [...new Set(variants.map((variant) => String(variant.color || '')).filter(Boolean))];
+    return fromProduct.length ? fromProduct : fromVariants;
+  }, [product, variants]);
+
+  const sizeOptions = useMemo(
+    () => [...new Set(variants.map((variant) => String(variant.size || '')).filter(Boolean))],
+    [variants],
+  );
+
+  const stockCount = Number(stockInput);
+  const stockLabel = Number.isFinite(stockCount)
+    ? stockCount <= 0
+      ? 'Out of stock'
+      : stockCount <= 5
+        ? 'Low stock'
+        : 'In stock'
+    : '—';
+  const stockTone = stockCount <= 0
+    ? 'text-red-400'
+    : stockCount <= 5
+      ? 'text-amber-400'
+      : 'text-emerald-400';
 
   const displayStatus = useMemo(() => {
     if (!product) return 'Draft';
@@ -279,141 +420,158 @@ export function ProductDetailDrawer({
 
       <div
         className={cn(
-          'relative z-10 flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden',
-          'rounded-2xl border border-dashboard-border bg-dashboard-surface shadow-2xl',
+          'relative z-10 flex max-h-[90vh] w-full max-w-[1180px] flex-col overflow-hidden',
+          'rounded-2xl border border-white/[0.08] bg-dashboard-surface/95 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl',
         )}
       >
-        <div className="flex items-start justify-between border-b border-dashboard-border px-6 py-5">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-dashboard-muted">
-              Product Details
-            </p>
-            {isLoading ? (
-              <Skeleton className="mt-2 h-7 w-56 rounded-lg bg-dashboard-bg" />
-            ) : (
-              <h2 className="mt-1 text-xl font-bold text-dashboard-foreground">
-                {String(product?.name || 'Product')}
-              </h2>
-            )}
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              {isLoading ? (
-                <Skeleton className="h-6 w-24 rounded-full bg-dashboard-bg" />
-              ) : (
-                <Badge className={statusBadgeClass(displayStatus)}>{displayStatus}</Badge>
-              )}
-              {!isLoading && product?.rating != null ? (
-                <span className="inline-flex items-center gap-1 text-xs text-dashboard-muted">
-                  <Star className="size-3.5 fill-amber-400 text-amber-400" />
-                  {String(product.rating)}
-                </span>
-              ) : null}
-            </div>
-          </div>
-          <Button type="button" variant="ghost" size="icon" onClick={onClose}>
+        <div className="flex shrink-0 items-center justify-between border-b border-white/[0.08] px-5 py-4 sm:px-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-dashboard-muted">
+            Product Details
+          </p>
+          <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close">
             <X className="size-5" />
           </Button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6 sm:py-6">
           {error && !isLoading ? (
             <div className="mb-5 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
               {error}
             </div>
           ) : null}
 
-          <div className="overflow-hidden rounded-2xl border border-dashboard-border bg-dashboard-bg/40">
-            {isLoading ? (
-              <Skeleton className="aspect-[4/3] w-full rounded-none bg-dashboard-bg" />
-            ) : imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={String(imageUrl)} alt="" className="aspect-[4/3] w-full object-cover" />
-            ) : (
-              <div className="flex aspect-[4/3] items-center justify-center text-dashboard-muted">
-                No image
-              </div>
-            )}
-          </div>
+          <div className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)] lg:items-start lg:gap-8">
+            <ProductImageGallery
+              images={images}
+              fallbackUrl={imageUrl ? String(imageUrl) : null}
+              isLoading={isLoading}
+              productName={String(product?.name || 'Product')}
+            />
 
-          <div className="mt-5 space-y-1 border-b border-dashboard-border pb-4">
-            {isLoading ? (
-              Array.from({ length: 7 }).map((_, index) => (
-                <Skeleton key={index} className="my-2 h-8 w-full rounded-lg bg-dashboard-bg" />
-              ))
-            ) : (
-              <>
-                <DetailRow label="Brand" value={product?.brand as string} />
-                <DetailRow label="Category" value={product?.category as string} />
-                <DetailRow label="Type" value={formatAdminProductTypeLabel(product?.productType as string)} />
-                <DetailRow label="Gender" value={product?.gender as string} />
+            <div className="min-w-0 space-y-5">
+              {isLoading ? (
+                <div className="space-y-3">
+                  <Skeleton className="h-9 w-3/4 rounded-lg bg-dashboard-bg" />
+                  <Skeleton className="h-6 w-40 rounded-full bg-dashboard-bg" />
+                  <Skeleton className="h-32 w-full rounded-xl bg-dashboard-bg" />
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-3">
+                    <h2 className="text-2xl font-bold tracking-tight text-dashboard-foreground sm:text-3xl">
+                      {String(product?.name || 'Product')}
+                    </h2>
 
-                <div className="flex items-center justify-between gap-4 py-2.5 text-sm">
-                  <div className="min-w-0">
-                    <span className="text-dashboard-muted">Price</span>
-                    <p className="mt-0.5 text-[11px] text-dashboard-muted/80">
-                      Current
-                      {' '}
-                      {formatProductPrice(product?.price as number, product?.currency as string)}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge className={statusBadgeClass(displayStatus)}>{displayStatus}</Badge>
+                      {product?.rating != null ? (
+                        <InfoBadge className="gap-1 border-amber-500/20 bg-amber-500/10 text-amber-300">
+                          <Star className="size-3 fill-amber-400 text-amber-400" />
+                          {String(product.rating)}
+                        </InfoBadge>
+                      ) : null}
+                      {product?.category ? (
+                        <InfoBadge>{String(product.category)}</InfoBadge>
+                      ) : null}
+                      {product?.productType ? (
+                        <InfoBadge>{formatAdminProductTypeLabel(product.productType as string)}</InfoBadge>
+                      ) : null}
+                    </div>
                   </div>
-                  <div
-                    className={cn(
-                      'flex min-w-[11rem] items-center rounded-xl border border-white/15 bg-dashboard-bg/80 px-3',
-                      'shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]',
-                    )}
-                  >
-                    <span className="shrink-0 pr-2 text-xs font-medium text-dashboard-muted">
-                      {String(product?.currency || 'INR')}
-                    </span>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={priceInput}
+
+                  <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                    <DetailRow label="Brand" value={product?.brand as string} />
+                    <DetailRow label="Category" value={product?.category as string} />
+                    <DetailRow label="Product Type" value={formatAdminProductTypeLabel(product?.productType as string)} />
+                    <DetailRow label="Gender" value={product?.gender as string} />
+
+                    <div className="flex items-center justify-between gap-4 border-t border-white/[0.06] py-3 text-sm">
+                      <div className="min-w-0">
+                        <span className="text-dashboard-muted">Price</span>
+                        <p className="mt-0.5 text-[11px] text-dashboard-muted/80">
+                          Current
+                          {' '}
+                          {formatProductPrice(product?.price as number, product?.currency as string)}
+                        </p>
+                      </div>
+                      <div
+                        className={cn(
+                          'flex min-w-[11rem] items-center rounded-xl border border-white/15 bg-dashboard-bg/80 px-3',
+                          'shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]',
+                        )}
+                      >
+                        <span className="shrink-0 pr-2 text-xs font-medium text-dashboard-muted">
+                          {String(product?.currency || 'INR')}
+                        </span>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={priceInput}
+                          disabled={isSaving}
+                          onChange={(event) => setPriceInput(event.target.value)}
+                          className={cn(
+                            'h-10 border-0 bg-transparent px-0 text-right text-base font-bold',
+                            'text-primary shadow-none focus-visible:ring-0',
+                          )}
+                        />
+                      </div>
+                    </div>
+
+                    <InlineNumericField
+                      label="Stock"
+                      value={stockInput}
+                      onChange={setStockInput}
+                      min={0}
+                      step={1}
                       disabled={isSaving}
-                      onChange={(event) => setPriceInput(event.target.value)}
-                      className={cn(
-                        'h-10 border-0 bg-transparent px-0 text-right text-sm font-semibold',
-                        'text-dashboard-foreground shadow-none focus-visible:ring-0',
-                      )}
+                      hint={stockLabel}
                     />
+
+                    <div className="flex items-center justify-between gap-4 py-2 text-sm">
+                      <span className="text-dashboard-muted">Availability</span>
+                      <span className={cn('font-medium', stockTone)}>{stockLabel}</span>
+                    </div>
+
+                    <DetailRow label="Variants" value={variants.length || Number(product?.variantCount ?? 0)} />
+
+                    <div className="flex items-center justify-between gap-4 py-2.5 text-sm">
+                      <span className="text-dashboard-muted">Status</span>
+                      <SelectField
+                        value={statusInput}
+                        disabled={isSaving}
+                        onChange={(event) => setStatusInput(event.target.value as ProductStatusValue)}
+                        className={cn(
+                          'h-10 w-44 rounded-xl border-white/15 bg-dashboard-bg/80 px-3 text-sm font-medium',
+                          'text-dashboard-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]',
+                        )}
+                      >
+                        {PRODUCT_STATUS_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </SelectField>
+                    </div>
                   </div>
-                </div>
 
-                <InlineNumericField
-                  label="Stock"
-                  value={stockInput}
-                  onChange={setStockInput}
-                  min={0}
-                  step={1}
-                  disabled={isSaving}
-                />
-
-                <DetailRow label="Variants" value={variants.length || Number(product?.variantCount ?? 0)} />
-
-                <div className="flex items-center justify-between gap-4 py-2.5 text-sm">
-                  <span className="text-dashboard-muted">Status</span>
-                  <SelectField
-                    value={statusInput}
-                    disabled={isSaving}
-                    onChange={(event) => setStatusInput(event.target.value as ProductStatusValue)}
-                    className={cn(
-                      'h-10 w-44 rounded-xl border-white/15 bg-dashboard-bg/80 px-3 text-sm font-medium',
-                      'text-dashboard-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]',
-                    )}
-                  >
-                    {PRODUCT_STATUS_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </SelectField>
-                </div>
-              </>
-            )}
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-dashboard-muted">Colors</p>
+                      <ChipList items={colorOptions} />
+                    </div>
+                    <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-dashboard-muted">Sizes</p>
+                      <ChipList items={sizeOptions} />
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
           {!isLoading && product?.description ? (
-            <div className="border-b border-dashboard-border py-4">
+            <div className="mt-6 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 sm:p-5">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-dashboard-muted">
                 Description
               </p>
@@ -423,11 +581,11 @@ export function ProductDetailDrawer({
             </div>
           ) : null}
 
-          <div className="border-b border-dashboard-border py-4">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-dashboard-muted">
+          <div className="mt-6 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 sm:p-5">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-dashboard-muted">
               Analytics
             </p>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
               {[
                 { label: 'Views', value: analytics.views },
                 { label: 'Wishlist', value: analytics.wishlistCount },
@@ -435,7 +593,7 @@ export function ProductDetailDrawer({
               ].map((item) => (
                 <div
                   key={item.label}
-                  className="rounded-xl border border-dashboard-border bg-dashboard-bg/40 px-3 py-2 text-center"
+                  className="rounded-xl border border-white/[0.08] bg-dashboard-bg/40 px-3 py-2.5 text-center"
                 >
                   {isLoading ? (
                     <Skeleton className="mx-auto mb-1 h-7 w-10 rounded bg-dashboard-bg" />
@@ -449,15 +607,15 @@ export function ProductDetailDrawer({
           </div>
 
           {!isLoading && variants.length ? (
-            <div className="border-b border-dashboard-border py-4">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-dashboard-muted">
+            <div className="mt-6 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 sm:p-5">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-dashboard-muted">
                 Variants
               </p>
               <div className="space-y-2">
                 {variants.map((variant) => (
                   <div
                     key={String(variant.id)}
-                    className="flex items-center justify-between rounded-xl border border-dashboard-border px-3 py-2 text-sm"
+                    className="flex items-center justify-between rounded-xl border border-white/[0.08] bg-dashboard-bg/30 px-3 py-2.5 text-sm"
                   >
                     <span className="text-dashboard-foreground">
                       {[variant.color, variant.size].filter(Boolean).join(' · ') || variant.sku}
@@ -469,8 +627,8 @@ export function ProductDetailDrawer({
             </div>
           ) : null}
 
-          <div className="py-4">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-dashboard-muted">
+          <div className="mt-6 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 sm:p-5">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-dashboard-muted">
               Recent Stock Logs
             </p>
             {isLoading ? (
@@ -480,7 +638,7 @@ export function ProductDetailDrawer({
                 ))}
               </div>
             ) : inventoryHistory.length ? (
-              <div className="max-h-36 space-y-2 overflow-y-auto rounded-xl border border-dashboard-border bg-dashboard-bg/30 p-2">
+              <div className="max-h-36 space-y-2 overflow-y-auto rounded-xl border border-white/[0.08] bg-dashboard-bg/30 p-2">
                 {inventoryHistory.map((entry) => (
                   <div
                     key={entry.id}
@@ -516,11 +674,11 @@ export function ProductDetailDrawer({
           </div>
         </div>
 
-        <div className="flex flex-col gap-2 border-t border-dashboard-border px-6 py-4 sm:flex-row">
+        <div className="sticky bottom-0 z-10 flex shrink-0 flex-col gap-2 border-t border-white/[0.08] bg-dashboard-surface/95 px-5 py-4 backdrop-blur-md sm:px-6">
           {hasUnsavedChanges ? (
             <Button
               type="button"
-              className="w-full rounded-xl sm:flex-1"
+              className="w-full rounded-xl"
               disabled={isLoading || isSaving}
               onClick={saveFieldChanges}
             >
@@ -529,7 +687,7 @@ export function ProductDetailDrawer({
           ) : null}
           <Button
             type="button"
-            className="w-full gap-2 rounded-xl sm:flex-1"
+            className="w-full gap-2 rounded-xl"
             disabled={isLoading || isSaving}
             onClick={() => product && onEdit(product)}
           >

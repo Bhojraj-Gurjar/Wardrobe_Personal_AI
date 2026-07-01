@@ -29,7 +29,7 @@ export const FACE_LOGIN_ERROR_MESSAGES: Record<FaceLoginError, string> = {
   [FaceLoginError.CAPTURE_FAILED]:
     'Hold still for a second while we capture your face.',
   [FaceLoginError.LIVENESS_FAILED]:
-    'Liveness verification failed. Please try again in good lighting.',
+    'Live face not detected. Please complete the verification.',
   [FaceLoginError.RATE_LIMITED]:
     'Too many failed face login attempts. Please try again later.',
   [FaceLoginError.UNKNOWN]:

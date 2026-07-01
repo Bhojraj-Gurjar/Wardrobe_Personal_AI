@@ -7,6 +7,7 @@ import {
   StockExceededError,
 } from '../../commerce/utils/inventory.util';
 import { resolveStatusFilterValues } from '../utils/order-status.util';
+import { buildTodayCompletedRevenueWhere } from '../utils/order-revenue.util';
 
 const PRODUCT_INCLUDE = {
   images: { orderBy: { sort_order: 'asc' } },
@@ -503,15 +504,9 @@ class OrdersRepository {
   }
 
   aggregateTodayRevenue() {
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-
     return this.prisma.order.aggregate({
       _sum: { total_amount: true },
-      where: {
-        created_at: { gte: start },
-        status: { notIn: [ORDER_STATUS.CANCELLED, ORDER_STATUS.REFUNDED] },
-      },
+      where: buildTodayCompletedRevenueWhere(),
     });
   }
 

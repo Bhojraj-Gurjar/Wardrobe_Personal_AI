@@ -13,6 +13,10 @@ export { AdminAnalyticsUserGrowthView } from './admin-analytics-user-growth-view
 export { AdminAnalyticsDevicesView } from './admin-analytics-devices-view';
 export { AdminAnalyticsOrdersView } from './admin-analytics-orders-view';
 export { AdminAnalyticsCategoriesView } from './admin-analytics-categories-view';
+export { AdminRevenueAnalyticsView } from './admin-revenue-analytics-view';
+export { AdminUsersAnalyticsView } from './admin-users-analytics-view';
+export { AdminConversionAnalyticsView } from './admin-conversion-analytics-view';
+export { AdminBreadcrumb } from './admin-breadcrumb';
 export { AdminOrdersView } from './admin-orders-view';
 export { AdminProfileView } from './admin-profile-view';
 export { AdminLoginPanel } from './admin-login-panel';

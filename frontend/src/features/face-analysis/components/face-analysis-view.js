@@ -33,7 +33,12 @@ export function FaceAnalysisView() {
     || analyzeCurrentMutation.isPending;
 
   useEffect(() => {
-    if (isLoading || !data?.is_face_registered || data?.hasAnalysis) {
+    if (
+      isLoading
+      || !data?.is_face_registered
+      || !data?.faceImageUrl
+      || data?.hasAnalysis
+    ) {
       return;
     }
 
@@ -44,10 +49,20 @@ export function FaceAnalysisView() {
     autoAnalyzeAttempted.current = true;
     analyzeCurrentMutation.mutate(undefined, {
       onError: (error) => {
-        setErrorMessage(error?.message || 'Face analysis failed. Please try again.');
+        setErrorMessage(
+          error?.message
+          || 'Face analysis failed. Please upload a new photo and try again.',
+        );
       },
     });
-  }, [analyzeCurrentMutation, data?.hasAnalysis, data?.is_face_registered, isAnalyzing, isLoading]);
+  }, [
+    analyzeCurrentMutation,
+    data?.faceImageUrl,
+    data?.hasAnalysis,
+    data?.is_face_registered,
+    isAnalyzing,
+    isLoading,
+  ]);
 
 
 
@@ -60,6 +75,10 @@ export function FaceAnalysisView() {
 
 
   const dashboard = mergeFaceAnalysisDashboard(data);
+
+  const missingPhotoHint = data?.facePhotoMissing
+    ? 'Your previous face photo was removed during a server update. Upload a new photo to analyze your face.'
+    : '';
 
 
 
@@ -143,7 +162,7 @@ export function FaceAnalysisView() {
 
           onAnalyze={handleAnalyze}
 
-          errorMessage={errorMessage}
+          errorMessage={errorMessage || missingPhotoHint}
 
           className="lg:min-h-[520px]"
 

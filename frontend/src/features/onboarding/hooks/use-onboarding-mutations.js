@@ -8,11 +8,11 @@ import { FASHION_DNA_QUERY_KEY } from '@/features/fashion-dna/hooks/use-fashion-
 import { DIGITAL_AVATAR_QUERY_KEY } from '@/features/digital-avatar/hooks/use-digital-avatar';
 import { updateProfile } from '@/features/profile/services';
 import { toPreferencesPayload } from '@/features/onboarding/schemas/onboarding.schema';
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 
 function getToken() {
-  return useAuthStore.getState().accessToken;
+  return getUserAccessToken();
 }
 
 function invalidatePipelineQueries(queryClient) {

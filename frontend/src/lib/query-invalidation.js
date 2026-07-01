@@ -14,13 +14,17 @@ export async function invalidateQueryKeys(queryClient, keys, { refetchType = 'ac
   );
 }
 
+import { normalizeTryOnHistoryResult } from '@/features/virtual-try-on/utils/try-on-image.util';
+
 export function prependVirtualTryOnResult(existing, result) {
-  if (!result?.id) {
+  const normalized = normalizeTryOnHistoryResult(result);
+
+  if (!normalized?.id) {
     return existing;
   }
 
   if (Array.isArray(existing)) {
-    return [result, ...existing.filter((item) => item?.id !== result.id)];
+    return [normalized, ...existing.filter((item) => item?.id !== normalized.id)];
   }
 
   const items = Array.isArray(existing?.items)
@@ -29,7 +33,7 @@ export function prependVirtualTryOnResult(existing, result) {
       ? existing.results
       : [];
 
-  const nextItems = [result, ...items.filter((item) => item?.id !== result.id)];
+  const nextItems = [normalized, ...items.filter((item) => item?.id !== normalized.id)];
 
   return {
     ...existing,

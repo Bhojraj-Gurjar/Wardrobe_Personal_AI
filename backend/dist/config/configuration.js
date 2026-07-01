@@ -52,7 +52,7 @@ const _default = ()=>({
             registrationDuplicateThreshold: parseFloat(process.env.FACE_REGISTRATION_DUPLICATE_THRESHOLD) || 0.45,
             similarityUncertain: parseFloat(process.env.FACE_SIMILARITY_UNCERTAIN) || 0.32,
             livenessRequired: process.env.FACE_LIVENESS_REQUIRED !== 'false',
-            minLivenessFrames: parseInt(process.env.FACE_MIN_LIVENESS_FRAMES, 10) || 2,
+            minLivenessFrames: parseInt(process.env.FACE_MIN_LIVENESS_FRAMES, 10) || 4,
             maxFailedAttempts: parseInt(process.env.FACE_MAX_FAILED_ATTEMPTS, 10) || 5,
             lockoutSeconds: parseInt(process.env.FACE_LOCKOUT_SECONDS, 10) || 900,
             attemptWindowSeconds: parseInt(process.env.FACE_ATTEMPT_WINDOW_SECONDS, 10) || 3600
@@ -78,10 +78,17 @@ const _default = ()=>({
             publicUrl: process.env.AI_SERVICE_PUBLIC_URL || 'http://localhost:8000'
         },
         storage: {
-            provider: process.env.STORAGE_PROVIDER || 'local',
+            provider: process.env.STORAGE_PROVIDER || (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET ? 'cloudinary' : 'local'),
             local: {
                 rootDir: process.env.STORAGE_LOCAL_ROOT || 'uploads',
                 publicBaseUrl: process.env.STORAGE_PUBLIC_BASE_URL || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3000'),
+                publicPath: process.env.STORAGE_PUBLIC_PATH || '/uploads'
+            },
+            cloudinary: {
+                cloudName: process.env.CLOUDINARY_CLOUD_NAME || '',
+                apiKey: process.env.CLOUDINARY_API_KEY || '',
+                apiSecret: process.env.CLOUDINARY_API_SECRET || '',
+                folder: process.env.CLOUDINARY_FOLDER || 'wardrobe-ai',
                 publicPath: process.env.STORAGE_PUBLIC_PATH || '/uploads'
             },
             internalBaseUrl: ensureHttpUrl(process.env.STORAGE_INTERNAL_BASE_URL || process.env.STORAGE_PUBLIC_BASE_URL, 'http://localhost:3000')

@@ -11,7 +11,7 @@ import { resolveVirtualTryOnBodyPhotoUrl } from '@/features/body-analysis/utils/
 import { useBodyAnalysisQuery } from '@/features/body-analysis/hooks/use-body-analysis';
 import { withCacheBust } from '@/features/profile/utils/profile-helpers';
 import { useProfileQuery } from '@/features/profile/hooks/use-profile';
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useAddTryOnResultToClosetMutation,
@@ -36,7 +36,7 @@ import {
   resolveOutfitSelectionFromProducts,
   toggleOutfitSlotSelection,
 } from '../utils/outfit-selection.util';
-import { mapVirtualTryOnClientError, stripSessionPhotoCacheParams } from '../utils/try-on-image.util';
+import { mapVirtualTryOnClientError, stripSessionPhotoCacheParams, areTryOnImageUrlsEquivalent, resolveTryOnResultImageUrl } from '../utils/try-on-image.util';
 import {
   coerceResultIdMap,
   coerceTryOnHistoryResults,
@@ -49,7 +49,7 @@ import { PreviewPanel } from './preview/preview-panel';
 import { TryOnHistory } from './try-on-history';
 
 export function VirtualTryOnView() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const queryClient = useQueryClient();
   const { session, updateSession } = useVirtualTryOnSession();
 
@@ -192,13 +192,16 @@ export function VirtualTryOnView() {
     if (
       refreshed
       && refreshed.generatedImageUrl
-      && refreshed.generatedImageUrl !== latestResult.generatedImageUrl
+      && !areTryOnImageUrlsEquivalent(refreshed.generatedImageUrl, latestResult.generatedImageUrl)
     ) {
       updateSession({
         latestResult: {
           ...latestResult,
-          generatedImageUrl: refreshed.generatedImageUrl,
-          result: refreshed,
+          generatedImageUrl: resolveTryOnResultImageUrl(refreshed.generatedImageUrl),
+          result: {
+            ...refreshed,
+            generatedImageUrl: resolveTryOnResultImageUrl(refreshed.generatedImageUrl),
+          },
         },
       });
     }
@@ -222,8 +225,11 @@ export function VirtualTryOnView() {
     updateSession({
       latestResult: {
         bodyPhotoUrl: newest.bodyPhotoUrl || null,
-        generatedImageUrl: newest.generatedImageUrl,
-        result: newest,
+        generatedImageUrl: resolveTryOnResultImageUrl(newest.generatedImageUrl),
+        result: {
+          ...newest,
+          generatedImageUrl: resolveTryOnResultImageUrl(newest.generatedImageUrl),
+        },
       },
       selectedProductId: newest.productId || selectedProductId,
       pendingProductId: null,
@@ -382,8 +388,17 @@ export function VirtualTryOnView() {
 
       const nextResult = {
         bodyPhotoUrl: response.bodyPhotoUrl || bodyPhotoUrl,
-        generatedImageUrl: response.generatedImageUrl || response.result?.generatedImageUrl,
-        result: response.result,
+        generatedImageUrl: resolveTryOnResultImageUrl(
+          response.generatedImageUrl || response.result?.generatedImageUrl,
+        ),
+        result: response.result
+          ? {
+              ...response.result,
+              generatedImageUrl: resolveTryOnResultImageUrl(
+                response.result.generatedImageUrl || response.generatedImageUrl,
+              ),
+            }
+          : response.result,
       };
 
       updateSession({

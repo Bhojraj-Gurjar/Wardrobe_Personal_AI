@@ -11,13 +11,13 @@ import {
   activateDigitalAvatar,
   updateDigitalAvatar,
 } from '@/features/digital-avatar/services';
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 
 export const DIGITAL_AVATAR_QUERY_KEY = ['digital-avatar'];
 export const DIGITAL_AVATAR_HISTORY_QUERY_KEY = ['digital-avatar', 'history'];
 
 export function useDigitalAvatarQuery() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useQuery({
     queryKey: DIGITAL_AVATAR_QUERY_KEY,
@@ -35,7 +35,7 @@ export function useDigitalAvatarQuery() {
 }
 
 export function useDigitalAvatarHistoryQuery() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useQuery({
     queryKey: DIGITAL_AVATAR_HISTORY_QUERY_KEY,
@@ -46,7 +46,7 @@ export function useDigitalAvatarHistoryQuery() {
 }
 
 export function useGeneratePremiumAvatarMutation() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -59,7 +59,7 @@ export function useGeneratePremiumAvatarMutation() {
 }
 
 export function useGenerateBasicAvatarMutation() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -72,7 +72,7 @@ export function useGenerateBasicAvatarMutation() {
 }
 
 export function useGenerateDigitalAvatarMutation() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -85,7 +85,7 @@ export function useGenerateDigitalAvatarMutation() {
 }
 
 export function useActivateDigitalAvatarMutation() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -98,7 +98,7 @@ export function useActivateDigitalAvatarMutation() {
 }
 
 export function useUpdateDigitalAvatarMutation() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const queryClient = useQueryClient();
 
   return useMutation({

@@ -13,6 +13,7 @@ const _prismaservice = require("../../../database/prisma.service");
 const _userrole = require("../../../common/constants/user-role");
 const _orderconstants = require("../../orders/validators/order.constants");
 const _orderstatusutil = require("../../orders/utils/order-status.util");
+const _orderrevenueutil = require("../../orders/utils/order-revenue.util");
 const _catalogvisibilityutil = require("../../products/utils/catalog-visibility.util");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -535,22 +536,179 @@ let AdminRepository = class AdminRepository {
             }
         });
     }
-    groupOrdersByStatus() {
-        return this.prisma.order.groupBy({
-            by: [
-                'status'
-            ],
-            _count: {
-                status: true
-            }
+    async aggregateNetRecognizedRevenue(start, end) {
+        const [recognized, refunds] = await Promise.all([
+            this.prisma.order.aggregate({
+                where: (0, _orderrevenueutil.buildCompletedRevenueWhereForRange)(start, end),
+                _sum: {
+                    total_amount: true
+                }
+            }),
+            this.prisma.order.aggregate({
+                where: (0, _orderrevenueutil.buildRefundRevenueWhereForRange)(start, end),
+                _sum: {
+                    total_amount: true
+                }
+            })
+        ]);
+        const gross = recognized._sum.total_amount || 0;
+        const refundTotal = refunds._sum.total_amount || 0;
+        return {
+            gross: Math.round(gross),
+            refunds: Math.round(refundTotal),
+            net: Math.round(gross - refundTotal)
+        };
+    }
+    countRecognizedOrdersInRange(start, end) {
+        return this.prisma.order.count({
+            where: (0, _orderrevenueutil.buildCompletedRevenueWhereForRange)(start, end)
         });
     }
-    groupOrdersByCategory() {
-        return this.prisma.order.findMany({
+    countOrdersCreatedInRange(start, end) {
+        return this.prisma.order.count({
             where: {
+                created_at: {
+                    gte: start,
+                    lte: end
+                },
                 status: {
                     not: _orderconstants.ORDER_STATUS.CANCELLED
                 }
+            }
+        });
+    }
+    countProductViewsInRange(start, end) {
+        return this.prisma.productView.count({
+            where: {
+                viewed_at: {
+                    gte: start,
+                    lte: end
+                }
+            }
+        });
+    }
+    async countEngagedUsersInRange(start, end) {
+        const [orderUsers, viewUsers] = await Promise.all([
+            this.prisma.order.findMany({
+                where: {
+                    created_at: {
+                        gte: start,
+                        lte: end
+                    },
+                    user_id: {
+                        not: null
+                    }
+                },
+                select: {
+                    user_id: true
+                },
+                distinct: [
+                    'user_id'
+                ]
+            }),
+            this.prisma.productView.findMany({
+                where: {
+                    viewed_at: {
+                        gte: start,
+                        lte: end
+                    },
+                    user_id: {
+                        not: null
+                    }
+                },
+                select: {
+                    user_id: true
+                },
+                distinct: [
+                    'user_id'
+                ]
+            })
+        ]);
+        return new Set([
+            ...orderUsers.map((row)=>row.user_id),
+            ...viewUsers.map((row)=>row.user_id)
+        ]).size;
+    }
+    getRevenueOrdersSince(start) {
+        return this.prisma.order.findMany({
+            where: {
+                OR: [
+                    {
+                        status: {
+                            in: _orderrevenueutil.COMPLETED_REVENUE_STATUSES
+                        },
+                        OR: [
+                            {
+                                completed_at: {
+                                    gte: start
+                                }
+                            },
+                            {
+                                delivered_at: {
+                                    gte: start
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        status: {
+                            in: [
+                                _orderconstants.ORDER_STATUS.REFUNDED,
+                                _orderconstants.ORDER_STATUS.RETURNED
+                            ]
+                        },
+                        updated_at: {
+                            gte: start
+                        }
+                    },
+                    {
+                        created_at: {
+                            gte: start
+                        },
+                        status: {
+                            not: _orderconstants.ORDER_STATUS.CANCELLED
+                        }
+                    }
+                ]
+            },
+            select: {
+                total_amount: true,
+                status: true,
+                created_at: true,
+                completed_at: true,
+                delivered_at: true,
+                updated_at: true,
+                user_id: true
+            }
+        });
+    }
+    groupOrdersByCategory({ since = null } = {}) {
+        const and = [
+            {
+                status: {
+                    in: _orderrevenueutil.COMPLETED_REVENUE_STATUSES
+                }
+            }
+        ];
+        if (since) {
+            and.push({
+                OR: [
+                    {
+                        completed_at: {
+                            gte: since
+                        }
+                    },
+                    {
+                        delivered_at: {
+                            gte: since
+                        }
+                    }
+                ]
+            });
+        }
+        return this.prisma.order.findMany({
+            where: {
+                AND: and
             },
             include: {
                 product: {
@@ -560,6 +718,16 @@ let AdminRepository = class AdminRepository {
                         price: true
                     }
                 }
+            }
+        });
+    }
+    groupOrdersByStatus() {
+        return this.prisma.order.groupBy({
+            by: [
+                'status'
+            ],
+            _count: {
+                status: true
             }
         });
     }

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { QUERY_STALE_TIME } from '@/constants/app';
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 import {
   clearSearchHistory,
   fetchSearchHistory,
@@ -56,7 +56,7 @@ export function useSearchSuggestions(query, { enabled = true } = {}) {
 }
 
 export function useSearchHistoryQuery(enabled = true) {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useQuery({
     queryKey: [...SEARCH_HISTORY_QUERY_KEY, Boolean(token)],
@@ -76,7 +76,7 @@ export function useSearchHistoryQuery(enabled = true) {
 }
 
 export function useClearSearchHistory() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const queryClient = useQueryClient();
 
   return async function clearHistory() {
@@ -96,7 +96,7 @@ export function rememberSearchQuery(query) {
     return;
   }
 
-  const token = useAuthStore.getState().accessToken;
+  const token = getUserAccessToken();
 
   if (!token) {
     appendGuestSearchHistory(normalized);

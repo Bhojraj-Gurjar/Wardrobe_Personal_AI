@@ -1,15 +1,31 @@
 'use client';
 
 import { useAuthHydrated } from '@/features/auth/hooks/use-auth-hydrated';
+import { AUTH_CONTEXT } from '@/features/auth/constants/auth-context';
 import { useSession } from '@/features/auth/components/session-provider';
-import { useAuthStore } from '@/stores/auth-store';
+import {
+  useAdminAccessToken,
+  useAdminProfile,
+  useUserAccessToken,
+  useUserProfile,
+} from '@/stores/auth-store';
 import { isAdminUser } from '@/features/admin/utils/is-admin-user';
 
-export function useAuthGuardState() {
+export function useAuthGuardState(context = AUTH_CONTEXT.USER) {
   const hydrated = useAuthHydrated();
-  const { status, isVerified, isAuthenticated: sessionAuthenticated } = useSession();
-  const accessToken = useAuthStore((state) => state.accessToken);
-  const user = useAuthStore((state) => state.user);
+  const userSession = useSession(AUTH_CONTEXT.USER);
+  const adminSession = useSession(AUTH_CONTEXT.ADMIN);
+  const userAccessToken = useUserAccessToken();
+  const adminAccessToken = useAdminAccessToken();
+  const userProfile = useUserProfile();
+  const adminProfile = useAdminProfile();
+
+  const isAdminContext = context === AUTH_CONTEXT.ADMIN;
+  const { status, isVerified, isAuthenticated: sessionAuthenticated } = isAdminContext
+    ? adminSession
+    : userSession;
+  const accessToken = isAdminContext ? adminAccessToken : userAccessToken;
+  const user = isAdminContext ? adminProfile : userProfile;
 
   const hasStoredCredentials = Boolean(accessToken);
   const awaitingVerification = hasStoredCredentials && !isVerified;
@@ -21,6 +37,7 @@ export function useAuthGuardState() {
   const isUnauthenticated = hydrated && isVerified && (status === 'unauthenticated' || !hasStoredCredentials);
 
   return {
+    context,
     hydrated,
     status,
     isVerified,
@@ -29,6 +46,6 @@ export function useAuthGuardState() {
     isInitializing,
     isAuthenticated,
     isUnauthenticated,
-    isAdmin: isAdminUser(user),
+    isAdmin: context === AUTH_CONTEXT.ADMIN && isAdminUser(user),
   };
 }

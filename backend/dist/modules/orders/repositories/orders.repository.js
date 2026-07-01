@@ -14,6 +14,7 @@ const _userrole = require("../../../common/constants/user-role");
 const _orderconstants = require("../validators/order.constants");
 const _inventoryutil = require("../../commerce/utils/inventory.util");
 const _orderstatusutil = require("../utils/order-status.util");
+const _orderrevenueutil = require("../utils/order-revenue.util");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -665,23 +666,11 @@ let OrdersRepository = class OrdersRepository {
         });
     }
     aggregateTodayRevenue() {
-        const start = new Date();
-        start.setHours(0, 0, 0, 0);
         return this.prisma.order.aggregate({
             _sum: {
                 total_amount: true
             },
-            where: {
-                created_at: {
-                    gte: start
-                },
-                status: {
-                    notIn: [
-                        _orderconstants.ORDER_STATUS.CANCELLED,
-                        _orderconstants.ORDER_STATUS.REFUNDED
-                    ]
-                }
-            }
+            where: (0, _orderrevenueutil.buildTodayCompletedRevenueWhere)()
         });
     }
     aggregateRevenue() {

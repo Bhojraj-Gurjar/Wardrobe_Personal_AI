@@ -5,9 +5,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import { API_BASE_URL, API_ENDPOINTS } from '@/constants/api';
 
 function invalidateOrderQueries(queryClient) {
-  queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
-  queryClient.invalidateQueries({ queryKey: ['admin-oms-summary'] });
-  queryClient.invalidateQueries({ queryKey: ['admin-orders-summary'] });
+  queryClient.invalidateQueries({ queryKey: ['admin-orders'], refetchType: 'active' });
+  queryClient.invalidateQueries({ queryKey: ['admin-oms-summary'], refetchType: 'active' });
+  queryClient.invalidateQueries({ queryKey: ['admin-orders-summary'], refetchType: 'active' });
+  queryClient.invalidateQueries({ queryKey: ['admin-dashboard'], refetchType: 'active' });
+  queryClient.invalidateQueries({ queryKey: ['admin-orders-analytics'], refetchType: 'active' });
+  queryClient.invalidateQueries({ queryKey: ['admin-analytics-orders-detail'], refetchType: 'active' });
+  queryClient.invalidateQueries({ queryKey: ['admin-analytics'], refetchType: 'active' });
 }
 
 export function useAdminOrderEvents({ enabled = false, token }) {

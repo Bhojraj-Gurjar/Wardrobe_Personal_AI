@@ -14,6 +14,7 @@ import { useFaceLivenessChallenge, FACE_LIVENESS_PHASE } from '@/features/face/h
 
 import { loginWithFaceImage } from '@/features/face/services/faceService';
 
+import { AUTH_CONTEXT } from '@/features/auth/constants/auth-context';
 import { establishSession } from '@/features/auth/utils/establish-session';
 import { resolveAuthenticatedLanding } from '@/features/auth/utils/auth-routing';
 
@@ -38,6 +39,7 @@ import {
 import {
   FACE_LOGIN_CLIENT_LOCK_MS,
   FACE_LOGIN_MAX_CLIENT_FAILURES,
+  FACE_LIVENESS_CHALLENGE,
 } from '@/features/face/constants/face-liveness-challenges';
 
 import {
@@ -52,6 +54,7 @@ import type { FaceLoginStatusStep } from '@/features/face/types/face-login.types
 
 import {
   mapCameraStartError,
+  FaceLoginDetector,
 } from '@/features/face/utils/face-login-detector';
 
 import { mapFaceLoginApiError } from '@/features/face/utils/map-face-login-api-error';
@@ -170,6 +173,7 @@ function buildStatusSteps(
           ? 'complete'
           : state === FaceLoginState.CAPTURING_FACE
             || livenessPhase === FACE_LIVENESS_PHASE.CAPTURING
+            || livenessPhase === FACE_LIVENESS_PHASE.CHALLENGE
             ? 'active'
             : 'pending',
     },
@@ -261,9 +265,12 @@ export function useFaceLoginFlow() {
     [],
   );
 
+  const [loginChallenge] = useState(() => FACE_LIVENESS_CHALLENGE);
+
   const liveness = useFaceLivenessChallenge({
     camera,
     detectorRef,
+    challenge: loginChallenge,
     positionTimeoutMs: FACE_LOGIN_POSITION_TIMEOUT_MS,
     analyzeTimeoutMs: 250,
     positionStableMs: FACE_LOGIN_CAPTURE_SETTINGS.positionStableMs,
@@ -274,8 +281,10 @@ export function useFaceLoginFlow() {
     detectionIntervalMs: FACE_LOGIN_CAPTURE_SETTINGS.detectionIntervalMs,
     captureWarmupMs: FACE_LOGIN_CAPTURE_SETTINGS.captureWarmupMs,
     burstCapture: true,
-    skipPositioning: true,
+    skipPositioning: false,
     skipSharpnessSort: true,
+    skipChallengePhase: true,
+    instructionPauseMs: 0,
     isCancelled: () => isFlowCancelled(activeGenerationRef.current),
   });
 
@@ -417,6 +426,17 @@ export function useFaceLoginFlow() {
       return false;
     }
 
+    if (!detectorRef.current) {
+      const detector = new FaceLoginDetector();
+      await detector.init();
+      detectorRef.current = detector;
+    }
+
+    const video = camera.videoRef.current;
+    if (video && video.videoWidth > 0) {
+      await detectorRef.current.warmUp(video, 250);
+    }
+
     isColdStartRef.current = false;
     return true;
   }, [camera, isFlowCancelled]);
@@ -510,13 +530,10 @@ export function useFaceLoginFlow() {
 
 
       establishSession({
-
+        context: AUTH_CONTEXT.USER,
         accessToken: data.accessToken,
-
         refreshToken: data.refreshToken,
-
         user: data.user,
-
       });
 
       consecutiveFailuresRef.current = 0;
@@ -920,6 +937,7 @@ export function useFaceLoginFlow() {
 
   ].includes(state) || [
     FACE_LIVENESS_PHASE.CAPTURING,
+    FACE_LIVENESS_PHASE.CHALLENGE,
   ].includes(liveness.phase);
 
 
@@ -930,8 +948,12 @@ export function useFaceLoginFlow() {
       return FACE_LOGIN_STATUS_LABELS.detectingFace;
     }
 
+    if (liveness.phase === FACE_LIVENESS_PHASE.CHALLENGE) {
+      return liveness.challenge?.instruction || liveness.guidance;
+    }
+
     if (liveness.phase === FACE_LIVENESS_PHASE.CAPTURING) {
-      return FACE_LOGIN_STATUS_LABELS.verifyingLiveness;
+      return liveness.challenge?.instruction || FACE_LOGIN_STATUS_LABELS.verifyingLiveness;
     }
 
     if (liveness.phase === FACE_LIVENESS_PHASE.COMPLETE) {

@@ -26,6 +26,7 @@ import {
 import { isValidCmsProductType } from '../constants/cms-taxonomy.constants';
 import { USER_ROLE } from '../../../common/constants/user-role';
 import { ORDER_STATUS } from '../../orders/validators/order.constants';
+import { buildMonthlyRevenueSeries } from '../../orders/utils/order-revenue.util';
 import { normalizeDisplayStatus } from '../../orders/utils/order-status.util';
 import { AdminRepository } from '../repositories/admin.repository';
 import { AdminAnalyticsRepository } from '../repositories/admin-analytics.repository';
@@ -149,8 +150,11 @@ class AdminService {
 
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
     const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+    const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+    const chartStart = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+    chartStart.setHours(0, 0, 0, 0);
 
     const [
       totalUsers,
@@ -159,55 +163,56 @@ class AdminService {
       ordersPrevMonth,
       revenueThisMonth,
       revenuePrevMonth,
-      [monthlyOrders, monthlyUsers],
+      revenueOrders,
+      monthlyUsers,
       categoryOrders,
+      productViewsThisMonth,
+      completedOrdersThisMonth,
+      completedOrdersPrevMonth,
+      engagedUsersThisMonth,
+      engagedUsersPrevMonth,
     ] = await Promise.all([
       this.adminRepository.countUsers(),
       this.adminRepository.countActiveUsers(),
-      this.adminRepository.countOrders({ created_at: { gte: monthStart } }),
-      this.adminRepository.countOrders({
-        created_at: { gte: prevMonthStart, lte: prevMonthEnd },
-      }),
-      this.adminRepository.aggregateOrderRevenue({ created_at: { gte: monthStart } }),
-      this.adminRepository.aggregateOrderRevenue({
-        created_at: { gte: prevMonthStart, lte: prevMonthEnd },
-      }),
-      this.adminRepository.getMonthlyStats(6),
-      this.adminRepository.groupOrdersByCategory(),
+      this.adminRepository.countOrdersCreatedInRange(monthStart, monthEnd),
+      this.adminRepository.countOrdersCreatedInRange(prevMonthStart, prevMonthEnd),
+      this.adminRepository.aggregateNetRecognizedRevenue(monthStart, monthEnd),
+      this.adminRepository.aggregateNetRecognizedRevenue(prevMonthStart, prevMonthEnd),
+      this.adminRepository.getRevenueOrdersSince(chartStart),
+      this.adminRepository.getMonthlyStats(6).then(([, users]) => users),
+      this.adminRepository.groupOrdersByCategory({ since: monthStart }),
+      this.adminRepository.countProductViewsInRange(monthStart, monthEnd),
+      this.adminRepository.countRecognizedOrdersInRange(monthStart, monthEnd),
+      this.adminRepository.countRecognizedOrdersInRange(prevMonthStart, prevMonthEnd),
+      this.adminRepository.countEngagedUsersInRange(monthStart, monthEnd),
+      this.adminRepository.countEngagedUsersInRange(prevMonthStart, prevMonthEnd),
     ]);
 
-    const revenue = Math.round(revenueThisMonth._sum.total_amount || 0);
-    const prevRevenue = Math.round(revenuePrevMonth._sum.total_amount || 0);
-    const conversionRate = totalUsers
-      ? Math.round((ordersThisMonth / totalUsers) * 1000) / 10
-      : 0;
-    const prevConversion = totalUsers
-      ? Math.round((ordersPrevMonth / totalUsers) * 1000) / 10
+    const revenue = revenueThisMonth.net;
+    const prevRevenue = revenuePrevMonth.net;
+
+    const conversionRate = productViewsThisMonth > 0
+      ? Math.round((completedOrdersThisMonth / productViewsThisMonth) * 1000) / 10
+      : (ordersThisMonth > 0
+        ? Math.round((completedOrdersThisMonth / ordersThisMonth) * 1000) / 10
+        : 0);
+
+    const prevConversion = ordersPrevMonth > 0
+      ? Math.round((completedOrdersPrevMonth / ordersPrevMonth) * 1000) / 10
       : 0;
 
-    const revenueByMonth = new Map();
+    const revenueUsersChart = buildMonthlyRevenueSeries(revenueOrders, 6, MONTH_LABELS);
+
     const usersByMonth = new Map();
-
-    for (const order of monthlyOrders) {
-      const key = `${order.created_at.getFullYear()}-${order.created_at.getMonth()}`;
-      revenueByMonth.set(key, (revenueByMonth.get(key) || 0) + order.total_amount);
-    }
-
     for (const user of monthlyUsers) {
-      const key = `${user.created_at.getFullYear()}-${user.created_at.getMonth()}`;
+      const key = `${user.created_at.getFullYear()}-${String(user.created_at.getMonth()).padStart(2, '0')}`;
       usersByMonth.set(key, (usersByMonth.get(key) || 0) + 1);
     }
 
-    const revenueUsersChart = [];
-    for (let index = 5; index >= 0; index -= 1) {
-      const date = new Date(now.getFullYear(), now.getMonth() - index, 1);
-      const key = `${date.getFullYear()}-${date.getMonth()}`;
-      revenueUsersChart.push({
-        month: MONTH_LABELS[date.getMonth()],
-        revenue: Math.round(revenueByMonth.get(key) || 0),
-        users: usersByMonth.get(key) || 0,
-      });
-    }
+    const revenueUsersChartWithUsers = revenueUsersChart.map((bucket) => ({
+      ...bucket,
+      users: usersByMonth.get(bucket.key) || 0,
+    }));
 
     const categoryTotals = new Map();
     const productTypeTotals = new Map();
@@ -231,11 +236,14 @@ class AdminService {
     const payload = {
       cards: {
         revenue: { value: revenue, trend: buildTrend(revenue, prevRevenue) },
-        activeUsers: { value: activeUsers, trend: buildTrend(activeUsers, totalUsers - activeUsers) },
+        activeUsers: {
+          value: activeUsers,
+          trend: buildTrend(engagedUsersThisMonth, engagedUsersPrevMonth),
+        },
         ordersThisMonth: { value: ordersThisMonth, trend: buildTrend(ordersThisMonth, ordersPrevMonth) },
         conversionRate: { value: conversionRate, trend: buildTrend(conversionRate, prevConversion) },
       },
-      revenueUsersChart,
+      revenueUsersChart: revenueUsersChartWithUsers,
       salesByCategory,
       salesByProductType: [...productTypeTotals.entries()]
         .map(([productType, value]) => ({ productType, value: Math.round(value) }))
@@ -436,7 +444,7 @@ class AdminService {
   async getAnalyticsOrders(query = {}) {
     const orders = await this.adminAnalyticsRepository.getOrdersWithCategory();
     const filtered = filterOrdersForAnalytics(orders, query);
-    const summary = summarizeOrderAnalytics(filtered);
+    const summary = summarizeOrderAnalytics(filtered, query);
 
     return {
       summary,
@@ -952,19 +960,23 @@ class AdminService {
 
   async getOrdersAnalytics() {
     const now = new Date();
-    const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
     const [
       dailyRevenue,
       monthlyRevenue,
       totalOrders,
+      completedOrders,
       orders,
+      revenueOrders,
     ] = await Promise.all([
-      this.adminRepository.aggregateOrderRevenue({ created_at: { gte: dayStart } }),
-      this.adminRepository.aggregateOrderRevenue({ created_at: { gte: monthStart } }),
-      this.adminRepository.countOrders({ status: { not: ORDER_STATUS.CANCELLED } }),
+      this.ordersRepository.aggregateTodayRevenue(),
+      this.adminRepository.aggregateNetRecognizedRevenue(monthStart, monthEnd),
+      this.adminRepository.countOrdersCreatedInRange(monthStart, monthEnd),
+      this.adminRepository.countRecognizedOrdersInRange(monthStart, monthEnd),
       this.adminRepository.findOrdersWithUsers(),
+      this.adminRepository.getRevenueOrdersSince(new Date(now.getFullYear(), now.getMonth() - 11, 1)),
     ]);
 
     const customerMap = new Map();
@@ -986,7 +998,10 @@ class AdminService {
       }
       const customer = customerMap.get(customerKey);
       customer.orderCount += 1;
-      customer.totalSpent += order.total_amount;
+
+      if ([ORDER_STATUS.DELIVERED, ORDER_STATUS.COMPLETED].includes(order.status)) {
+        customer.totalSpent += order.total_amount;
+      }
 
       const productId = order.product_id;
       if (productId && order.product) {
@@ -1002,12 +1017,17 @@ class AdminService {
       }
     }
 
-    const monthlyRev = monthlyRevenue._sum.total_amount || 0;
+    const monthlyRev = monthlyRevenue.net;
+    const revenueTrend = buildMonthlyRevenueSeries(revenueOrders, 12, MONTH_LABELS);
 
     return {
       dailyRevenue: Math.round(dailyRevenue._sum.total_amount || 0),
       monthlyRevenue: Math.round(monthlyRev),
-      averageOrderValue: totalOrders ? Math.round(monthlyRev / totalOrders) : 0,
+      grossRevenue: monthlyRevenue.gross,
+      refundAmount: monthlyRevenue.refunds,
+      averageOrderValue: completedOrders
+        ? Math.round(monthlyRevenue.gross / completedOrders)
+        : 0,
       totalOrders,
       topCustomers: [...customerMap.values()]
         .sort((a, b) => b.totalSpent - a.totalSpent)
@@ -1015,7 +1035,7 @@ class AdminService {
       topProducts: [...productMap.values()]
         .sort((a, b) => b.quantitySold - a.quantitySold)
         .slice(0, 5),
-      revenueTrend: [],
+      revenueTrend,
       ordersByStatus: [],
     };
   }

@@ -23,6 +23,16 @@ export const NOTIFICATION_FILTERS = [
   { id: 'ADMIN', label: 'Admin' },
 ];
 
+/** User dashboard notification groups (maps to existing API categories). */
+export const USER_NOTIFICATION_FILTERS = [
+  { id: 'ALL', label: 'All' },
+  { id: 'ORDERS', label: 'Orders' },
+  { id: 'SHOPPING', label: 'Wishlist' },
+  { id: 'PROFILE', label: 'AI' },
+  { id: 'SUPPORT', label: 'Support' },
+  { id: 'SYSTEM', label: 'System' },
+];
+
 export function resolveNotificationIcon(notification) {
   const category = notification?.category;
   const type = String(notification?.type || '').toUpperCase();
@@ -97,6 +107,43 @@ export function resolveNotificationHref(notification, isAdmin = false) {
 
   if (notification?.entityType === 'try_on_result') {
     return ROUTES.AI.VIRTUAL_TRY_ON;
+  }
+
+  const type = String(notification?.type || '').toUpperCase();
+
+  if (type.includes('WISHLIST') || notification?.actionPath === ROUTES.WISHLIST) {
+    return ROUTES.WISHLIST;
+  }
+
+  if (notification?.category === 'SHOPPING') {
+    return ROUTES.WISHLIST;
+  }
+
+  if (
+    type.includes('RECOMMEND')
+    || type.includes('STYLIST')
+    || type.includes('FASHION_DNA')
+    || notification?.actionPath === ROUTES.AI.RECOMMENDATIONS
+  ) {
+    return ROUTES.AI.RECOMMENDATIONS;
+  }
+
+  if (
+    type.includes('FACE')
+    || type.includes('BODY')
+    || type.includes('AVATAR')
+    || notification?.category === 'PROFILE'
+  ) {
+    if (type.includes('BODY')) {
+      return ROUTES.BODY.ANALYSIS;
+    }
+    if (type.includes('AVATAR')) {
+      return ROUTES.AVATAR.HOME;
+    }
+    if (type.includes('FACE')) {
+      return ROUTES.FACE.ANALYSIS;
+    }
+    return ROUTES.PROFILE.HOME;
   }
 
   return null;

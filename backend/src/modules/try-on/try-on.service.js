@@ -390,10 +390,21 @@ class TryOnService {
   handleError(error) {
     const status = error?.response?.status;
     const message = mapTryOnServiceError(error);
+    const detail = error?.response?.data?.detail || error?.message || message;
 
     this.logger.error(
-      `Virtual try-on failed | status=${status || 'n/a'} | ${error?.response?.data?.detail || error?.message || message}`,
+      `Virtual try-on failed | status=${status || 'n/a'} | ${detail}`,
     );
+
+    if (process.env.NODE_ENV === 'development') {
+      this.logger.error(
+        `Virtual try-on failure detail | code=${error?.code || 'n/a'} | response=${JSON.stringify(error?.response?.data || null)}`,
+      );
+
+      if (error?.stack) {
+        this.logger.error(error.stack);
+      }
+    }
 
     if (error?.code === 'ECONNABORTED' || status === 504) {
       throw new GatewayTimeoutException(message);

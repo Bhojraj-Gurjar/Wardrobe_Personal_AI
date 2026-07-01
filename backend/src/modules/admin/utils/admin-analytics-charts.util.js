@@ -1,4 +1,8 @@
 import { ORDER_STATUS } from '../../orders/validators/order.constants';
+import {
+  getOrderRevenueEvent,
+  isDateInRange,
+} from '../../orders/utils/order-revenue.util';
 
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -274,34 +278,50 @@ export function buildOrdersPerMonth(orders = [], months = 6) {
       cancelled: 0,
       returned: 0,
       revenue: 0,
+      grossRevenue: 0,
+      refundAmount: 0,
     }]),
   );
 
   for (const order of orders) {
-    const key = monthKey(new Date(order.created_at));
-    const bucket = bucketMap.get(key);
+    const createdKey = monthKey(new Date(order.created_at));
+    const createdBucket = bucketMap.get(createdKey);
 
-    if (!bucket) {
+    if (createdBucket) {
+      if (CANCELLED_STATUSES.has(order.status)) {
+        createdBucket.cancelled += 1;
+      } else {
+        createdBucket.orders += 1;
+      }
+    }
+
+    const event = getOrderRevenueEvent(order);
+    if (!event) {
       continue;
     }
 
-    bucket.orders += 1;
+    const revenueKey = monthKey(event.date);
+    const revenueBucket = bucketMap.get(revenueKey);
+    if (!revenueBucket) {
+      continue;
+    }
 
-    if (COMPLETED_STATUSES.has(order.status)) {
-      bucket.completed += 1;
-      bucket.revenue += Number(order.total_amount) || 0;
-    } else if (CANCELLED_STATUSES.has(order.status)) {
-      bucket.cancelled += 1;
-    } else if (RETURNED_STATUSES.has(order.status)) {
-      bucket.returned += 1;
-    } else if (order.status !== ORDER_STATUS.CANCELLED) {
-      bucket.revenue += Number(order.total_amount) || 0;
+    if (event.type === 'credit') {
+      revenueBucket.completed += 1;
+      revenueBucket.grossRevenue += event.amount;
+      revenueBucket.revenue += event.amount;
+    } else {
+      revenueBucket.returned += 1;
+      revenueBucket.refundAmount += event.amount;
+      revenueBucket.revenue -= event.amount;
     }
   }
 
   return [...bucketMap.values()].map((bucket) => ({
     ...bucket,
     revenue: Math.round(bucket.revenue),
+    grossRevenue: Math.round(bucket.grossRevenue),
+    refundAmount: Math.round(bucket.refundAmount),
   }));
 }
 
@@ -337,7 +357,7 @@ export function buildTopCategories({
   }
 
   for (const order of orders) {
-    if (CANCELLED_STATUSES.has(order.status)) {
+    if (!COMPLETED_STATUSES.has(order.status)) {
       continue;
     }
 
@@ -412,35 +432,54 @@ export function summarizeUserGrowth(users = [], orders = []) {
   };
 }
 
-export function summarizeOrderAnalytics(orders = []) {
+export function summarizeOrderAnalytics(orders = [], filters = {}) {
+  const start = filters.startDate ? new Date(filters.startDate) : null;
+  const end = filters.endDate ? new Date(filters.endDate) : null;
+
   let totalOrders = 0;
   let delivered = 0;
   let cancelled = 0;
   let returned = 0;
-  let revenue = 0;
+  let grossRevenue = 0;
+  let refundAmount = 0;
 
   for (const order of orders) {
-    totalOrders += 1;
+    const created = new Date(order.created_at);
 
-    if (COMPLETED_STATUSES.has(order.status)) {
+    if (isDateInRange(created, start, end)) {
+      totalOrders += 1;
+
+      if (CANCELLED_STATUSES.has(order.status)) {
+        cancelled += 1;
+      }
+    }
+
+    const event = getOrderRevenueEvent(order);
+    if (!event || !isDateInRange(event.date, start, end)) {
+      continue;
+    }
+
+    if (event.type === 'credit') {
       delivered += 1;
-      revenue += Number(order.total_amount) || 0;
-    } else if (CANCELLED_STATUSES.has(order.status)) {
-      cancelled += 1;
-    } else if (RETURNED_STATUSES.has(order.status)) {
-      returned += 1;
+      grossRevenue += event.amount;
     } else {
-      revenue += Number(order.total_amount) || 0;
+      returned += 1;
+      refundAmount += event.amount;
     }
   }
+
+  const revenue = grossRevenue - refundAmount;
 
   return {
     totalOrders,
     delivered,
     cancelled,
     returned,
+    grossRevenue: Math.round(grossRevenue),
+    refundAmount: Math.round(refundAmount),
     revenue: Math.round(revenue),
-    averageOrderValue: totalOrders ? Math.round(revenue / totalOrders) : 0,
+    netRevenue: Math.round(revenue),
+    averageOrderValue: delivered ? Math.round(grossRevenue / delivered) : 0,
   };
 }
 
@@ -566,18 +605,10 @@ export function filterUsersForGrowth(users = [], filters = {}) {
 
 export function filterOrdersForAnalytics(orders = [], filters = {}) {
   const { startDate, endDate, status, paymentMethod } = filters;
+  const start = startDate ? new Date(startDate) : null;
+  const end = endDate ? new Date(endDate) : null;
 
   return orders.filter((order) => {
-    const created = new Date(order.created_at);
-
-    if (startDate && created < new Date(startDate)) {
-      return false;
-    }
-
-    if (endDate && created > new Date(endDate)) {
-      return false;
-    }
-
     if (status && order.status !== status) {
       return false;
     }
@@ -586,6 +617,15 @@ export function filterOrdersForAnalytics(orders = [], filters = {}) {
       return false;
     }
 
-    return true;
+    if (!start && !end) {
+      return true;
+    }
+
+    const created = new Date(order.created_at);
+    const createdInRange = isDateInRange(created, start, end);
+    const event = getOrderRevenueEvent(order);
+    const revenueInRange = event ? isDateInRange(event.date, start, end) : false;
+
+    return createdInRange || revenueInRange;
   });
 }

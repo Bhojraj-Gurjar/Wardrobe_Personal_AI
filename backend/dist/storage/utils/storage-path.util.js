@@ -66,6 +66,9 @@ _export(exports, {
     get buildTryOnResultStoragePath () {
         return buildTryOnResultStoragePath;
     },
+    get buildUserPngObjectKey () {
+        return buildUserPngObjectKey;
+    },
     get buildUserPngStoragePath () {
         return buildUserPngStoragePath;
     },
@@ -105,6 +108,7 @@ _export(exports, {
 });
 const _path = require("path");
 const _localstorageprovider = require("../providers/local-storage.provider");
+const _cloudinarystorageprovider = require("../providers/cloudinary-storage.provider");
 const _storageconstants = require("../storage.constants");
 const DATA_URL_PATTERN = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/;
 function buildAvatarStoragePath(userId, version, extension = 'png') {
@@ -157,6 +161,9 @@ function buildOrderDocumentStoragePath(orderId, fileId, extension = 'pdf') {
 }
 function buildUserPngStoragePath(userId) {
     return `${_storageconstants.USER_PNG_PUBLIC_PREFIX}/${userId}.png`;
+}
+function buildUserPngObjectKey(userId) {
+    return `user-png/${userId}.png`;
 }
 function buildTryOnPersonProcessedStoragePath(userId) {
     return `${_storageconstants.TRY_ON_PUBLIC_PREFIX}/${userId}/person.png`;
@@ -249,7 +256,7 @@ function createStorageProvider(providerName, config) {
         throw new Error('AWS S3 storage is not enabled. Configure local storage or implement the S3 provider.');
     }
     if (normalized === _storageconstants.STORAGE_PROVIDERS.CLOUDINARY) {
-        throw new Error('Cloudinary storage is not enabled. Configure local storage or implement the Cloudinary provider.');
+        return new _cloudinarystorageprovider.CloudinaryStorageProvider(config.cloudinary);
     }
     throw new Error(`Unsupported storage provider: ${providerName}`);
 }

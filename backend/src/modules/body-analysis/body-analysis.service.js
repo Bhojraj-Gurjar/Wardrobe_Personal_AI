@@ -3,7 +3,6 @@ import {
   Inject,
   Injectable,
   Logger,
-  NotFoundException,
   ServiceUnavailableException,
   forwardRef,
 } from '@nestjs/common';
@@ -211,10 +210,10 @@ class BodyAnalysisService {
 
   async enrichBodyAnalysisResponse(record, context = {}) {
     if (!record) {
-      return this.formatBodyAnalysisResponse(record, context);
+      return await this.formatBodyAnalysisResponse(record, context);
     }
 
-    const formatted = this.formatBodyAnalysisResponse(record, context);
+    const formatted = await this.formatBodyAnalysisResponse(record, context);
 
     if (!formatted.hasAnalysis) {
       return formatted;
@@ -232,39 +231,87 @@ class BodyAnalysisService {
     };
   }
 
-  async resolveCanonicalBodyImagePath(userId, record = null) {
-    const stored = sanitizeBodyPhotoPath(record?.body_image_url);
+  async resolveExistingBodyImagePath(userId, record = null, context = null) {
+    const user = context?.profile
+      ? { profile: context.profile }
+      : await this.bodyAnalysisRepository.findUserBodyImageContext(userId);
+    const preferences = user?.profile?.preferences || {};
+    const candidates = [];
 
-    if (stored) {
-      return stored;
-    }
+    const pushCandidate = (value) => {
+      const sanitized = sanitizeBodyPhotoPath(value);
+
+      if (sanitized && !candidates.includes(sanitized)) {
+        candidates.push(sanitized);
+      }
+    };
+
+    pushCandidate(record?.body_image_url);
 
     const filesystemPath = await this.bodyImageStorageService.findStoredBodyImagePath(userId);
-    const sanitizedFilesystem = sanitizeBodyPhotoPath(filesystemPath);
+    pushCandidate(filesystemPath);
 
-    if (sanitizedFilesystem) {
-      return sanitizedFilesystem;
+    pushCandidate(preferences.bodyPhoto);
+    pushCandidate(preferences.body_photo);
+    pushCandidate(preferences.onboardingBodyPhoto);
+    pushCandidate(preferences.bodyPhotoOriginal);
+
+    for (const candidate of candidates) {
+      if (await this.bodyImageStorageService.bodyImageExists(candidate)) {
+        return candidate;
+      }
     }
+
+    return null;
+  }
+
+  async clearStaleBodyPhotoRefs(userId) {
+    await this.bodyAnalysisRepository.clearBodyImageUrl(userId);
 
     const user = await this.bodyAnalysisRepository.findUserBodyImageContext(userId);
 
-    if (!user) {
-      return null;
+    if (!user?.profile) {
+      return;
     }
 
-    const preferences = user.profile?.preferences || {};
-    const candidates = [
-      preferences.bodyPhoto,
-      preferences.body_photo,
-      preferences.onboardingBodyPhoto,
-    ];
+    const preferences = { ...(user.profile.preferences || {}) };
+    delete preferences.bodyPhoto;
+    delete preferences.body_photo;
+    delete preferences.onboardingBodyPhoto;
+    delete preferences.bodyPhotoOriginal;
+    delete preferences.bodyPhotoProcessed;
+    delete preferences.transparentBodyPhoto;
+    delete preferences.bodyPhotoProcessing;
 
-    for (const candidate of candidates) {
-      const sanitized = sanitizeBodyPhotoPath(candidate);
+    await this.bodyAnalysisRepository.updateProfileBodyImageRefs(userId, {
+      body_image: null,
+      preferences,
+    });
 
-      if (sanitized) {
-        return sanitized;
-      }
+    this.bodyPhotoProcessingService.removeTransparentPng(userId);
+    this.logger.warn(`Cleared stale body photo references for user ${userId}`);
+  }
+
+  async resolveCanonicalBodyImagePath(userId, record = null) {
+    const user = await this.bodyAnalysisRepository.findUserBodyImageContext(userId);
+    const resolved = await this.resolveExistingBodyImagePath(userId, record, {
+      profile: user?.profile,
+    });
+
+    if (resolved) {
+      return resolved;
+    }
+
+    const hadStoredReference = Boolean(
+      sanitizeBodyPhotoPath(record?.body_image_url)
+      || sanitizeBodyPhotoPath(user?.profile?.body_image)
+      || sanitizeBodyPhotoPath(user?.profile?.preferences?.bodyPhoto)
+      || sanitizeBodyPhotoPath(user?.profile?.preferences?.body_photo)
+      || sanitizeBodyPhotoPath(user?.profile?.preferences?.onboardingBodyPhoto),
+    );
+
+    if (hadStoredReference) {
+      await this.clearStaleBodyPhotoRefs(userId);
     }
 
     return null;
@@ -296,7 +343,7 @@ class BodyAnalysisService {
 
 
 
-  formatBodyAnalysisResponse(record, context = {}) {
+  async formatBodyAnalysisResponse(record, context = {}) {
     if (!record) {
       return {
         bodyImageUrl: null,
@@ -305,27 +352,54 @@ class BodyAnalysisService {
         bodyPhotoOriginalUrl: null,
         bodyPhotoTransparentUrl: null,
         bodyPhotoProcessing: null,
+        bodyPhotoMissing: false,
       };
     }
 
     const preferences = context?.profile?.preferences || {};
     const userId = record.user_id;
-    const originalPath = resolveOriginalBodyImagePath(record, preferences);
-    const transparentCandidate = resolveTransparentBodyImagePath(userId, preferences);
-    const transparentPath = transparentCandidate
-      && this.bodyPhotoProcessingService.transparentPngExists(userId)
-      ? transparentCandidate
-      : null;
+    let originalPath = resolveOriginalBodyImagePath(record, preferences);
+    let bodyPhotoMissing = false;
+
+    if (originalPath && !(await this.bodyImageStorageService.bodyImageExists(originalPath))) {
+      bodyPhotoMissing = true;
+      await this.clearStaleBodyPhotoRefs(userId);
+      originalPath = null;
+    }
+
+    let transparentPath = null;
+
+    if (originalPath) {
+      const transparentCandidate = resolveTransparentBodyImagePath(userId, preferences);
+
+      if (
+        transparentCandidate
+        && await this.bodyPhotoProcessingService.transparentPngExists(userId)
+        && await this.bodyImageStorageService.bodyImageExists(transparentCandidate)
+      ) {
+        transparentPath = transparentCandidate;
+      }
+    }
+
     const displayPath = transparentPath || originalPath;
 
     return {
       ...formatBodyAnalysisRecord(record),
       body_image_url: originalPath,
-      bodyImageUrl: this.storagePathResolver.toPublicUrl(displayPath),
-      bodyPhotoUrl: this.storagePathResolver.toPublicUrl(displayPath),
-      bodyPhotoOriginalUrl: this.storagePathResolver.toPublicUrl(originalPath),
-      bodyPhotoTransparentUrl: this.storagePathResolver.toPublicUrl(transparentPath),
-      bodyPhotoProcessing: preferences.bodyPhotoProcessing || null,
+      bodyImageUrl: displayPath
+        ? this.storagePathResolver.toPublicUrl(displayPath)
+        : null,
+      bodyPhotoUrl: displayPath
+        ? this.storagePathResolver.toPublicUrl(displayPath)
+        : null,
+      bodyPhotoOriginalUrl: originalPath
+        ? this.storagePathResolver.toPublicUrl(originalPath)
+        : null,
+      bodyPhotoTransparentUrl: transparentPath
+        ? this.storagePathResolver.toPublicUrl(transparentPath)
+        : null,
+      bodyPhotoProcessing: bodyPhotoMissing ? null : (preferences.bodyPhotoProcessing || null),
+      bodyPhotoMissing,
     };
   }
 
@@ -415,7 +489,9 @@ class BodyAnalysisService {
     const storedImage = await this.bodyImageStorageService.readBodyImage(bodyImagePath);
 
     if (!storedImage?.buffer?.length) {
-      throw new NotFoundException('Stored body photo could not be loaded.');
+      throw new BadRequestException(
+        'Your saved body photo is no longer available. Upload a new photo to run analysis.',
+      );
     }
 
     const user = await this.bodyAnalysisRepository.findUserBodyImageContext(userId);
@@ -532,7 +608,7 @@ class BodyAnalysisService {
 
     if (!Object.keys(dto).length) {
 
-      return this.formatBodyAnalysisResponse(existing);
+      return await this.formatBodyAnalysisResponse(existing);
 
     }
 
@@ -550,7 +626,7 @@ class BodyAnalysisService {
 
     if (!record) {
 
-      return this.formatBodyAnalysisResponse(existing);
+      return await this.formatBodyAnalysisResponse(existing);
 
     }
 
@@ -582,7 +658,7 @@ class BodyAnalysisService {
 
 
 
-    return this.formatBodyAnalysisResponse(record);
+    return await this.formatBodyAnalysisResponse(record);
 
   }
 
@@ -688,7 +764,7 @@ class BodyAnalysisService {
 
 
 
-    return this.formatBodyAnalysisResponse(record);
+    return await this.formatBodyAnalysisResponse(record);
 
   }
 

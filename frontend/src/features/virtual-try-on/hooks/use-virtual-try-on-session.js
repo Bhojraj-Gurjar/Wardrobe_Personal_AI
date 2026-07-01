@@ -2,7 +2,7 @@
 
 import { useCallback } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 import {
   NO_USER_SESSION,
   normalizeSessionForUser,
@@ -10,7 +10,7 @@ import {
 } from '@/stores/virtual-try-on-session-store';
 
 export function useVirtualTryOnSession() {
-  const userId = useAuthStore((state) => state.user?.id);
+  const userId = useUserProfile()?.id;
   const patchSession = useVirtualTryOnSessionStore((state) => state.patchSession);
   const resetSession = useVirtualTryOnSessionStore((state) => state.resetSession);
   const session = useVirtualTryOnSessionStore(

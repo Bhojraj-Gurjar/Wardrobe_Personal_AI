@@ -21,6 +21,14 @@ export class VirtualTryOnErrorBoundary extends Component {
     logVirtualTryOnError('error-boundary', error, {
       componentStack: errorInfo?.componentStack,
     });
+
+    if (process.env.NODE_ENV === 'development') {
+      console.error(
+        '[virtual-try-on:error-boundary] Render crash:',
+        error?.message || error,
+        error?.stack,
+      );
+    }
   }
 
   handleRetry() {

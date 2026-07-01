@@ -55,6 +55,20 @@ function slugifySkuPart(value) {
     .slice(0, 12);
 }
 
+function resolveProductActiveState(visibility, isActiveOverride) {
+  const normalized = String(visibility || 'DRAFT').toUpperCase();
+
+  if (isActiveOverride === false || normalized === 'HIDDEN') {
+    return false;
+  }
+
+  if (normalized === 'DRAFT') {
+    return false;
+  }
+
+  return true;
+}
+
 export @Injectable()
 class AdminProductCmsService {
   constructor(
@@ -261,7 +275,7 @@ class AdminProductCmsService {
       is_new_arrival: Boolean(payload.isNewArrival),
       is_best_seller: Boolean(payload.isBestSeller),
       is_limited_edition: Boolean(payload.isLimitedEdition),
-      is_active: payload.isActive !== false && payload.visibility !== 'HIDDEN',
+      is_active: resolveProductActiveState(payload.visibility || 'DRAFT', payload.isActive),
       avatar_category: resolveAvatarCategoryFromProductType(productType),
       image_url: payload.images?.[0]?.url || payload.imageUrl || null,
     };
@@ -354,11 +368,12 @@ class AdminProductCmsService {
       ...(payload.dimensions !== undefined ? { dimensions: payload.dimensions } : {}),
       ...(payload.tags !== undefined ? { tags: payload.tags } : {}),
       ...(payload.searchKeywords !== undefined ? { search_keywords: payload.searchKeywords } : {}),
-      ...(payload.aiAttributes !== undefined || payload.isFeatured !== undefined
+      ...(payload.aiAttributes !== undefined || payload.isFeatured !== undefined || payload.draftWizardStep != null
         ? {
           cms_metadata: this.buildCmsMetadata({
             ...existing,
             ...payload,
+            cms_metadata: existing.cms_metadata,
             aiAttributes: payload.aiAttributes ?? existing.cms_metadata?.aiAttributes,
           }),
         }
@@ -370,7 +385,7 @@ class AdminProductCmsService {
       ...(payload.isLimitedEdition !== undefined ? { is_limited_edition: Boolean(payload.isLimitedEdition) } : {}),
       ...(payload.isActive !== undefined ? { is_active: Boolean(payload.isActive) } : {}),
       ...(payload.visibility !== undefined
-        ? { is_active: payload.visibility !== 'HIDDEN' && payload.isActive !== false }
+        ? { is_active: resolveProductActiveState(payload.visibility, payload.isActive) }
         : {}),
     };
 
@@ -568,8 +583,15 @@ class AdminProductCmsService {
 
   buildCmsMetadata(payload) {
     const ai = payload.aiAttributes || payload.cms_metadata?.aiAttributes || {};
+    const existingMeta = payload.cms_metadata && typeof payload.cms_metadata === 'object'
+      ? payload.cms_metadata
+      : {};
 
     return {
+      adminDeleted: existingMeta.adminDeleted ?? false,
+      draftWizardStep: payload.draftWizardStep != null
+        ? Math.max(0, Math.min(Number(payload.draftWizardStep) || 0, 5))
+        : (existingMeta.draftWizardStep ?? null),
       aiAttributes: {
         style: ai.style || null,
         bodyFit: ai.bodyFit || null,
@@ -624,6 +646,7 @@ class AdminProductCmsService {
       isLimitedEdition: product.is_limited_edition,
       createdAt: product.created_at,
       updatedAt: product.updated_at,
+      draftWizardStep: product.cms_metadata?.draftWizardStep ?? null,
     };
   }
 

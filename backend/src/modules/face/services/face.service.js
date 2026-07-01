@@ -192,6 +192,28 @@ class FaceService {
       };
     }
 
+    if (registration.face_image_url) {
+      const exists = await this.faceImageStorageService.faceImageExists(
+        registration.face_image_url,
+      );
+
+      if (!exists) {
+        this.logger.warn(
+          `Stale face image reference for user ${userId}: ${registration.face_image_url}`,
+        );
+        await this.faceRepository.clearFaceImageUrl(userId);
+
+        return {
+          is_face_registered: true,
+          face_image_url: null,
+          faceImageUrl: null,
+          facePhotoMissing: true,
+          registered_at: registration.registered_at,
+          updated_at: registration.updated_at,
+        };
+      }
+    }
+
     return {
       is_face_registered: true,
       face_image_url: registration.face_image_url,

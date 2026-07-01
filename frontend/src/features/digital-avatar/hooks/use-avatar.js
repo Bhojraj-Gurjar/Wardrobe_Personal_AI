@@ -10,12 +10,12 @@ import {
   saveAvatarOutfit,
   updateAvatar,
 } from '@/features/digital-avatar/services/avatar.service';
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 
 export const AVATAR_QUERY_KEY = ['avatar'];
 
 export function useAvatarQuery() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useQuery({
     queryKey: AVATAR_QUERY_KEY,
@@ -27,7 +27,7 @@ export function useAvatarQuery() {
 }
 
 export function useGenerateAvatarMutation() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -39,7 +39,7 @@ export function useGenerateAvatarMutation() {
 }
 
 export function useUpdateAvatarMutation() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -51,7 +51,7 @@ export function useUpdateAvatarMutation() {
 }
 
 export function useSaveAvatarOutfitMutation() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -65,7 +65,7 @@ export function useSaveAvatarOutfitMutation() {
 }
 
 export function useSaveAvatarLookToClosetMutation() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -77,7 +77,7 @@ export function useSaveAvatarLookToClosetMutation() {
 }
 
 export function useAvatarGenerationProfileQuery() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useQuery({
     queryKey: [...AVATAR_QUERY_KEY, 'generation-profile'],

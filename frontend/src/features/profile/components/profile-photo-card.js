@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Loader2, UserRound } from 'lucide-react';
 import { FacePhotoCaptureDialog } from '@/features/face/components/face-photo-capture-dialog';
 import { useUpdateFacePhotoMutation } from '@/features/face/hooks/use-update-face-photo';
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -23,7 +23,7 @@ function withCacheBust(url, version) {
 }
 
 export function ProfilePhotoCard({ profile, isLoading }) {
-  const authUser = useAuthStore((state) => state.user);
+  const authUser = useUserProfile();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const updatePhotoMutation = useUpdateFacePhotoMutation();
