@@ -1,20 +1,78 @@
-# Wardrobe AI — Python FastAPI AI Service
+---
+title: Wardrobe AI Service
+emoji: 👗
+colorFrom: purple
+colorTo: indigo
+sdk: docker
+app_port: 7860
+pinned: false
+license: mit
+---
 
-Isolated AI microservice for Wardrobe AI. NestJS remains the main API gateway.
+# Wardrobe AI — AI Service (FastAPI)
 
-## Architecture
+Face auth, fashion DNA, recommendations, and virtual try-on for [Wardrobe AI](https://github.com/Bhojraj-Gurjar/Wardrobe_Personal_AI).
 
 ```
-Frontend (Next.js) → NestJS (port 3000) → AI Service (port 8000) → Redis + Qdrant
+Frontend (Render) → Backend (Render) → This Space → Qdrant Cloud + Upstash Redis
 ```
 
-## Requirements
+## Hugging Face Space setup (free)
 
-- Python 3.11+
-- Redis (cache)
-- Qdrant (vector storage)
+### 1. Create the Space
 
-## Setup
+1. Go to [huggingface.co/new-space](https://huggingface.co/new-space)
+2. **Space name:** `wardrobe-ai-service` (or any name)
+3. **SDK:** **Docker**
+4. **Hardware:** **CPU basic** (free — 2 vCPU, 16 GB RAM)
+5. **Visibility:** Public (required for free hardware)
+
+### 2. Connect this repo (monorepo)
+
+1. Space → **Settings** → **Repository**
+2. **Connect repository:** `Bhojraj-Gurjar/Wardrobe_Personal_AI`
+3. **Branch:** `feature/admin` (or your deploy branch)
+4. **Root directory:** `ai-service` ← important
+5. Save → Space rebuilds automatically
+
+### 3. Add secrets (Space → Settings → Variables)
+
+| Variable | Value |
+|----------|--------|
+| `QDRANT_URL` | Your Qdrant Cloud cluster URL |
+| `QDRANT_API_KEY` | Your Qdrant API key |
+| `REDIS_URL` | Upstash TLS URL (`rediss://...`) |
+| `HF_TOKEN` | Your Hugging Face token (for virtual try-on) |
+| `ENVIRONMENT` | `production` |
+| `FACE_ANTI_SPOOF_ENABLED` | `false` |
+| `TRYON_FALLBACK_ON_QUOTA_EXCEEDED` | `true` |
+
+### 4. Connect backend on Render
+
+When the Space is **Running**, copy its URL (e.g. `https://bhojraj-gurjar-wardrobe-ai-service.hf.space`).
+
+On **Render backend** → **Environment**:
+
+| Variable | Value |
+|----------|--------|
+| `AI_SERVICE_URL` | `https://YOUR-SPACE.hf.space` |
+| `AI_SERVICE_PUBLIC_URL` | Your frontend URL |
+
+Save → backend redeploys.
+
+### 5. Test
+
+```bash
+curl https://YOUR-SPACE.hf.space/health
+```
+
+Expected: JSON with `"status": "ok"`.
+
+Then try face registration on your deployed site.
+
+---
+
+## Local development
 
 ```bash
 cd ai-service
@@ -25,32 +83,21 @@ copy .env.example .env
 python main.py
 ```
 
-Service runs at **http://localhost:8000**
+Runs at **http://localhost:8000**
 
-## Endpoints
+## API endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/health` | Health check |
-| POST | `/face/embed` | Generate face embedding from image |
-| POST | `/face/verify` | Verify face against stored embedding |
-| POST | `/fashion-dna/analyze` | Fashion DNA vector from profile |
-| POST | `/recommendations/generate` | Recommendation categories + vector |
-| POST | `/products/embed` | Product text embedding |
-
-## NestJS Integration
-
-Set in `backend/.env`:
-
-```
-AI_SERVICE_URL=http://localhost:8000
-FACE_VECTOR_SIZE=128
-```
-
-NestJS `AiService` proxies inference requests. Face auth sends `{ image }` from the frontend.
+| POST | `/face/register` | Register face + embedding |
+| POST | `/face/login` | Face login |
+| POST | `/face/embed` | Generate face embedding |
+| POST | `/fashion-dna/analyze` | Fashion DNA vector |
+| POST | `/tryon/generate` | Virtual try-on |
 
 ## Notes
 
-- `face-recognition` requires dlib; OpenCV fallback is used if no face is detected.
-- `sentence-transformers` downloads `all-MiniLM-L6-v2` on first request.
-- Existing users with 512-dim face vectors must re-register after switching to 128-dim AI embeddings.
+- **First request after sleep** can take 1–2 minutes (Space waking + model load).
+- **Redis** is optional for cache — app works without it but cache is disabled.
+- **Try-on** requires `HF_TOKEN` with access to the CatVTON Space.

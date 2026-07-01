@@ -36,11 +36,8 @@ import {
 } from '@/features/face/constants/face-login-messages';
 
 import {
-
   FACE_LOGIN_CLIENT_LOCK_MS,
-
   FACE_LOGIN_MAX_CLIENT_FAILURES,
-
 } from '@/features/face/constants/face-liveness-challenges';
 
 import {
@@ -54,11 +51,7 @@ import {
 import type { FaceLoginStatusStep } from '@/features/face/types/face-login.types';
 
 import {
-
-  FaceLoginDetector,
-
   mapCameraStartError,
-
 } from '@/features/face/utils/face-login-detector';
 
 import { mapFaceLoginApiError } from '@/features/face/utils/map-face-login-api-error';
@@ -234,7 +227,7 @@ export function useFaceLoginFlow() {
 
 
 
-  const detectorRef = useRef<FaceLoginDetector | null>(null);
+  const detectorRef = useRef(null);
 
   const abortRef = useRef<AbortController | null>(null);
 
@@ -272,7 +265,7 @@ export function useFaceLoginFlow() {
     camera,
     detectorRef,
     positionTimeoutMs: FACE_LOGIN_POSITION_TIMEOUT_MS,
-    analyzeTimeoutMs: 400,
+    analyzeTimeoutMs: 250,
     positionStableMs: FACE_LOGIN_CAPTURE_SETTINGS.positionStableMs,
     stableFrameCount: FACE_LOGIN_CAPTURE_SETTINGS.stableFrameCount,
     maxFrames: FACE_LOGIN_CAPTURE_SETTINGS.maxFrames,
@@ -281,6 +274,7 @@ export function useFaceLoginFlow() {
     detectionIntervalMs: FACE_LOGIN_CAPTURE_SETTINGS.detectionIntervalMs,
     captureWarmupMs: FACE_LOGIN_CAPTURE_SETTINGS.captureWarmupMs,
     burstCapture: true,
+    skipPositioning: true,
     skipSharpnessSort: true,
     isCancelled: () => isFlowCancelled(activeGenerationRef.current),
   });
@@ -401,15 +395,10 @@ export function useFaceLoginFlow() {
   }, [abortRequest, fail, isFlowCancelled]);
 
   const ensureWarmResources = useCallback(async (generation: number) => {
-    if (!detectorRef.current) {
-      detectorRef.current = new FaceLoginDetector();
-    }
-
     if (!warmupPromiseRef.current) {
-      warmupPromiseRef.current = Promise.all([
-        detectorRef.current.init(),
-        camera.isReady ? Promise.resolve({ ok: true }) : camera.start(),
-      ]).then(() => undefined);
+      warmupPromiseRef.current = (
+        camera.isReady ? Promise.resolve({ ok: true }) : camera.start()
+      ).then(() => undefined);
     }
 
     await warmupPromiseRef.current;
@@ -738,11 +727,6 @@ export function useFaceLoginFlow() {
 
       FaceLoginPerf.mark('camera_ready');
 
-      const video = camera.videoRef.current;
-      if (video && detectorRef.current) {
-        void detectorRef.current.warmUp(video, 2_000);
-      }
-
       setState(FaceLoginState.CAMERA_READY);
       logFaceStep(1, 'camera ready');
       FaceFlowLog.cameraReady();
@@ -789,15 +773,10 @@ export function useFaceLoginFlow() {
     FaceLoginPerf.mark('flow_start');
     logFaceStep(0, 'flow started');
 
-    if (!detectorRef.current) {
-      detectorRef.current = new FaceLoginDetector();
-    }
-
     if (!warmupPromiseRef.current) {
-      warmupPromiseRef.current = Promise.all([
-        detectorRef.current.init(),
-        camera.isReady ? Promise.resolve({ ok: true }) : camera.start(),
-      ]).then(() => undefined);
+      warmupPromiseRef.current = (
+        camera.isReady ? Promise.resolve({ ok: true }) : camera.start()
+      ).then(() => undefined);
     }
 
     await bootCamera(generation);
@@ -842,10 +821,6 @@ export function useFaceLoginFlow() {
       abortRequest();
 
       warmupPromiseRef.current = null;
-
-      detectorRef.current?.destroy();
-
-      detectorRef.current = null;
 
       camera.stop();
 

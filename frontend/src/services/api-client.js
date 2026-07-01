@@ -84,7 +84,11 @@ export async function apiClient(path, options = {}) {
 
   const { signal: mergedSignal, cleanup } = mergeAbortSignals(timeoutMs, signal);
 
-  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+  const isFormData = Boolean(
+    body
+    && typeof FormData === 'function'
+    && body instanceof FormData,
+  );
 
   try {
     let response;

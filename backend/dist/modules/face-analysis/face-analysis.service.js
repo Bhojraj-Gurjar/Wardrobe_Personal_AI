@@ -80,7 +80,7 @@ let FaceAnalysisService = class FaceAnalysisService {
             is_face_registered: facePhoto.is_face_registered
         };
     }
-    async analyzeFace(userId, imageDto) {
+    async analyzeFace(userId, imageDto, options = {}) {
         if (!imageDto?.imageBuffer?.length) {
             throw new _common.BadRequestException('Provide a frontFace image upload.');
         }
@@ -88,7 +88,7 @@ let FaceAnalysisService = class FaceAnalysisService {
             throw new _common.ServiceUnavailableException('AI service unavailable.');
         }
         await resolveFaceService(this.moduleRef).replaceFacePhoto(userId, imageDto);
-        return this.persistFaceTraitAnalysis(userId, imageDto);
+        return this.persistFaceTraitAnalysis(userId, imageDto, options);
     }
     async analyzeStoredFace(userId) {
         const facePhoto = await resolveFaceService(this.moduleRef).getFacePhoto(userId);
@@ -105,9 +105,11 @@ let FaceAnalysisService = class FaceAnalysisService {
         return this.persistFaceTraitAnalysis(userId, {
             imageBuffer: storedImage.buffer,
             imageMimeType: storedImage.mimeType
+        }, {
+            captureSource: 'stored'
         });
     }
-    async persistFaceTraitAnalysis(userId, imageDto) {
+    async persistFaceTraitAnalysis(userId, imageDto, options = {}) {
         let aiResponse;
         try {
             aiResponse = await this.aiService.analyzeFaceTraits(imageDto.imageBuffer, imageDto.imageMimeType);
@@ -115,7 +117,12 @@ let FaceAnalysisService = class FaceAnalysisService {
             this.logger.error(`Face trait analysis failed for user ${userId}: ${error.message}`);
             throw error;
         }
-        const record = await this.faceAnalysisRepository.saveAnalysisFromAi(userId, aiResponse);
+        const enrichedResponse = {
+            ...aiResponse && typeof aiResponse === 'object' ? aiResponse : {},
+            captureSource: options.captureSource || imageDto.captureSource || 'camera',
+            analyzedAt: new Date().toISOString()
+        };
+        const record = await this.faceAnalysisRepository.saveAnalysisFromAi(userId, enrichedResponse);
         await this.faceAnalysisVectorService.syncUserVector(userId, record);
         this.fashionDnaRegenerationService.trigger(userId, _fashiondnaregenerationconstants.REFRESH_SOURCES.FACE_ANALYSIS);
         setImmediate(()=>{

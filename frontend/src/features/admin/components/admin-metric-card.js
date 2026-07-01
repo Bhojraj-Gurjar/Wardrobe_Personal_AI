@@ -31,7 +31,7 @@ function normalizeTrend(trend) {
   };
 }
 
-function AnimatedValue({ value, formatValue }) {
+export function AnimatedValue({ value, formatValue }) {
   const target = typeof value === 'number' ? value : Number(String(value).replace(/[^\d.-]/g, '')) || 0;
   const [display, setDisplay] = useState(0);
 

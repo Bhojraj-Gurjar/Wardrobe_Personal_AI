@@ -1,5 +1,6 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { USER_ROLE } from '../../common/constants/user-role';
 
 export @Injectable()
 class NotificationsRepository {
@@ -163,8 +164,12 @@ class NotificationsRepository {
 
   findAdminUsers() {
     return this.prisma.user.findMany({
-      where: { role: 'ADMIN', status: 'ACTIVE' },
-      select: { id: true, email: true, name: true },
+      where: { role: USER_ROLE.ADMIN, status: 'ACTIVE' },
+      select: {
+        id: true,
+        email: true,
+        profile: { select: { name: true } },
+      },
     });
   }
 }

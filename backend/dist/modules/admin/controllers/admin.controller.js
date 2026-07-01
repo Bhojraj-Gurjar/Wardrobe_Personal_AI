@@ -18,6 +18,7 @@ const _currentuserdecorator = require("../../../common/decorators/current-user.d
 const _dtovalidationpipe = require("../../../common/pipes/dto-validation.pipe");
 const _adminservice = require("../services/admin.service");
 const _adminlogindto = require("../dto/admin-login.dto");
+const _inviteuserdto = require("../dto/invite-user.dto");
 const _faceuploadutil = require("../../face/utils/face-upload.util");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -34,6 +35,7 @@ function _ts_param(paramIndex, decorator) {
     };
 }
 const loginPipe = (0, _dtovalidationpipe.DtoValidationPipe)(_adminlogindto.AdminLoginDto);
+const inviteUserPipe = (0, _dtovalidationpipe.DtoValidationPipe)(_inviteuserdto.InviteUserDto);
 const faceUploadInterceptor = (0, _platformexpress.FileInterceptor)(_faceuploadutil.FACE_UPLOAD_FIELD, {
     storage: (0, _multer.memoryStorage)(),
     limits: {
@@ -68,11 +70,32 @@ let AdminController = class AdminController {
     getDashboard() {
         return this.adminService.getDashboard();
     }
-    getAnalytics() {
-        return this.adminService.getAnalytics();
+    getAnalyticsCustomers(query) {
+        return this.adminService.getAnalyticsCustomers(query);
+    }
+    getAnalyticsProducts(query) {
+        return this.adminService.getAnalyticsProducts(query);
+    }
+    getAnalyticsUserGrowth(query) {
+        return this.adminService.getAnalyticsUserGrowth(query);
+    }
+    getAnalyticsDevices(query) {
+        return this.adminService.getAnalyticsDevices(query);
+    }
+    getAnalyticsOrders(query) {
+        return this.adminService.getAnalyticsOrders(query);
+    }
+    getAnalyticsCategories(query) {
+        return this.adminService.getAnalyticsCategories(query);
+    }
+    getAnalytics(query) {
+        return this.adminService.getAnalytics(query);
     }
     getUsers(query) {
         return this.adminService.getUsers(query);
+    }
+    inviteUser(payload) {
+        return this.adminService.inviteUser(payload);
     }
     getUser(id) {
         return this.adminService.getUser(id);
@@ -222,11 +245,98 @@ _ts_decorate([
     _ts_metadata("design:returntype", void 0)
 ], AdminController.prototype, "getDashboard", null);
 _ts_decorate([
+    (0, _common.Get)('analytics/customers'),
+    (0, _common.UseGuards)(...adminGuards),
+    (0, _swagger.ApiBearerAuth)(),
+    (0, _swagger.ApiOperation)({
+        summary: 'Paginated customer analytics for admin'
+    }),
+    _ts_param(0, (0, _common.Query)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        void 0
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], AdminController.prototype, "getAnalyticsCustomers", null);
+_ts_decorate([
+    (0, _common.Get)('analytics/products'),
+    (0, _common.UseGuards)(...adminGuards),
+    (0, _swagger.ApiBearerAuth)(),
+    (0, _swagger.ApiOperation)({
+        summary: 'Paginated product analytics for admin'
+    }),
+    _ts_param(0, (0, _common.Query)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        void 0
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], AdminController.prototype, "getAnalyticsProducts", null);
+_ts_decorate([
+    (0, _common.Get)('analytics/user-growth'),
+    (0, _common.UseGuards)(...adminGuards),
+    (0, _swagger.ApiBearerAuth)(),
+    (0, _swagger.ApiOperation)({
+        summary: 'Detailed user growth analytics'
+    }),
+    _ts_param(0, (0, _common.Query)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        void 0
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], AdminController.prototype, "getAnalyticsUserGrowth", null);
+_ts_decorate([
+    (0, _common.Get)('analytics/devices'),
+    (0, _common.UseGuards)(...adminGuards),
+    (0, _swagger.ApiBearerAuth)(),
+    (0, _swagger.ApiOperation)({
+        summary: 'Detailed device analytics'
+    }),
+    _ts_param(0, (0, _common.Query)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        void 0
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], AdminController.prototype, "getAnalyticsDevices", null);
+_ts_decorate([
+    (0, _common.Get)('analytics/orders'),
+    (0, _common.UseGuards)(...adminGuards),
+    (0, _swagger.ApiBearerAuth)(),
+    (0, _swagger.ApiOperation)({
+        summary: 'Detailed order analytics'
+    }),
+    _ts_param(0, (0, _common.Query)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        void 0
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], AdminController.prototype, "getAnalyticsOrders", null);
+_ts_decorate([
+    (0, _common.Get)('analytics/categories'),
+    (0, _common.UseGuards)(...adminGuards),
+    (0, _swagger.ApiBearerAuth)(),
+    (0, _swagger.ApiOperation)({
+        summary: 'Detailed category analytics'
+    }),
+    _ts_param(0, (0, _common.Query)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        void 0
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], AdminController.prototype, "getAnalyticsCategories", null);
+_ts_decorate([
     (0, _common.Get)('analytics'),
     (0, _common.UseGuards)(...adminGuards),
     (0, _swagger.ApiBearerAuth)(),
+    _ts_param(0, (0, _common.Query)()),
     _ts_metadata("design:type", Function),
-    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:paramtypes", [
+        void 0
+    ]),
     _ts_metadata("design:returntype", void 0)
 ], AdminController.prototype, "getAnalytics", null);
 _ts_decorate([
@@ -240,6 +350,21 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", void 0)
 ], AdminController.prototype, "getUsers", null);
+_ts_decorate([
+    (0, _common.Post)('users'),
+    (0, _common.HttpCode)(201),
+    (0, _common.UseGuards)(...adminGuards),
+    (0, _swagger.ApiBearerAuth)(),
+    (0, _swagger.ApiOperation)({
+        summary: 'Invite a new customer user'
+    }),
+    _ts_param(0, (0, _common.Body)(inviteUserPipe)),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        void 0
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], AdminController.prototype, "inviteUser", null);
 _ts_decorate([
     (0, _common.Get)('users/:id'),
     (0, _common.UseGuards)(...adminGuards),

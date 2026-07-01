@@ -10,6 +10,7 @@ Object.defineProperty(exports, "AiService", {
 });
 const _common = require("@nestjs/common");
 const _config = require("@nestjs/config");
+const _httpexceptionutil = require("../../../common/utils/http-exception.util");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -33,7 +34,20 @@ let AiService = class AiService {
         this.logger = new _common.Logger(AiService.name);
     }
     isConfigured() {
-        return Boolean(this.baseUrl);
+        if (!this.baseUrl) {
+            return false;
+        }
+        if (process.env.NODE_ENV === 'production') {
+            try {
+                const hostname = new URL(this.baseUrl).hostname;
+                if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                    return false;
+                }
+            } catch  {
+                return false;
+            }
+        }
+        return true;
     }
     getConfigSummary() {
         return {
@@ -201,7 +215,7 @@ let AiService = class AiService {
             }
             return data;
         } catch (error) {
-            if (error instanceof _common.ServiceUnavailableException || error instanceof _common.BadRequestException || error instanceof _common.UnauthorizedException || error instanceof _common.ConflictException || error instanceof _common.TooManyRequestsException) {
+            if ((0, _httpexceptionutil.isRethrowableAiError)(error)) {
                 throw error;
             }
             const message = this.mapConnectionError(error, path);

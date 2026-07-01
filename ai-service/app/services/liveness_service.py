@@ -113,8 +113,8 @@ class LivenessService:
             raise FaceValidationError("Face verification failed.", "spoof")
 
     def validate_blink_sequence(self, ear_values: list[float]) -> bool:
-        """Optional helper for future multi-frame blink liveness."""
-        if len(ear_values) < 3:
+        """True when at least one blink (eyes closed) and eyes open at end."""
+        if len(ear_values) < 2:
             return False
         closed = any(value < self._settings.face_blink_ear_threshold for value in ear_values)
         reopened = ear_values[-1] > self._settings.face_blink_ear_threshold

@@ -31,7 +31,12 @@ function _ts_param(paramIndex, decorator) {
         decorator(target, key, paramIndex);
     };
 }
-const faceUploadInterceptor = (0, _platformexpress.FileInterceptor)(_faceuploadutil.FACE_UPLOAD_FIELD, {
+const faceUploadInterceptor = (0, _platformexpress.FileFieldsInterceptor)([
+    {
+        name: _faceuploadutil.FACE_UPLOAD_FIELD,
+        maxCount: 1
+    }
+], {
     storage: (0, _multer.memoryStorage)(),
     limits: {
         fileSize: _faceuploadutil.FACE_UPLOAD_MAX_BYTES
@@ -44,9 +49,12 @@ let FaceAnalysisController = class FaceAnalysisController {
     getMyFaceAnalysis(user) {
         return this.faceAnalysisService.getMyFaceAnalysis(user.userId);
     }
-    async analyzeFace(user, file, body) {
-        const dto = await (0, _faceuploadutil.toFaceAuthDto)(file, body);
-        return this.faceAnalysisService.analyzeFace(user.userId, dto);
+    async analyzeFace(user, files, body) {
+        const dto = await (0, _faceuploadutil.toFaceAnalysisDto)(files, body);
+        const captureSource = body.captureSource || body.capture_source || 'upload';
+        return this.faceAnalysisService.analyzeFace(user.userId, dto, {
+            captureSource
+        });
     }
     analyzeStoredFace(user) {
         return this.faceAnalysisService.analyzeStoredFace(user.userId);
@@ -100,7 +108,7 @@ _ts_decorate([
     }),
     (0, _common.UseInterceptors)(faceUploadInterceptor),
     _ts_param(0, (0, _currentuserdecorator.CurrentUser)()),
-    _ts_param(1, (0, _common.UploadedFile)()),
+    _ts_param(1, (0, _common.UploadedFiles)()),
     _ts_param(2, (0, _common.Body)()),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [

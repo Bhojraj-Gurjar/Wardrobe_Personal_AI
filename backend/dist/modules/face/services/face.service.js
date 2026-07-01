@@ -26,6 +26,7 @@ const _notificationsservice = require("../../notifications/notifications.service
 const _notificationsconstants = require("../../notifications/notifications.constants");
 const _userstatus = require("../../../common/constants/user-status");
 const _parseduration = require("../../../common/utils/parse-duration");
+const _httpexceptionutil = require("../../../common/utils/http-exception.util");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -166,15 +167,18 @@ let FaceService = class FaceService {
         try {
             result = await this.aiService.loginFace(dto);
         } catch (error) {
-            if (error instanceof _common.UnauthorizedException || error instanceof _common.BadRequestException) {
-                try {
-                    await this.faceRateLimitService.recordFailure('login', rateLimitKey, {
-                        reason: error.message,
-                        challengeType: dto.challengeType
-                    });
-                } catch (lockError) {
-                    if (lockError instanceof _common.TooManyRequestsException) {
-                        throw lockError;
+            if ((0, _httpexceptionutil.isNestHttpException)(error)) {
+                const status = (0, _httpexceptionutil.getNestHttpStatus)(error);
+                if (status === 401 || status === 400) {
+                    try {
+                        await this.faceRateLimitService.recordFailure('login', rateLimitKey, {
+                            reason: error.message,
+                            challengeType: dto.challengeType
+                        });
+                    } catch (lockError) {
+                        if ((0, _httpexceptionutil.isNestHttpException)(lockError) && (0, _httpexceptionutil.getNestHttpStatus)(lockError) === 429) {
+                            throw lockError;
+                        }
                     }
                 }
             }
@@ -245,7 +249,7 @@ let FaceService = class FaceService {
         };
     }
     rethrowAiError(error) {
-        if (error instanceof _common.BadRequestException || error instanceof _common.UnauthorizedException || error instanceof _common.ConflictException || error instanceof _common.ServiceUnavailableException || error instanceof _common.TooManyRequestsException) {
+        if ((0, _httpexceptionutil.isRethrowableAiError)(error)) {
             throw error;
         }
         throw new _common.ServiceUnavailableException('AI service unavailable.');

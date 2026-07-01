@@ -21,6 +21,9 @@ _export(exports, {
     get FACE_UPLOAD_MAX_BYTES () {
         return FACE_UPLOAD_MAX_BYTES;
     },
+    get toFaceAnalysisDto () {
+        return toFaceAnalysisDto;
+    },
     get toFaceAuthDto () {
         return toFaceAuthDto;
     },
@@ -35,7 +38,7 @@ const _faceembeddingdto = require("../dto/face-embedding.dto");
 const FACE_UPLOAD_FIELD = 'frontFace';
 const FACE_LIVENESS_FRAMES_FIELD = 'livenessFrames';
 const FACE_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
-const FACE_MIN_LIVENESS_FRAMES = 3;
+const FACE_MIN_LIVENESS_FRAMES = 2;
 function readUploadedFile(file) {
     if (!file?.buffer?.length) {
         return null;
@@ -110,6 +113,12 @@ async function toFaceAuthDto(files = {}, body = {}, options = {}) {
         throw new _common.BadRequestException('Live camera capture required. Image uploads are not allowed.');
     }
     return dto;
+}
+async function toFaceAnalysisDto(files = {}, body = {}) {
+    return toFaceAuthDto(files, body, {
+        requireLiveness: false,
+        allowLegacyJson: true
+    });
 }
 const toFaceEmbeddingDto = toFaceAuthDto;
 

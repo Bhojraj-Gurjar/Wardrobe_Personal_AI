@@ -16,7 +16,8 @@ import {
 } from 'lucide-react';
 import { LoadingState } from '@/components/shared/loading-state';
 import { ErrorState } from '@/components/shared/error-state';
-import { AdminMetricCard, AdminPageHeader } from '@/features/admin/components/admin-metric-card';
+import { AdminPageHeader } from '@/features/admin/components/admin-metric-card';
+import { AdminOmsSummaryCards } from '@/features/admin/components/admin-oms-summary-cards';
 import { useAdminOrdersQuery, useAdminToken } from '@/features/admin/hooks';
 import { useAdminOrderEvents } from '@/features/admin/hooks/use-admin-order-events';
 import {
@@ -25,7 +26,7 @@ import {
   exportAdminOrdersCsv,
   fetchAdminOmsSummary,
 } from '@/features/admin/services/admin.service';
-import { OMS_STAGE_CARDS, OMS_TABS } from '@/features/checkout/constants/checkout.constants';
+import { OMS_TABS } from '@/features/checkout/constants/checkout.constants';
 import { StatusBadge } from '@/features/orders/components/order-timeline';
 import { formatOrderDate } from '@/features/orders/utils/order-status';
 import { formatProductPrice } from '@/features/products/utils/product-catalog.utils';
@@ -34,7 +35,6 @@ import { Input } from '@/components/ui/input';
 import { SelectField as Select } from '@/components/ui/select';
 import { formCheckboxClass } from '@/components/ui/form-control-styles';
 import { showToast } from '@/stores/toast-store';
-import { formatCurrency } from '@/utils/currency';
 import { cn } from '@/utils/cn';
 
 const STATUS_TO_TAB = {
@@ -521,16 +521,11 @@ export function AdminOmsBoard() {
   }, []);
 
   const handleStageCardClick = useCallback((cardId) => {
-    if (cardId === 'TODAY_REVENUE') {
-      return;
-    }
     if (OMS_TABS.some((item) => item.id === cardId)) {
       setActiveTab(cardId);
       setPage(1);
     }
   }, []);
-
-  const stageValue = useMemo(() => (card) => metrics[card.metricKey] ?? 0, [metrics]);
 
   if (ordersQuery.isLoading && !orders.length) {
     return <LoadingState title="Loading order management…" />;
@@ -565,25 +560,11 @@ export function AdminOmsBoard() {
         )}
       />
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
-        {OMS_STAGE_CARDS.map((card) => {
-          const isMetricOnly = card.id === 'TODAY_REVENUE';
-          const value = stageValue(card);
-
-          return (
-            <AdminMetricCard
-              key={card.id}
-              title={card.title}
-              emoji={card.emoji}
-              value={value}
-              formatValue={card.format === 'currency' ? (amount) => formatCurrency(amount) : undefined}
-              highlight={card.id === 'TODAY_REVENUE'}
-              active={!isMetricOnly && activeTab === card.id}
-              onClick={isMetricOnly ? undefined : () => handleStageCardClick(card.id)}
-            />
-          );
-        })}
-      </div>
+      <AdminOmsSummaryCards
+        metrics={metrics}
+        activeTab={activeTab}
+        onCardSelect={handleStageCardClick}
+      />
 
       <div className="flex flex-wrap gap-2">
         {OMS_TABS.map((item) => (

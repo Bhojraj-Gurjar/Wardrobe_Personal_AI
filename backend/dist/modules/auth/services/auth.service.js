@@ -166,7 +166,7 @@ let AuthService = class AuthService {
         const isCurrentPasswordValid = await _bcryptjs.compare(dto.currentPassword, user.password_hash);
         if (!isCurrentPasswordValid) {
             await this.recordPasswordChangeFailure(userId);
-            throw new _common.UnauthorizedException('Current password is incorrect');
+            throw new _common.BadRequestException('Current password is incorrect');
         }
         await this.recordPasswordChangeSuccess(userId);
         const passwordHash = await _bcryptjs.hash(dto.newPassword, BCRYPT_ROUNDS);

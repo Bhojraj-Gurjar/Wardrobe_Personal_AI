@@ -75,7 +75,7 @@ export function DashboardHeader({ className }) {
   return (
     <header
       className={cn(
-        'safe-area-top sticky top-0 z-30 border-b border-dashboard-border bg-dashboard-bg/95 backdrop-blur',
+        'border-b border-dashboard-border bg-dashboard-bg/95 backdrop-blur supports-[backdrop-filter]:bg-dashboard-bg/80',
         className,
       )}
     >

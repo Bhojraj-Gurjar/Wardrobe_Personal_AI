@@ -103,6 +103,10 @@ export function getFaceErrorMessage(err, fallback = 'Something went wrong', cont
 
 
 
+  if (lower.includes('instanceof') && lower.includes('not an object')) {
+    return 'Face service is temporarily unavailable.';
+  }
+
   if (err?.status === 503 || lower.includes('ai service unavailable') || lower.includes('face service unavailable')) {
 
     return 'Face service is temporarily unavailable.';

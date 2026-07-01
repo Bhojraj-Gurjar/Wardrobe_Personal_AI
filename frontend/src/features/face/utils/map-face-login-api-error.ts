@@ -48,10 +48,16 @@ export function mapFaceLoginApiError(err: unknown): FaceLoginError {
 
 
 
-  if (status >= 500 || includesAny(message, ['unavailable', 'service'])) {
-
+  if (status >= 500) {
     return FaceLoginError.BACKEND_ERROR;
+  }
 
+  if (includesAny(message, ['blink once', 'hold still', "couldn't verify your face", 'liveness', 'verify your face clearly'])) {
+    return FaceLoginError.LIVENESS_FAILED;
+  }
+
+  if (includesAny(message, ['ai service unavailable', 'service unavailable', 'temporarily unavailable'])) {
+    return FaceLoginError.BACKEND_ERROR;
   }
 
 
@@ -100,12 +106,6 @@ export function mapFaceLoginApiError(err: unknown): FaceLoginError {
 
     return FaceLoginError.RATE_LIMITED;
 
-  }
-
-
-
-  if (includesAny(message, ['hold still', "couldn't verify your face", 'liveness', 'verify your face clearly'])) {
-    return FaceLoginError.LIVENESS_FAILED;
   }
 
 

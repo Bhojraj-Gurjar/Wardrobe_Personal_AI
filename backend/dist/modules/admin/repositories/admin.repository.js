@@ -91,6 +91,34 @@ let AdminRepository = class AdminRepository {
             data
         });
     }
+    createInvitedUser({ email, passwordHash, name, plan = 'Free' }) {
+        return this.prisma.user.create({
+            data: {
+                email,
+                password_hash: passwordHash,
+                role: _userrole.USER_ROLE.USER,
+                status: 'ACTIVE',
+                profile: {
+                    create: {
+                        name,
+                        preferences: {
+                            plan
+                        }
+                    }
+                }
+            },
+            include: {
+                profile: true,
+                fashion_dna: true,
+                orders: {
+                    select: {
+                        id: true,
+                        status: true
+                    }
+                }
+            }
+        });
+    }
     findUserById(id) {
         return this.prisma.user.findUnique({
             where: {

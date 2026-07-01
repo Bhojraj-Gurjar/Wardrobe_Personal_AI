@@ -261,6 +261,7 @@ export function ProductDetailDrawer({
     }
 
     await onSaveChanges(productId, payload);
+    onClose();
   };
 
   if (!product && !isLoading && !error) {

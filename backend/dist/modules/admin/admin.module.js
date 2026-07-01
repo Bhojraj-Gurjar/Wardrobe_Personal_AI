@@ -19,6 +19,7 @@ const _adminbootstrapservice = require("./services/admin-bootstrap.service");
 const _adminproductcmsservice = require("./services/admin-product-cms.service");
 const _adminproductbulkservice = require("./services/admin-product-bulk.service");
 const _adminrepository = require("./repositories/admin.repository");
+const _adminanalyticsrepository = require("./repositories/admin-analytics.repository");
 const _adminproductcmsrepository = require("./repositories/admin-product-cms.repository");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -45,6 +46,7 @@ AdminModule = _ts_decorate([
             _adminproductcmsservice.AdminProductCmsService,
             _adminproductbulkservice.AdminProductBulkService,
             _adminrepository.AdminRepository,
+            _adminanalyticsrepository.AdminAnalyticsRepository,
             _adminproductcmsrepository.AdminProductCmsRepository
         ],
         exports: [

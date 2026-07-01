@@ -181,7 +181,7 @@ _ts_decorate([
     }),
     (0, _swagger.ApiResponse)({
         status: 401,
-        description: 'Incorrect current password'
+        description: 'Unauthorized'
     }),
     _ts_param(0, (0, _currentuserdecorator.CurrentUser)()),
     _ts_param(1, (0, _common.Body)(changePasswordPipe)),
