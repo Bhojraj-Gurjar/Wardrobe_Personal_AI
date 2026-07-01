@@ -11,7 +11,7 @@ import {
   invalidateQueryKeys,
   prependVirtualTryOnResult,
 } from '@/lib/query-invalidation';
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 import { useVirtualTryOnSessionStore } from '@/stores/virtual-try-on-session-store';
 import {
   addVirtualTryOnResultToCloset,
@@ -30,7 +30,7 @@ export const VIRTUAL_TRY_ON_RESULTS_KEY = ['virtual-try-on', 'results'];
 
 export function useVirtualTryOnSetupQuery() {
   const hydrated = useAuthHydrated();
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const { isVerified } = useSession();
 
   return useQuery({
@@ -44,7 +44,7 @@ export function useVirtualTryOnSetupQuery() {
 
 export function useVirtualTryOnProductsQuery(params = {}) {
   const hydrated = useAuthHydrated();
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const { isVerified } = useSession();
 
   return useQuery({
@@ -57,7 +57,7 @@ export function useVirtualTryOnProductsQuery(params = {}) {
 
 export function useVirtualTryOnResultsQuery() {
   const hydrated = useAuthHydrated();
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const { isVerified } = useSession();
 
   return useQuery({
@@ -69,7 +69,7 @@ export function useVirtualTryOnResultsQuery() {
 }
 
 export function useGenerateVirtualTryOnMutation() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const queryClient = useQueryClient();
   const abortRef = useRef(null);
 
@@ -111,7 +111,7 @@ export function useGenerateVirtualTryOnMutation() {
         );
       }
 
-      const userId = useAuthStore.getState().user?.id;
+      const userId = useAuthStore.getState().userSession.user?.id;
 
       if (userId && data?.result) {
         useVirtualTryOnSessionStore.getState().patchSession(userId, {
@@ -143,7 +143,7 @@ export function useGenerateVirtualTryOnMutation() {
 }
 
 export function useDeleteTryOnResultMutation() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -174,7 +174,7 @@ export function useDeleteTryOnResultMutation() {
 }
 
 export function useSaveTryOnResultOutfitMutation() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -190,7 +190,7 @@ export function useSaveTryOnResultOutfitMutation() {
 }
 
 export function useAddTryOnResultToClosetMutation() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const queryClient = useQueryClient();
 
   return useMutation({

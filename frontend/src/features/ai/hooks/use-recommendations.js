@@ -9,7 +9,7 @@ import {
   fetchSeasonalRecommendations,
   fetchTrendingRecommendations,
 } from '@/features/ai/services';
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 
 const FETCHERS = {
   default: fetchRecommendations,
@@ -20,7 +20,7 @@ const FETCHERS = {
 };
 
 export function useRecommendationsQuery(params = {}) {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const fetcher = FETCHERS[params.mode] || FETCHERS.default;
 
   return useQuery({

@@ -6,6 +6,7 @@ import {
   FACE_LIVENESS_CAPTURE_INTERVAL_MS,
   FACE_LIVENESS_CHALLENGE,
   FACE_LIVENESS_DETECTION_INTERVAL_MS,
+  FACE_LIVENESS_INSTRUCTION_PAUSE_MS,
   FACE_LIVENESS_MAX_FRAMES,
   FACE_LIVENESS_MIN_FRAMES,
   FACE_LIVENESS_PHASE,
@@ -62,10 +63,15 @@ export function useFaceLivenessChallenge({
   burstCapture = false,
   captureWarmupMs = FACE_CAPTURE_WARMUP_MS,
   skipSharpnessSort = false,
+  skipChallengePhase = false,
+  instructionPauseMs = FACE_LIVENESS_INSTRUCTION_PAUSE_MS,
   isCancelled = () => false,
 }) {
   const [phase, setPhase] = useState(FACE_LIVENESS_PHASE.POSITIONING);
-  const [challenge] = useState(() => challengeOverride || FACE_LIVENESS_CHALLENGE);
+  const challenge = useMemo(
+    () => challengeOverride || FACE_LIVENESS_CHALLENGE,
+    [challengeOverride],
+  );
   const [guidance, setGuidance] = useState('Look directly at the camera');
   const [progress, setProgress] = useState(0);
   const [captureSessionId] = useState(() => {
@@ -109,7 +115,6 @@ export function useFaceLivenessChallenge({
 
       const video = camera.videoRef.current;
       if (!video || !camera.isReady) {
-         
         await sleep(100);
         continue;
       }
@@ -117,7 +122,7 @@ export function useFaceLivenessChallenge({
       const effectiveAnalyzeTimeout = typeof getAnalyzeTimeoutMs === 'function'
         ? getAnalyzeTimeoutMs()
         : analyzeTimeoutMs;
-       
+
       const result = await detector.analyze(video, effectiveAnalyzeTimeout);
 
       if (isCancelled()) {
@@ -128,7 +133,6 @@ export function useFaceLivenessChallenge({
         stableSinceRef.current = null;
         stableFrameCountRef.current = 0;
         setGuidance(getLivenessGuidanceMessage(result.issue) || 'Move your face inside the camera frame.');
-         
         await nextDetectionDelay(detectionIntervalMs);
         continue;
       }
@@ -137,7 +141,6 @@ export function useFaceLivenessChallenge({
         stableSinceRef.current = null;
         stableFrameCountRef.current = 0;
         setGuidance('Move your face inside the camera frame.');
-         
         await nextDetectionDelay(detectionIntervalMs);
         continue;
       }
@@ -161,7 +164,6 @@ export function useFaceLivenessChallenge({
         return true;
       }
 
-       
       await nextDetectionDelay(detectionIntervalMs);
     }
 
@@ -200,7 +202,6 @@ export function useFaceLivenessChallenge({
     const captured = [];
 
     while (!isCancelled() && captured.length < targetFrames) {
-       
       const frame = await camera.captureFrame();
       if (frame) {
         if (skipSharpnessSort) {
@@ -239,31 +240,39 @@ export function useFaceLivenessChallenge({
       return null;
     }
 
-    const isBlinkOnce = challenge.id === 'blink_once';
-    const shouldSkipPositioning = isBlinkOnce || (typeof skipPositioning === 'function'
+    const shouldSkipPositioning = typeof skipPositioning === 'function'
       ? skipPositioning()
-      : skipPositioning);
+      : skipPositioning;
 
-    if (shouldSkipPositioning) {
-      setPhase(isBlinkOnce ? FACE_LIVENESS_PHASE.CHALLENGE : FACE_LIVENESS_PHASE.CAPTURING);
-      setGuidance(isBlinkOnce ? challenge.instruction : 'Capturing your face…');
-    } else {
+    if (!shouldSkipPositioning) {
       setPhase(FACE_LIVENESS_PHASE.POSITIONING);
       const positioned = await waitForStableFace();
       if (!positioned || isCancelled()) {
         return null;
       }
-
-      setPhase(FACE_LIVENESS_PHASE.CAPTURING);
-      setGuidance('Hold still with your eyes open for a second while we capture your face.');
     }
+
+    if (isCancelled()) {
+      return null;
+    }
+
+    if (!skipChallengePhase) {
+      setPhase(FACE_LIVENESS_PHASE.CHALLENGE);
+      setGuidance(challenge.instruction);
+      if (instructionPauseMs > 0) {
+        await sleep(instructionPauseMs);
+      }
+
+      if (isCancelled()) {
+        return null;
+      }
+    }
+
+    setPhase(FACE_LIVENESS_PHASE.CAPTURING);
+    setGuidance(challenge.instruction);
 
     if (!burstCapture && captureWarmupMs > 0) {
       await sleep(captureWarmupMs);
-    }
-
-    if (isBlinkOnce) {
-      setPhase(FACE_LIVENESS_PHASE.CAPTURING);
     }
 
     const frames = await captureStableFrames();
@@ -273,9 +282,7 @@ export function useFaceLivenessChallenge({
     }
 
     if (frames.length < minFrames) {
-      throw new Error(isBlinkOnce
-        ? 'Blink once while we capture your face.'
-        : 'Hold still for a second while we capture your face.');
+      throw new Error(challenge.instruction || 'Hold still for a second while we capture your face.');
     }
 
     capturedFramesRef.current = frames;
@@ -291,7 +298,20 @@ export function useFaceLivenessChallenge({
       frames,
       primaryFrame: frames[0],
     };
-  }, [burstCapture, captureStableFrames, captureSessionId, captureWarmupMs, challenge.id, challenge.instruction, isCancelled, minFrames, skipPositioning, waitForStableFace]);
+  }, [
+    burstCapture,
+    captureStableFrames,
+    captureSessionId,
+    captureWarmupMs,
+    challenge.id,
+    challenge.instruction,
+    instructionPauseMs,
+    isCancelled,
+    minFrames,
+    skipChallengePhase,
+    skipPositioning,
+    waitForStableFace,
+  ]);
 
   const challengeLabel = useMemo(
     () => guidance || challenge.instruction,

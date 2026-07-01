@@ -11,10 +11,11 @@ import {
 import { APP_NAME } from '@/constants/app';
 import { ADMIN_NAV_ITEMS } from '@/features/admin/constants/admin-nav';
 import { useUiStore } from '@/stores/ui-store';
-import { useAuthStore } from '@/stores/auth-store';
+import { useAdminProfile } from '@/stores/auth-store';
 import { useAdminProfileQuery } from '@/features/admin/hooks';
 import { useIsMobile, useIsTablet } from '@/hooks/use-media-query';
 import { useMobileDrawer } from '@/hooks/use-mobile-drawer';
+import { AUTH_CONTEXT } from '@/features/auth/constants/auth-context';
 import { LogoutButton } from '@/features/auth/components/logout-button';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/button';
@@ -55,7 +56,7 @@ export function AdminSidebar() {
   const collapsed = useUiStore((state) => state.isDashboardSidebarCollapsed);
   const toggleCollapsed = useUiStore((state) => state.toggleDashboardSidebarCollapsed);
   const setMobileOpen = useUiStore((state) => state.setMobileSidebarOpen);
-  const user = useAuthStore((state) => state.user);
+  const user = useAdminProfile();
   const { data: profile } = useAdminProfileQuery();
 
   const displayName = profile?.name || user?.email?.split('@')[0] || 'Admin';
@@ -144,6 +145,7 @@ export function AdminSidebar() {
         ) : null}
 
         <LogoutButton
+          context={AUTH_CONTEXT.ADMIN}
           collapsed={isCollapsedDesktop}
           onNavigate={isMobile ? closeMobile : undefined}
           className={cn(

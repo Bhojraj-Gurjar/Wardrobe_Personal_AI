@@ -34,6 +34,7 @@ function resolvePagination(page, limit, defaultLimit = 20) {
 function resolveSort(sortBy, sortOrder) {
   const allowed = {
     createdAt: 'created_at',
+    updatedAt: 'updated_at',
     name: 'name',
     price: 'price',
     stock: 'stock_quantity',
@@ -438,6 +439,8 @@ class AdminProductCmsRepository {
 
     if (query.visibility) {
       and.push({ visibility: query.visibility.toUpperCase() });
+    } else {
+      and.push({ visibility: { not: 'DRAFT' } });
     }
 
     if (query.status === 'active') {

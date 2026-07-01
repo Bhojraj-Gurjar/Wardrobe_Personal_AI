@@ -40,6 +40,8 @@ export const OMS_STAGE_CARDS = [
   { id: 'COMPLETED', title: 'Completed', metricKey: 'completed', accent: 'green' },
   { id: 'CANCELLED', title: 'Cancelled Orders', metricKey: 'cancelled', accent: 'red' },
   { id: 'RETURNED', title: 'Returned Orders', metricKey: 'returned', accent: 'purple' },
+  { id: 'REFUNDED', title: 'Refunded', metricKey: 'refunded', accent: 'purple' },
+  { id: 'ARCHIVED', title: 'Archived', metricKey: 'archived', accent: 'blue' },
   {
     id: 'TODAY_REVENUE',
     title: "Today's Revenue",

@@ -73,10 +73,10 @@ RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh \
   && useradd --system --uid 1001 --gid aiservice --home-dir /app aiservice \
   && chown -R aiservice:aiservice /app
 
-EXPOSE 7860
+EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=300s --retries=5 \
-  CMD python -c "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ.get('PORT', '7860') + '/health')"
+  CMD python -c "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ.get('PORT', '8000') + '/health')"
 
 ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-7860} --workers 1 --no-access-log"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --no-access-log"]

@@ -66,6 +66,43 @@ let LocalStorageProvider = class LocalStorageProvider {
             throw error;
         }
     }
+    resolvePublicUrl() {
+        return null;
+    }
+    async readStoragePath(storagePath) {
+        if (!storagePath) {
+            return null;
+        }
+        const absolutePath = (0, _storagepathutil.toFilesystemPath)(storagePath, this.rootDir);
+        const extension = absolutePath.split('.').pop()?.replace('jpeg', 'jpg') || 'jpg';
+        try {
+            const buffer = await (0, _promises.readFile)(absolutePath);
+            return {
+                buffer,
+                mimeType: extension === 'jpg' ? 'image/jpeg' : `image/${extension}`
+            };
+        } catch (error) {
+            if (error?.code === 'ENOENT') {
+                return null;
+            }
+            throw error;
+        }
+    }
+    async storagePathExists(storagePath) {
+        if (!storagePath) {
+            return false;
+        }
+        const absolutePath = (0, _storagepathutil.toFilesystemPath)(storagePath, this.rootDir);
+        try {
+            await (0, _promises.access)(absolutePath);
+            return true;
+        } catch (error) {
+            if (error?.code === 'ENOENT') {
+                return false;
+            }
+            throw error;
+        }
+    }
 };
 
 //# sourceMappingURL=local-storage.provider.js.map

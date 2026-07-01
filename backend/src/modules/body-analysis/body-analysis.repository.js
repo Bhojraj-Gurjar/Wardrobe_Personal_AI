@@ -28,13 +28,20 @@ class BodyAnalysisRepository {
     });
   }
 
-  updateProfileBodyImageRefs(userId, { body_image: bodyImage, preferences }) {
+  updateProfileBodyImageRefs(userId, { body_image: bodyImage, preferences } = {}) {
+    const data = {};
+
+    if (preferences !== undefined) {
+      data.preferences = preferences;
+    }
+
+    if (bodyImage !== undefined) {
+      data.body_image = bodyImage;
+    }
+
     return this.prisma.userProfile.update({
       where: { user_id: userId },
-      data: {
-        ...(bodyImage ? { body_image: bodyImage } : {}),
-        ...(preferences ? { preferences } : {}),
-      },
+      data,
     });
   }
 
@@ -75,6 +82,13 @@ class BodyAnalysisRepository {
       update: {
         body_image_url: bodyImageUrl,
       },
+    });
+  }
+
+  clearBodyImageUrl(userId) {
+    return this.prisma.bodyAnalysis.updateMany({
+      where: { user_id: userId },
+      data: { body_image_url: null },
     });
   }
 

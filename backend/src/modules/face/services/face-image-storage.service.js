@@ -45,4 +45,12 @@ class FaceImageStorageService {
 
     return this.storageService.readStoredFile(storagePath);
   }
+
+  async faceImageExists(storagePath) {
+    if (!storagePath) {
+      return false;
+    }
+
+    return this.storageService.storedFileExists(storagePath);
+  }
 }

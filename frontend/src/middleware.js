@@ -27,18 +27,26 @@ export function middleware(request) {
     return NextResponse.next();
   }
 
-  const role = request.cookies.get('wardrobe-auth-role')?.value;
+  const adminRole = request.cookies.get('wardrobe-admin-auth-role')?.value;
+  const userRole = request.cookies.get('wardrobe-user-auth-role')?.value;
+  const legacyRole = request.cookies.get('wardrobe-auth-role')?.value;
 
-  if (isAdminPath(pathname) && role && role !== 'ADMIN') {
-    const url = request.nextUrl.clone();
-    url.pathname = '/login';
-    url.searchParams.set('redirect', `${pathname}${request.nextUrl.search}`);
-    url.searchParams.set('reason', 'forbidden');
-    url.searchParams.set('loginType', 'admin');
-    return NextResponse.redirect(url);
+  if (isAdminPath(pathname)) {
+    const effectiveAdminRole = adminRole || legacyRole;
+
+    if (effectiveAdminRole && effectiveAdminRole !== 'ADMIN') {
+      const url = request.nextUrl.clone();
+      url.pathname = '/login';
+      url.searchParams.set('redirect', `${pathname}${request.nextUrl.search}`);
+      url.searchParams.set('reason', 'forbidden');
+      url.searchParams.set('loginType', 'admin');
+      return NextResponse.redirect(url);
+    }
+
+    return NextResponse.next();
   }
 
-  if (!isPublicPath(pathname) && !isAdminPath(pathname) && role === 'ADMIN') {
+  if (!isPublicPath(pathname) && userRole === 'ADMIN' && !adminRole) {
     return NextResponse.next();
   }
 

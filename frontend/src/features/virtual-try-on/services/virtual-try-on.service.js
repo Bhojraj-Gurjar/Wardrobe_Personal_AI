@@ -1,7 +1,11 @@
 import { API_ENDPOINTS, FACE_AI_TIMEOUT_MS } from '@/constants/api';
 import { apiClient } from '@/services/api-client';
 import { getProductImage, resolveProductImageUrl } from '@/utils/product-image';
-import { resolveTryOnResultImageUrl } from '../utils/try-on-image.util';
+import {
+  normalizeTryOnHistoryResult,
+  resolveTryOnResultImageUrl,
+} from '../utils/try-on-image.util';
+import { coerceTryOnHistoryResults } from '../utils/virtual-try-on-guards.util';
 
 function normalizeVirtualTryOnProduct(product) {
   if (!product) {
@@ -183,7 +187,11 @@ export function clearVirtualTryOnSessionPhoto(token) {
 }
 
 export function fetchVirtualTryOnResults(token) {
-  return apiClient(API_ENDPOINTS.VIRTUAL_TRY_ON.RESULTS, { token });
+  return apiClient(API_ENDPOINTS.VIRTUAL_TRY_ON.RESULTS, { token }).then((data) => {
+    const items = coerceTryOnHistoryResults(data);
+
+    return items.map((result) => normalizeTryOnHistoryResult(result));
+  });
 }
 
 export function deleteVirtualTryOnResult(resultId, token) {

@@ -4,9 +4,10 @@ import { useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { QUERY_STALE_TIME } from '@/constants/app';
+import { AUTH_CONTEXT } from '@/features/auth/constants/auth-context';
 import { useSession } from '@/features/auth/components/session-provider';
 import { isAdminUser } from '@/features/admin/utils/is-admin-user';
-import { useAuthStore } from '@/stores/auth-store';
+import { getAdminAccessToken, useAdminAccessToken, useAdminProfile } from '@/stores/auth-store';
 import {
   deleteAdminSupportTicket,
   exportAdminSupportTickets,
@@ -19,9 +20,9 @@ import {
 } from '../services/support.service';
 
 function useAdminToken() {
-  const token = useAuthStore((state) => state.accessToken);
-  const user = useAuthStore((state) => state.user);
-  const { isAuthenticated } = useSession();
+  const token = useAdminAccessToken();
+  const user = useAdminProfile();
+  const { isAuthenticated } = useSession(AUTH_CONTEXT.ADMIN);
 
   return {
     token,

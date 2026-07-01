@@ -15,7 +15,7 @@ import { motion } from 'framer-motion';
 import { ROUTES } from '@/constants/routes';
 import { useAddToWishlistMutation } from '@/features/wishlist/hooks';
 import { useProfileQuery } from '@/features/profile/hooks/use-profile';
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 import { EmptyState } from '@/components/shared/empty-state';
 import { ErrorState } from '@/components/shared/error-state';
 import { Button } from '@/components/ui/button';
@@ -272,7 +272,7 @@ function PremiumEmptyState(props) {
 
 export function ClosetView() {
   const router = useRouter();
-  const authUser = useAuthStore((state) => state.user);
+  const authUser = useUserProfile();
   const { data: profile } = useProfileQuery();
 
   const [page, setPage] = useState(1);

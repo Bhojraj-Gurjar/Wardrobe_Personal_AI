@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { AUTH_CONTEXT } from '@/features/auth/constants/auth-context';
 import { useAuthGuardState } from '@/features/auth/hooks/use-auth-guard-state';
 import { buildLoginRedirect } from '@/features/auth/utils/auth-routing';
 import { LoadingState } from '@/components/shared/loading-state';
@@ -11,9 +12,8 @@ export function AuthGuard({ children }) {
   const pathname = usePathname();
   const {
     isInitializing,
-    isAuthenticated,
     isUnauthenticated,
-  } = useAuthGuardState();
+  } = useAuthGuardState(AUTH_CONTEXT.USER);
 
   useEffect(() => {
     if (isInitializing) {
@@ -24,7 +24,7 @@ export function AuthGuard({ children }) {
       const redirect = buildLoginRedirect(pathname, window.location.search);
       router.replace(redirect);
     }
-  }, [isAuthenticated, isInitializing, isUnauthenticated, pathname, router]);
+  }, [isInitializing, isUnauthenticated, pathname, router]);
 
   if (isInitializing) {
     return <LoadingState title="Checking your session…" rows={1} />;

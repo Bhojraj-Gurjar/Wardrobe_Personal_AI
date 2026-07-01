@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { QUERY_STALE_TIME } from '@/constants/app';
 import { runBodyAnalysis } from '@/features/body-analysis/utils/run-body-analysis';
 import { fetchProfile, updateProfile } from '@/features/profile/services';
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 
 const PROFILE_BODY_FIELDS = ['height', 'weight', 'body_type'];
 
@@ -13,7 +13,7 @@ function hasBodyProfileChanges(payload) {
 }
 
 export function useProfileQuery() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useQuery({
     queryKey: ['profile'],
@@ -24,7 +24,7 @@ export function useProfileQuery() {
 }
 
 export function useUpdateProfileMutation() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const queryClient = useQueryClient();
 
   return useMutation({

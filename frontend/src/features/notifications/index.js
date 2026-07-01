@@ -20,6 +20,7 @@ export {
   formatRelativeTime,
   groupNotificationsByDate,
   NOTIFICATION_FILTERS,
+  USER_NOTIFICATION_FILTERS,
   resolveNotificationHref,
   resolveNotificationIcon,
 } from './utils/notification.utils';

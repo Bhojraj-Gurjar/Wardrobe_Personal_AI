@@ -37,7 +37,7 @@ export function OrderSuccess({ order }) {
           <Link href={order?.id ? ROUTES.ORDERS_BY_ID(order.id) : ROUTES.ORDERS}>Track Order</Link>
         </Button>
         <Button asChild variant="glass" className="h-12 flex-1">
-          <Link href={ROUTES.PRODUCTS}>Continue Shopping</Link>
+          <Link href={ROUTES.PRODUCTS.LIST}>Continue Shopping</Link>
         </Button>
       </div>
     </div>

@@ -98,6 +98,62 @@ export function resolveTryOnResultImageUrl(value) {
 
 
 
+export function areTryOnImageUrlsEquivalent(left, right) {
+
+  if (!left && !right) {
+
+    return true;
+
+  }
+
+
+
+  if (!left || !right) {
+
+    return false;
+
+  }
+
+
+
+  return resolveTryOnResultImageUrl(left) === resolveTryOnResultImageUrl(right);
+
+}
+
+
+
+export function normalizeTryOnHistoryResult(result) {
+
+  if (!result || typeof result !== 'object') {
+
+    return result;
+
+  }
+
+
+
+  const generatedImageUrl = resolveTryOnResultImageUrl(
+
+    result.generatedImageUrl || result.generatedImage,
+
+  );
+
+
+
+  return {
+
+    ...result,
+
+    generatedImageUrl,
+
+    generatedImage: generatedImageUrl,
+
+  };
+
+}
+
+
+
 export function mapVirtualTryOnClientError(error) {
 
   const status = error?.status;

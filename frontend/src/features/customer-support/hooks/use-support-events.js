@@ -3,10 +3,10 @@
 import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { API_BASE_URL, API_ENDPOINTS } from '@/constants/api';
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 
 export function useSupportEvents({ enabled = true, isAdmin = false } = {}) {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const queryClient = useQueryClient();
   const abortRef = useRef(null);
 

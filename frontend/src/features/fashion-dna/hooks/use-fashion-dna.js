@@ -8,13 +8,13 @@ import {
   generateFashionDna,
   updateFashionDna,
 } from '@/features/fashion-dna/services';
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 
 export const FASHION_DNA_QUERY_KEY = ['fashion-dna'];
 export const FASHION_DNA_HISTORY_QUERY_KEY = ['fashion-dna', 'history'];
 
 export function useFashionDnaQuery() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useQuery({
     queryKey: FASHION_DNA_QUERY_KEY,
@@ -26,7 +26,7 @@ export function useFashionDnaQuery() {
 }
 
 export function useFashionDnaHistoryQuery(params = {}) {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useQuery({
     queryKey: [...FASHION_DNA_HISTORY_QUERY_KEY, params],
@@ -38,7 +38,7 @@ export function useFashionDnaHistoryQuery(params = {}) {
 }
 
 export function useGenerateFashionDnaMutation() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -51,7 +51,7 @@ export function useGenerateFashionDnaMutation() {
 }
 
 export function useUpdateFashionDnaMutation() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const queryClient = useQueryClient();
 
   return useMutation({

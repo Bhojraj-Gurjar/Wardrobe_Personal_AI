@@ -80,7 +80,16 @@ services:
           name: wardrobe-frontend
           envVarKey: RENDER_EXTERNAL_URL
       - key: STORAGE_PROVIDER
-        value: local
+        value: cloudinary
+      # Persist onboarding face/body photos across Render redeploys (free tier included).
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: CLOUDINARY_FOLDER
+        value: wardrobe-ai
       - key: STORAGE_LOCAL_ROOT
         value: uploads
       - key: STORAGE_PUBLIC_BASE_URL

@@ -30,7 +30,7 @@ import {
   resolveTrackingMode,
 } from '@/features/orders/utils/order-tracking.utils';
 import { formatProductPrice } from '@/features/products/utils/product-catalog.utils';
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 import { cn } from '@/utils/cn';
 
 function TrackingSkeleton() {
@@ -63,7 +63,7 @@ function SectionCard({ title, children, className }) {
 }
 
 export function OrderTrackingModal({ orderId, open, onClose, initialOrder = null }) {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const [invoiceLoading, setInvoiceLoading] = useState(false);
 
   useOrderEvents({ enabled: open && Boolean(token) });

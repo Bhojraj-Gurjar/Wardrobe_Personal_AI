@@ -38,7 +38,7 @@ const _faceembeddingdto = require("../dto/face-embedding.dto");
 const FACE_UPLOAD_FIELD = 'frontFace';
 const FACE_LIVENESS_FRAMES_FIELD = 'livenessFrames';
 const FACE_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
-const FACE_MIN_LIVENESS_FRAMES = 2;
+const FACE_MIN_LIVENESS_FRAMES = 4;
 function readUploadedFile(file) {
     if (!file?.buffer?.length) {
         return null;

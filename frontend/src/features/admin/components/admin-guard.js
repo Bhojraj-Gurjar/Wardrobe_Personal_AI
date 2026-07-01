@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { ROUTES } from '@/constants/routes';
+import { AUTH_CONTEXT } from '@/features/auth/constants/auth-context';
 import { useAuthGuardState } from '@/features/auth/hooks/use-auth-guard-state';
 import { buildLoginRedirect } from '@/features/auth/utils/auth-routing';
 import { invalidateAuthSession } from '@/features/auth/utils/invalidate-auth-session';
@@ -17,7 +17,7 @@ export function AdminGuard({ children }) {
     isUnauthenticated,
     isAdmin,
     isVerified,
-  } = useAuthGuardState();
+  } = useAuthGuardState(AUTH_CONTEXT.ADMIN);
 
   useEffect(() => {
     if (isInitializing) {
@@ -31,6 +31,7 @@ export function AdminGuard({ children }) {
 
     if (isVerified && isAuthenticated && !isAdmin) {
       invalidateAuthSession({
+        context: AUTH_CONTEXT.ADMIN,
         redirect: true,
         preserveReturnPath: true,
         reason: 'forbidden',

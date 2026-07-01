@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Image from 'next/image';
 import { cn } from '@/utils/cn';
 import {
   getProductImage,
@@ -40,15 +39,16 @@ export function VtoProductImage({
           </span>
         </div>
       ) : (
-        <Image
+        /* Native img avoids Next.js /_next/image proxy failures for remote + SVG URLs. */
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
           src={imageSrc}
           alt={alt || product?.name || 'Product'}
-          fill
-          sizes="140px"
           loading="lazy"
-          unoptimized
+          decoding="async"
+          referrerPolicy="no-referrer"
           className={cn(
-            'object-cover transition-opacity duration-500',
+            'size-full object-cover transition-opacity duration-500',
             isLoading ? 'opacity-0' : 'opacity-100',
             imageClassName,
           )}

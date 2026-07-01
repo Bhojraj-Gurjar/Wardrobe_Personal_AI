@@ -64,6 +64,13 @@ class FaceRepository {
     });
   }
 
+  clearFaceImageUrl(userId) {
+    return this.prisma.faceRegistration.updateMany({
+      where: { user_id: userId },
+      data: { face_image_url: null },
+    });
+  }
+
   searchFaceVector(embedding, limit = 1) {
     return this.qdrantService.searchInCollection(
       this.collection,

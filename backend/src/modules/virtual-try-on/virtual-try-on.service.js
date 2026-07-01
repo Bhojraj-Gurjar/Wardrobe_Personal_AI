@@ -8,6 +8,7 @@ import {
 import { ProductRepository } from '../products/repositories/product.repository';
 import { TryOnService } from '../try-on/try-on.service';
 import { assessTryOnCompatibility } from '../try-on/utils/try-on-product-compatibility.util';
+import { assertTryOnImageUrl } from '../try-on/utils/try-on-image.util';
 import {
   buildTryOnGarmentPlan,
   describeTryOnMode,
@@ -158,7 +159,7 @@ class VirtualTryOnService {
       : await this.repository.findSessionByUserId(userId);
     const hasTransparentCache = Boolean(transparentPath)
       || Boolean(refreshedSession?.transparent_image)
-      || this.backgroundRemovalService.transparentPngExists(userId);
+      || await this.backgroundRemovalService.transparentPngExists(userId);
     const bodyPhotoUrl = this.bodyImageResolver.toPublicUrl(displayPath || bodyImagePath);
     const sessionBodyPhotoUrl = tryOnSessionPath
       ? this.bodyImageResolver.toPublicUrl(tryOnSessionPath)
@@ -386,7 +387,19 @@ class VirtualTryOnService {
       ? temporaryBodyImageUrl
       : this.storagePathResolver.toPublicUrl(bodyPhotoPath);
 
-    this.logger.log(`Generating virtual try-on for user=${userId} product=${productId}`);
+    try {
+      assertTryOnImageUrl(personImageUrl, 'Person');
+      assertTryOnImageUrl(garmentImageUrl, 'Garment');
+    } catch (error) {
+      this.logger.error(
+        `Virtual try-on preflight failed | user=${userId} product=${productId} | ${error?.message || error}`,
+      );
+      throw error;
+    }
+
+    this.logger.log(
+      `Generating virtual try-on for user=${userId} product=${productId} person=${personImageUrl} garment=${garmentImageUrl}`,
+    );
 
     const garmentRegion = resolveCatvtonRegionFromProductType(
       inferProductType(record),

@@ -48,6 +48,12 @@ let FaceImageStorageService = class FaceImageStorageService {
         }
         return this.storageService.readStoredFile(storagePath);
     }
+    async faceImageExists(storagePath) {
+        if (!storagePath) {
+            return false;
+        }
+        return this.storageService.storedFileExists(storagePath);
+    }
 };
 FaceImageStorageService = _ts_decorate([
     (0, _common.Injectable)(),

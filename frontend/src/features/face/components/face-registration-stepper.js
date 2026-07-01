@@ -7,8 +7,8 @@ import {
   FACE_REGISTRATION_FLOW_TIMEOUT_MS,
   FACE_VERIFY_TIMEOUT_MESSAGE,
 } from '@/features/face/constants/face-timeouts';
-import { FACE_LIVENESS_PHASE } from '@/features/face/constants/face-liveness-challenges';
-import { FACE_LOGIN_CAPTURE_SETTINGS } from '@/features/face/constants/face-login-capture-settings';
+import { FACE_LIVENESS_PHASE, FACE_REGISTRATION_LIVENESS_CHALLENGE } from '@/features/face/constants/face-liveness-challenges';
+import { FACE_REGISTRATION_CAPTURE_SETTINGS } from '@/features/face/constants/face-login-capture-settings';
 import { useCamera, FACE_LOGIN_VIDEO_CONSTRAINTS } from '@/features/face/hooks/use-camera';
 import { useFaceRegisterMutation } from '@/features/face/hooks/use-face-register';
 import { useFaceLivenessChallenge } from '@/features/face/hooks/use-face-liveness-challenge';
@@ -33,8 +33,8 @@ export function FaceRegistrationStepper() {
   const router = useRouter();
   const camera = useCamera({
     videoConstraints: FACE_LOGIN_VIDEO_CONSTRAINTS,
-    captureMaxWidth: FACE_LOGIN_CAPTURE_SETTINGS.captureMaxWidth,
-    captureQuality: FACE_LOGIN_CAPTURE_SETTINGS.captureQuality,
+    captureMaxWidth: FACE_REGISTRATION_CAPTURE_SETTINGS.captureMaxWidth,
+    captureQuality: FACE_REGISTRATION_CAPTURE_SETTINGS.captureQuality,
   });
   const registerMutation = useFaceRegisterMutation();
   const detectorRef = useRef(null);
@@ -44,16 +44,17 @@ export function FaceRegistrationStepper() {
   const liveness = useFaceLivenessChallenge({
     camera,
     detectorRef,
-    positionStableMs: FACE_LOGIN_CAPTURE_SETTINGS.positionStableMs,
-    stableFrameCount: FACE_LOGIN_CAPTURE_SETTINGS.stableFrameCount,
-    maxFrames: FACE_LOGIN_CAPTURE_SETTINGS.maxFrames,
-    minFrames: FACE_LOGIN_CAPTURE_SETTINGS.minFrames,
-    captureIntervalMs: FACE_LOGIN_CAPTURE_SETTINGS.captureIntervalMs,
-    detectionIntervalMs: FACE_LOGIN_CAPTURE_SETTINGS.detectionIntervalMs,
-    captureWarmupMs: FACE_LOGIN_CAPTURE_SETTINGS.captureWarmupMs,
-    burstCapture: true,
-    skipPositioning: true,
-    skipSharpnessSort: true,
+    challenge: FACE_REGISTRATION_LIVENESS_CHALLENGE,
+    positionStableMs: FACE_REGISTRATION_CAPTURE_SETTINGS.positionStableMs,
+    stableFrameCount: FACE_REGISTRATION_CAPTURE_SETTINGS.stableFrameCount,
+    maxFrames: FACE_REGISTRATION_CAPTURE_SETTINGS.maxFrames,
+    minFrames: FACE_REGISTRATION_CAPTURE_SETTINGS.minFrames,
+    captureIntervalMs: FACE_REGISTRATION_CAPTURE_SETTINGS.captureIntervalMs,
+    detectionIntervalMs: FACE_REGISTRATION_CAPTURE_SETTINGS.detectionIntervalMs,
+    captureWarmupMs: FACE_REGISTRATION_CAPTURE_SETTINGS.captureWarmupMs,
+    burstCapture: false,
+    skipPositioning: false,
+    skipSharpnessSort: false,
   });
 
   const [isVerifying, setIsVerifying] = useState(false);
@@ -189,6 +190,13 @@ export function FaceRegistrationStepper() {
       return null;
     }
 
+    if (
+      liveness.phase === FACE_LIVENESS_PHASE.CHALLENGE
+      || liveness.phase === FACE_LIVENESS_PHASE.CAPTURING
+    ) {
+      return liveness.challenge?.instruction || liveness.guidance;
+    }
+
     if (registerMutation.isPending || (isBusy && liveness.phase === FACE_LIVENESS_PHASE.COMPLETE)) {
       return 'Processing…';
     }
@@ -199,7 +207,7 @@ export function FaceRegistrationStepper() {
   return (
     <FaceAuthLayout
       title="Face Registration"
-      subtitle="Look at the camera — we'll capture your face instantly"
+      subtitle="Follow the on-screen prompts — we'll capture live angles of your face"
       footer={
         <button
           type="button"

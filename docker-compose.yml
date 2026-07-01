@@ -57,6 +57,7 @@ services:
     environment:
       AI_SERVICE_HOST: 0.0.0.0
       AI_SERVICE_PORT: 8000
+      PORT: 8000
       HOME: /app
       INSIGHTFACE_HOME: /app/models/insightface
       HF_HOME: /app/models/huggingface

@@ -56,6 +56,10 @@ export function BodyAnalysisView() {
 
   const dashboard = mergeBodyAnalysisDashboard(isError ? null : data, profile);
 
+  const missingPhotoHint = data?.bodyPhotoMissing
+    ? 'Your previous body photo was removed during a server update. Upload a new photo to restore your preview.'
+    : '';
+
   const isAnalyzing = analyzeMutation.isPending
     || analyzeCurrentMutation.isPending
     || progressOpen;
@@ -199,7 +203,7 @@ export function BodyAnalysisView() {
           isAnalyzing={isAnalyzing}
           analyzeExistingOnClick={dashboard.hasBodyPhoto && !dashboard.hasReport}
           onAnalyze={handleAnalyze}
-          errorMessage={errorMessage}
+          errorMessage={errorMessage || missingPhotoHint}
           className="xl:min-h-[460px]"
         />
         <BodyMeasurementsCard

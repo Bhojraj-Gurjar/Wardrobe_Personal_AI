@@ -38,7 +38,10 @@ def _map_validation_error(exc: FaceValidationError) -> HTTPException:
             detail=message or "We couldn't verify your face clearly. Please try again.",
         )
     if code in {"spoof"}:
-        return HTTPException(status_code=400, detail="Live face required.")
+        return HTTPException(
+            status_code=400,
+            detail=message or "Live face not detected. Please complete the verification.",
+        )
     if code in {"face_too_small"}:
         return HTTPException(status_code=400, detail="Move closer to the camera.")
     if code in {"face_too_large"}:

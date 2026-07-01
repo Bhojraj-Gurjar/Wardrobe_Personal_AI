@@ -7,7 +7,7 @@ import { ROUTES } from '@/constants/routes';
 import { fetchDashboardSummary } from '@/features/dashboard/services/dashboard.service';
 import { useProfileQuery } from '@/features/profile/hooks';
 import { getProductImageUrl } from '@/features/products/utils/product-catalog.utils';
-import { useAuthStore } from '@/stores/auth-store';
+import { useUserAccessToken } from '@/stores/auth-store';
 
 export const DASHBOARD_SUMMARY_QUERY_KEY = ['dashboard', 'summary'];
 
@@ -39,7 +39,7 @@ function buildSavedLooksTrend(count) {
 }
 
 export function useDashboardData() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const profileQuery = useProfileQuery();
 
   const dashboardQuery = useQuery({
@@ -139,8 +139,9 @@ export function useDashboardData() {
   const picks = useMemo(
     () =>
       hasRecommendations
-        ? todaysPicks.slice(0, 4).map((item) => ({
+        ? todaysPicks.map((item) => ({
             id: item.product?.id,
+            product: item.product,
             name: item.product?.name || 'Recommended pick',
             image: getProductImageUrl(item.product),
             matchPercent: scoreToMatchPercent(item.score),

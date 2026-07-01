@@ -1,8 +1,30 @@
+import os from 'node:os';
+import path from 'node:path';
+
 /** @type {import('next').NextConfig} */
 function withHttpProtocol(url) {
   const trimmed = String(url || '').trim().replace(/\/$/, '');
   if (!trimmed) return trimmed;
   return /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
+}
+
+function resolveDevCacheDirectory() {
+  if (process.env.NEXT_WEBPACK_CACHE_DIR) {
+    return process.env.NEXT_WEBPACK_CACHE_DIR;
+  }
+
+  const isOneDrivePath =
+    process.platform === 'win32' &&
+    import.meta.dirname.toLowerCase().includes('onedrive');
+
+  if (!isOneDrivePath) {
+    return null;
+  }
+
+  const localAppData =
+    process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
+
+  return path.join(localAppData, 'WardrobeAI', 'webpack-cache');
 }
 
 const backendInternalUrl = withHttpProtocol(
@@ -13,11 +35,23 @@ const aiServiceInternalUrl = withHttpProtocol(
   process.env.AI_SERVICE_INTERNAL_URL || 'http://localhost:8000',
 );
 
+const devCacheDirectory = resolveDevCacheDirectory();
+
 const nextConfig = {
   output: 'standalone',
   outputFileTracingRoot: import.meta.dirname,
   compress: true,
   poweredByHeader: false,
+  webpack(config, { dev }) {
+    if (dev && devCacheDirectory) {
+      config.cache = {
+        type: 'filesystem',
+        cacheDirectory: devCacheDirectory,
+      };
+    }
+
+    return config;
+  },
   async rewrites() {
     return [
       {

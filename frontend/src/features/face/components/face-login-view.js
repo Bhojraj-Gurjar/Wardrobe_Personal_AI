@@ -28,6 +28,7 @@ export function FaceLoginView() {
   } = useFaceLoginFlow();
 
   const isScanningUi = [
+    FACE_LIVENESS_PHASE.CHALLENGE,
     FACE_LIVENESS_PHASE.CAPTURING,
     FACE_LIVENESS_PHASE.COMPLETE,
   ].includes(livenessPhase) || isScanning;
@@ -35,7 +36,7 @@ export function FaceLoginView() {
   return (
     <FaceAuthLayout
       title="Face Recognition"
-      subtitle="Look at the camera and hold still briefly"
+      subtitle="Follow the on-screen prompt to verify you are live"
       footer={
         <button
           type="button"

@@ -3,6 +3,7 @@
 import { Suspense, useEffect } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { ROUTES } from '@/constants/routes';
+import { AUTH_CONTEXT } from '@/features/auth/constants/auth-context';
 import { useAuthGuardState } from '@/features/auth/hooks/use-auth-guard-state';
 import { resolveAuthenticatedLanding } from '@/features/auth/utils/auth-routing';
 import { LoadingState } from '@/components/shared/loading-state';
@@ -11,12 +12,14 @@ function GuestGuardContent({ children }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const loginType = searchParams.get('loginType');
+  const authContext = loginType === 'admin' ? AUTH_CONTEXT.ADMIN : AUTH_CONTEXT.USER;
   const {
     user,
     isInitializing,
     isAuthenticated,
     isVerified,
-  } = useAuthGuardState();
+  } = useAuthGuardState(authContext);
   const isRegisterPage = pathname === ROUTES.AUTH.REGISTER;
 
   useEffect(() => {
@@ -33,7 +36,7 @@ function GuestGuardContent({ children }) {
     router.replace(
       resolveAuthenticatedLanding(user, { redirect, pathname }),
     );
-  }, [isAuthenticated, isInitializing, isRegisterPage, isVerified, pathname, router, searchParams, user]);
+  }, [authContext, isAuthenticated, isInitializing, isRegisterPage, isVerified, pathname, router, searchParams, user]);
 
   if (isInitializing) {
     return <LoadingState title="Loading…" rows={1} />;

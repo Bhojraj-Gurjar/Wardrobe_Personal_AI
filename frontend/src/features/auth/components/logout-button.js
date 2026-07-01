@@ -1,12 +1,18 @@
 'use client';
 
 import { Loader2, LogOut } from 'lucide-react';
+import { AUTH_CONTEXT } from '@/features/auth/constants/auth-context';
 import { useLogoutMutation } from '@/features/auth/hooks/use-logout-mutation';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/utils/cn';
 
-export function LogoutButton({ collapsed = false, className, onNavigate }) {
-  const logoutMutation = useLogoutMutation();
+export function LogoutButton({
+  collapsed = false,
+  className,
+  onNavigate,
+  context = AUTH_CONTEXT.USER,
+}) {
+  const logoutMutation = useLogoutMutation(context);
   const isLoading = logoutMutation.isPending;
 
   const handleLogout = () => {

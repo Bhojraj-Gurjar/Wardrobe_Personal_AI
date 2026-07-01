@@ -1,4 +1,4 @@
-import { mkdir, writeFile, readdir, unlink, rm } from 'fs/promises';
+import { access, mkdir, readFile, writeFile, readdir, unlink, rm } from 'fs/promises';
 import { dirname, join } from 'path';
 import { DEFAULT_STORAGE_PROVIDER } from '../storage.constants';
 import { toFilesystemPath } from '../utils/storage-path.util';
@@ -55,6 +55,53 @@ export class LocalStorageProvider {
 
     try {
       await rm(absolutePath, { recursive: true, force: true });
+      return true;
+    } catch (error) {
+      if (error?.code === 'ENOENT') {
+        return false;
+      }
+
+      throw error;
+    }
+  }
+
+  resolvePublicUrl() {
+    return null;
+  }
+
+  async readStoragePath(storagePath) {
+    if (!storagePath) {
+      return null;
+    }
+
+    const absolutePath = toFilesystemPath(storagePath, this.rootDir);
+    const extension = absolutePath.split('.').pop()?.replace('jpeg', 'jpg') || 'jpg';
+
+    try {
+      const buffer = await readFile(absolutePath);
+
+      return {
+        buffer,
+        mimeType: extension === 'jpg' ? 'image/jpeg' : `image/${extension}`,
+      };
+    } catch (error) {
+      if (error?.code === 'ENOENT') {
+        return null;
+      }
+
+      throw error;
+    }
+  }
+
+  async storagePathExists(storagePath) {
+    if (!storagePath) {
+      return false;
+    }
+
+    const absolutePath = toFilesystemPath(storagePath, this.rootDir);
+
+    try {
+      await access(absolutePath);
       return true;
     } catch (error) {
       if (error?.code === 'ENOENT') {

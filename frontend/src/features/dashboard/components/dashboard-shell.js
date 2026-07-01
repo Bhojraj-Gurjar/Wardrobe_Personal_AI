@@ -38,10 +38,14 @@ export function DashboardShell({ children, className }) {
         <div
           ref={headerRef}
           className={cn(
-            'safe-area-top fixed top-0 right-0 z-50 w-full',
+            'safe-area-top fixed top-0 z-50 overflow-visible',
             'transition-[transform,left] duration-300 ease-out will-change-transform',
             isHeaderVisible ? 'translate-y-0' : '-translate-y-full',
-            !isMobile && (sidebarCollapsed ? 'md:left-[4.5rem]' : 'md:left-64'),
+            isMobile
+              ? 'left-0 right-0'
+              : sidebarCollapsed
+                ? 'left-[4.5rem] right-0'
+                : 'left-64 right-0',
           )}
         >
           <DashboardHeader />

@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { QUERY_STALE_TIME } from '@/constants/app';
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 import {
   closeSupportTicket,
   createSupportTicket,
@@ -15,7 +15,7 @@ import {
 } from '../services/support.service';
 
 export function useSupportTicketsQuery(params = {}) {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useQuery({
     queryKey: ['support-tickets', params],
@@ -26,7 +26,7 @@ export function useSupportTicketsQuery(params = {}) {
 }
 
 export function useSupportTicketQuery(ticketId) {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useQuery({
     queryKey: ['support-ticket', ticketId],
@@ -38,7 +38,7 @@ export function useSupportTicketQuery(ticketId) {
 }
 
 export function useSupportNotificationsQuery(params = {}) {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useQuery({
     queryKey: ['support-notifications', params],
@@ -50,7 +50,7 @@ export function useSupportNotificationsQuery(params = {}) {
 }
 
 export function useCreateSupportTicketMutation() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -63,7 +63,7 @@ export function useCreateSupportTicketMutation() {
 }
 
 export function useReplySupportTicketMutation(ticketId) {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -80,7 +80,7 @@ export function useReplySupportTicketMutation(ticketId) {
 }
 
 export function useCloseSupportTicketMutation() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -93,7 +93,7 @@ export function useCloseSupportTicketMutation() {
 }
 
 export function useReopenSupportTicketMutation() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -106,7 +106,7 @@ export function useReopenSupportTicketMutation() {
 }
 
 export function useMarkSupportNotificationsReadMutation() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const queryClient = useQueryClient();
 
   return useMutation({

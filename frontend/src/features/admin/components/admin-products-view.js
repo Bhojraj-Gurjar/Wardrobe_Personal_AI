@@ -1,9 +1,11 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   ChevronLeft,
   ChevronRight,
+  FileText,
   MoreHorizontal,
   Plus,
   Search,
@@ -15,6 +17,7 @@ import { AdminPageHeader } from '@/features/admin/components/admin-metric-card';
 import {
   useAdminProductsQuery,
   useAdminProductDetailQuery,
+  useAdminDraftProductsQuery,
   useAdminCreateCmsProductMutation,
   useAdminUpdateProductMutation,
   useAdminUploadProductImagesMutation,
@@ -23,11 +26,15 @@ import {
   useAdminAdjustInventoryMutation,
   useAdminValidateBulkProductsMutation,
   useAdminImportBulkProductsMutation,
+  useAdminToken,
 } from '@/features/admin/hooks';
+import { fetchAdminProductById } from '@/features/admin/services/admin.service';
 import { AddProductChoiceModal } from '@/features/admin/products/components/add-product-choice-modal';
 import { BulkUploadPanel } from '@/features/admin/products/components/bulk-upload-panel';
 import { ProductDetailDrawer } from '@/features/admin/products/components/product-detail-drawer';
 import { ProductFormWizard } from '@/features/admin/products/components/product-form-wizard';
+import { ProductDraftsPanel } from '@/features/admin/products/components/product-drafts-panel';
+import { productFormSchema } from '@/features/admin/products/schemas/product-form.schema';
 import { CMS_CATEGORIES, formatAdminProductTypeLabel } from '@/features/admin/products/constants/cms-taxonomy';
 import {
   buildProductMutationPayload,
@@ -146,6 +153,8 @@ function ProductActionsMenu({ product, onEdit, onToggle, onDelete }) {
 }
 
 export function AdminProductsView() {
+  const queryClient = useQueryClient();
+  const token = useAdminToken();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [status, setStatus] = useState('');
@@ -156,9 +165,13 @@ export function AdminProductsView() {
 
   const [choiceOpen, setChoiceOpen] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [draftsOpen, setDraftsOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [selectedProductId, setSelectedProductId] = useState(null);
+  const [wizardInitialStep, setWizardInitialStep] = useState(0);
+  const [publishingDraftId, setPublishingDraftId] = useState(null);
+  const [deletingDraftId, setDeletingDraftId] = useState(null);
 
   const params = useMemo(() => ({
     search: search || undefined,
@@ -172,6 +185,13 @@ export function AdminProductsView() {
   }), [search, category, status, stockFilter, page, sortBy, sortOrder]);
 
   const { data, isLoading, isError, refetch } = useAdminProductsQuery(params);
+  const { data: draftCountData } = useAdminDraftProductsQuery({
+    page: 1,
+    limit: 1,
+    sortBy: 'updatedAt',
+    sortOrder: 'desc',
+  });
+  const draftCount = draftCountData?.meta?.total ?? 0;
   const { data: selectedDetail, isLoading: selectedDetailLoading, isError: selectedDetailError, error: selectedDetailFetchError } = useAdminProductDetailQuery(selectedProductId);
   const {
     data: editingDetail,
@@ -179,6 +199,21 @@ export function AdminProductsView() {
     isError: editingDetailError,
     error: editingDetailFetchError,
   } = useAdminProductDetailQuery(wizardOpen && editingProduct?.id ? editingProduct.id : null);
+
+  useEffect(() => {
+    if (!wizardOpen) {
+      return;
+    }
+
+    if (editingProduct?.id && editingDetail?.draftWizardStep != null) {
+      setWizardInitialStep(Number(editingDetail.draftWizardStep) || 0);
+      return;
+    }
+
+    if (!editingProduct?.id) {
+      setWizardInitialStep(0);
+    }
+  }, [wizardOpen, editingProduct?.id, editingDetail?.draftWizardStep]);
 
   const createCmsMutation = useAdminCreateCmsProductMutation();
   const updateMutation = useAdminUpdateProductMutation();
@@ -219,8 +254,11 @@ export function AdminProductsView() {
     }
   };
 
-  const handleSaveProduct = async (values, imageFiles) => {
-    const payload = buildProductMutationPayload(values);
+  const handleSaveProduct = async (values, imageFiles, options) => {
+    const payload = buildProductMutationPayload(
+      values,
+      values.visibility === 'DRAFT' ? { draftWizardStep: options?.wizardStep ?? 0 } : undefined,
+    );
 
     try {
       if (editingProduct?.id) {
@@ -245,9 +283,16 @@ export function AdminProductsView() {
           });
         }
 
-        showToast('Product updated successfully.');
+        showToast(
+          values.visibility === 'PUBLISHED'
+            ? 'Product published successfully.'
+            : 'Draft updated successfully.',
+        );
         setWizardOpen(false);
         setEditingProduct(null);
+        setWizardInitialStep(0);
+        await queryClient.invalidateQueries({ queryKey: ['admin-products'], refetchType: 'active' });
+        await queryClient.invalidateQueries({ queryKey: ['admin-product-drafts'], refetchType: 'active' });
         await refetch();
         return;
       }
@@ -276,11 +321,89 @@ export function AdminProductsView() {
         });
       }
 
-      showToast('Product created successfully.');
+      showToast(
+        values.visibility === 'PUBLISHED'
+          ? 'Product published successfully.'
+          : 'Product saved as draft.',
+      );
       setWizardOpen(false);
+      setEditingProduct(null);
+      setWizardInitialStep(0);
+      setPage(1);
+      await queryClient.invalidateQueries({ queryKey: ['admin-products'], refetchType: 'active' });
+      await queryClient.invalidateQueries({ queryKey: ['admin-product-drafts'], refetchType: 'active' });
       await refetch();
     } catch (error) {
       showToast(error?.message || 'Unable to save product. Please try again.', 'error');
+    }
+  };
+
+  const handleContinueDraft = (draft) => {
+    setDraftsOpen(false);
+    setEditingProduct(draft);
+    setWizardInitialStep(Number(draft.draftWizardStep) || 0);
+    setWizardOpen(true);
+  };
+
+  const handlePreviewDraft = (draft) => {
+    setSelectedProductId(draft.id);
+  };
+
+  const handlePublishDraft = async (draft) => {
+    if (!token) return;
+
+    setPublishingDraftId(draft.id);
+    try {
+      const detail = await fetchAdminProductById(draft.id, token);
+      const formValues = mapProductDetailToFormValues(detail);
+      const parsed = productFormSchema.safeParse(formValues);
+
+      if (!parsed.success) {
+        showToast('Complete all required fields before publishing.', 'error');
+        setDraftsOpen(false);
+        setEditingProduct(draft);
+        setWizardInitialStep(Number(detail.draftWizardStep) || 0);
+        setWizardOpen(true);
+        return;
+      }
+
+      const payload = buildProductMutationPayload({
+        ...parsed.data,
+        visibility: 'PUBLISHED',
+      });
+
+      await updateMutation.mutateAsync({ id: draft.id, payload });
+      showToast('Product published successfully.');
+      setPage(1);
+      await queryClient.invalidateQueries({ queryKey: ['admin-products'], refetchType: 'active' });
+      await queryClient.invalidateQueries({ queryKey: ['admin-product-drafts'], refetchType: 'active' });
+      await refetch();
+    } catch (error) {
+      showToast(error?.message || 'Unable to publish draft.', 'error');
+    } finally {
+      setPublishingDraftId(null);
+    }
+  };
+
+  const handleDeleteDraft = async (draft) => {
+    if (!window.confirm(`Delete draft "${draft.name}" permanently? This cannot be undone.`)) {
+      return;
+    }
+
+    setDeletingDraftId(draft.id);
+    try {
+      await deleteMutation.mutateAsync(draft.id);
+      showToast('Draft deleted.');
+      if (selectedProductId === draft.id) setSelectedProductId(null);
+      if (editingProduct?.id === draft.id) {
+        setEditingProduct(null);
+        setWizardOpen(false);
+      }
+      await queryClient.invalidateQueries({ queryKey: ['admin-product-drafts'], refetchType: 'active' });
+    } catch (error) {
+      showToast(error?.message || 'Unable to delete draft.', 'error');
+    } finally {
+      setDeletingDraftId(null);
     }
   };
 
@@ -300,12 +423,27 @@ export function AdminProductsView() {
       <AdminPageHeader
         label="Admin"
         title="Product Management"
-        action={
-          <Button className="gap-2 rounded-xl" onClick={() => setChoiceOpen(true)}>
-            <Plus className="size-4" />
-            Add Product
-          </Button>
-        }
+        action={(
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="glass"
+              className="relative gap-2 rounded-xl border border-purple-500/20 bg-purple-500/10 text-purple-100 hover:border-purple-400/40 hover:bg-purple-500/15"
+              onClick={() => setDraftsOpen(true)}
+            >
+              <FileText className="size-4" />
+              Drafts
+              {draftCount > 0 ? (
+                <span className="ml-0.5 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-purple-500 px-1.5 py-0.5 text-[10px] font-bold text-white shadow-[0_0_12px_rgba(139,92,246,0.45)]">
+                  {draftCount > 99 ? '99+' : draftCount}
+                </span>
+              ) : null}
+            </Button>
+            <Button className="gap-2 rounded-xl" onClick={() => setChoiceOpen(true)}>
+              <Plus className="size-4" />
+              Add Product
+            </Button>
+          </div>
+        )}
       />
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -522,15 +660,27 @@ export function AdminProductsView() {
           <ProductFormWizard
             key={editingProduct?.id ?? 'create'}
             mode={editingProduct ? 'edit' : 'create'}
+            initialStep={wizardInitialStep}
             initialValues={editingProduct?.id && editingDetail
               ? mapProductDetailToFormValues(editingDetail)
               : undefined}
             isSubmitting={createCmsMutation.isPending || updateMutation.isPending || uploadImagesMutation.isPending}
-            onClose={() => { setWizardOpen(false); setEditingProduct(null); }}
+            onClose={() => { setWizardOpen(false); setEditingProduct(null); setWizardInitialStep(0); }}
             onSubmit={handleSaveProduct}
           />
         )
       ) : null}
+
+      <ProductDraftsPanel
+        open={draftsOpen}
+        onClose={() => setDraftsOpen(false)}
+        onContinueEditing={handleContinueDraft}
+        onPreview={handlePreviewDraft}
+        onPublish={handlePublishDraft}
+        onDelete={handleDeleteDraft}
+        publishingId={publishingDraftId}
+        deletingId={deletingDraftId}
+      />
 
       {bulkOpen ? (
         <BulkUploadPanel
@@ -538,7 +688,13 @@ export function AdminProductsView() {
           isValidating={validateBulkMutation.isPending}
           isImporting={importBulkMutation.isPending}
           onValidate={(rows) => validateBulkMutation.mutateAsync(rows)}
-          onImport={(rows) => importBulkMutation.mutateAsync(rows)}
+          onImport={async (rows) => {
+            const result = await importBulkMutation.mutateAsync(rows);
+            setPage(1);
+            await queryClient.invalidateQueries({ queryKey: ['admin-products'], refetchType: 'active' });
+            await refetch();
+            return result;
+          }}
         />
       ) : null}
 

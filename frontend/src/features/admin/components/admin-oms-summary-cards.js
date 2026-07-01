@@ -2,10 +2,12 @@
 
 import { memo } from 'react';
 import {
+  Archive,
   CheckCircle2,
   IndianRupee,
   Package,
   PartyPopper,
+  Receipt,
   RotateCcw,
   Sparkles,
   Truck,
@@ -24,6 +26,8 @@ const CARD_ICONS = {
   COMPLETED: PartyPopper,
   CANCELLED: XCircle,
   RETURNED: RotateCcw,
+  REFUNDED: Receipt,
+  ARCHIVED: Archive,
   TODAY_REVENUE: IndianRupee,
 };
 
@@ -129,7 +133,8 @@ const OmsSummaryCard = memo(function OmsSummaryCard({
         isFilterable && 'hover:-translate-y-1 hover:border-white/[0.14] hover:bg-dashboard-surface/70',
         active && theme.activeBorder,
         active && theme.activeGlow,
-        active && 'bg-dashboard-surface/75',
+        active && 'z-[1] -translate-y-0.5 bg-dashboard-surface/80 ring-1 ring-white/[0.12]',
+        active && 'scale-[1.02]',
         card.id === 'TODAY_REVENUE' && 'ring-1 ring-yellow-500/10',
       )}
     >
@@ -187,13 +192,19 @@ export const AdminOmsSummaryCards = memo(function AdminOmsSummaryCards({
   activeTab,
   onCardSelect,
 }) {
+  const displayMetrics = {
+    ...metrics,
+    refunded: metrics?.refunded ?? metrics?.by_status?.REFUNDED ?? 0,
+    archived: metrics?.archived ?? metrics?.by_status?.ARCHIVED ?? 0,
+  };
+
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-5">
       {OMS_STAGE_CARDS.map((card) => (
         <OmsSummaryCard
           key={card.id}
           card={card}
-          value={metrics[card.metricKey] ?? 0}
+          value={displayMetrics[card.metricKey] ?? 0}
           active={card.filterable !== false && activeTab === card.id}
           onSelect={onCardSelect}
         />

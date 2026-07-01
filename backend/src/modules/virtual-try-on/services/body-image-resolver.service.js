@@ -86,7 +86,7 @@ class BodyImageResolverService {
       user.profile?.preferences || {},
     );
 
-    if (!transparentPath || !this.backgroundRemovalService.transparentPngExists(userId)) {
+    if (!transparentPath || !await this.backgroundRemovalService.transparentPngExists(userId)) {
       return null;
     }
 

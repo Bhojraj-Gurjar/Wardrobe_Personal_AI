@@ -10,7 +10,7 @@ import { fetchProfile, ensureUserArtifacts } from '@/features/profile/services';
 import { fetchFaceAnalysis } from '@/features/face-analysis/services';
 import { fetchBodyAnalysis } from '@/features/body-analysis/services';
 import { fetchDigitalAvatar } from '@/features/digital-avatar/services';
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 
 export function usePrefetchRoutes(routes = []) {
   const router = useRouter();
@@ -24,7 +24,7 @@ export function usePrefetchRoutes(routes = []) {
 
 export function usePrefetchDashboardQueries(enabled = true) {
   const queryClient = useQueryClient();
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   useEffect(() => {
     if (!enabled || !token) return;

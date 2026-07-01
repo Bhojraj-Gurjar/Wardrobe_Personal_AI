@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { Bell, ChevronDown, Menu, Search } from 'lucide-react';
 import { NotificationCenter } from '@/features/notifications';
 import { ROUTES } from '@/constants/routes';
-import { useAuthStore } from '@/stores/auth-store';
+import { getAdminAccessToken, useAdminAccessToken, useAdminProfile } from '@/stores/auth-store';
 import { useAdminProfileQuery } from '@/features/admin/hooks';
 import { useUiStore } from '@/stores/ui-store';
 import { useIsMobile } from '@/hooks/use-media-query';
@@ -44,7 +44,7 @@ export function AdminHeader() {
   const pathname = usePathname();
   const isMobile = useIsMobile();
   const toggleMobileSidebar = useUiStore((state) => state.toggleMobileSidebar);
-  const user = useAuthStore((state) => state.user);
+  const user = useAdminProfile();
   const { data: profile } = useAdminProfileQuery();
   const [search, setSearch] = useState('');
 

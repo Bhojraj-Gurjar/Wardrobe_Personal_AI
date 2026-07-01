@@ -16,7 +16,7 @@ import {
   searchCloset,
   updateSavedOutfit,
 } from '@/features/personal-closet/services/personal-closet.service';
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 
 const CLOSET_QUERY_KEY = ['personal-closet'];
 
@@ -25,7 +25,7 @@ function invalidateCloset(queryClient) {
 }
 
 export function useClosetOverviewQuery() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useQuery({
     queryKey: [...CLOSET_QUERY_KEY, 'overview'],
@@ -36,7 +36,7 @@ export function useClosetOverviewQuery() {
 }
 
 export function usePurchasedItemsQuery(params = {}) {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useQuery({
     queryKey: [...CLOSET_QUERY_KEY, 'purchased', params],
@@ -47,7 +47,7 @@ export function usePurchasedItemsQuery(params = {}) {
 }
 
 export function useSavedOutfitsQuery() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useQuery({
     queryKey: [...CLOSET_QUERY_KEY, 'outfits'],
@@ -58,7 +58,7 @@ export function useSavedOutfitsQuery() {
 }
 
 export function useFavoriteBrandsQuery() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useQuery({
     queryKey: [...CLOSET_QUERY_KEY, 'brands'],
@@ -69,7 +69,7 @@ export function useFavoriteBrandsQuery() {
 }
 
 export function useFavoriteColorsQuery() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useQuery({
     queryKey: [...CLOSET_QUERY_KEY, 'colors'],
@@ -80,7 +80,7 @@ export function useFavoriteColorsQuery() {
 }
 
 export function useClosetSearchQuery(params, enabled = true) {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useQuery({
     queryKey: [...CLOSET_QUERY_KEY, 'search', params],
@@ -92,7 +92,7 @@ export function useClosetSearchQuery(params, enabled = true) {
 
 export function useRemovePurchasedItemMutation() {
   const queryClient = useQueryClient();
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useMutation({
     mutationFn: ({ orderId, productId }) =>
@@ -103,7 +103,7 @@ export function useRemovePurchasedItemMutation() {
 
 export function useDeleteOutfitMutation() {
   const queryClient = useQueryClient();
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useMutation({
     mutationFn: (id) => deleteSavedOutfit(id, token),
@@ -113,7 +113,7 @@ export function useDeleteOutfitMutation() {
 
 export function useUpdateOutfitMutation() {
   const queryClient = useQueryClient();
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useMutation({
     mutationFn: ({ id, ...body }) => updateSavedOutfit(id, body, token),
@@ -123,7 +123,7 @@ export function useUpdateOutfitMutation() {
 
 export function useAddOutfitToCartMutation() {
   const queryClient = useQueryClient();
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useMutation({
     mutationFn: (id) => addOutfitToCart(id, token),
@@ -135,7 +135,7 @@ export function useAddOutfitToCartMutation() {
 
 export function useRemoveFavoriteBrandMutation() {
   const queryClient = useQueryClient();
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useMutation({
     mutationFn: (brandName) => removeFavoriteBrand(brandName, token),
@@ -145,7 +145,7 @@ export function useRemoveFavoriteBrandMutation() {
 
 export function useRemoveFavoriteColorMutation() {
   const queryClient = useQueryClient();
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   return useMutation({
     mutationFn: (colorName) => removeFavoriteColor(colorName, token),

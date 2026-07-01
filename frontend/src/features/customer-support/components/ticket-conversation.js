@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Download, FileText, ImageOff, Paperclip } from 'lucide-react';
 import { isAdminUser } from '@/features/admin/utils/is-admin-user';
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 import { cn } from '@/utils/cn';
 import { formatSupportDate, resolveAttachmentUrl, resolveIsOwnSupportMessage } from '../utils/support.utils';
 
@@ -15,7 +15,7 @@ export function TicketConversation({
   viewerIsAdmin = false,
 }) {
   const endRef = useRef(null);
-  const authUser = useAuthStore((state) => state.user);
+  const authUser = useUserProfile();
   const resolvedViewerIsAdmin = viewerIsAdmin || isAdminUser(authUser);
   const currentUserId = authUser?.id || authUser?.userId || null;
 
@@ -55,6 +55,10 @@ export function TicketConversation({
           currentUserId,
           viewerIsAdmin: resolvedViewerIsAdmin,
         });
+        const useAdminInboxLayout = viewerIsAdmin;
+        const alignEnd = useAdminInboxLayout
+          ? (isAdmin || isSystem) && !message.isInternal
+          : isOwnMessage;
         const senderLabel = message.isInternal
           ? 'Internal Note'
           : isUser
@@ -68,17 +72,21 @@ export function TicketConversation({
             key={message.id}
             className={cn(
               'flex',
-              isOwnMessage ? 'justify-end' : 'justify-start',
+              alignEnd ? 'justify-end' : 'justify-start',
             )}
           >
             <div
               className={cn(
-                'max-w-[88%] rounded-2xl border px-4 py-3 shadow-sm',
+                'max-w-[72%] rounded-2xl border px-4 py-3 shadow-sm',
                 message.isInternal
                   ? 'border-amber-500/30 bg-amber-500/10'
-                  : isAdmin || isSystem
-                    ? 'border-purple-500/35 bg-purple-500/10'
-                    : 'border-dashboard-border bg-dashboard-bg/70',
+                  : useAdminInboxLayout
+                    ? alignEnd
+                      ? 'border-primary/40 bg-primary/15'
+                      : 'border-dashboard-border bg-dashboard-bg/80'
+                    : isAdmin || isSystem
+                      ? 'border-purple-500/35 bg-purple-500/10'
+                      : 'border-dashboard-border bg-dashboard-bg/70',
               )}
             >
               <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-dashboard-muted">

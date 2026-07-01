@@ -7,30 +7,25 @@ import { Prisma } from '@prisma/client';
 export function buildCatalogVisibilityFilter() {
   return {
     is_active: true,
-    visibility: { not: 'HIDDEN' },
+    visibility: { notIn: ['HIDDEN', 'DRAFT'] },
   };
 }
 
 /**
  * Admin product list — exclude soft-deleted CMS products only.
  * Use Prisma.DbNull for nullable JSON; plain `null` breaks JSON path filters in Prisma 7.
+ * Prefer `path + not: true` over `NOT { path + equals: true }` — the latter drops rows
+ * when adminDeleted is unset on non-null cms_metadata (e.g. wizard-created products).
  */
 export function buildAdminProductListFilter() {
   return {
     OR: [
       { cms_metadata: { equals: Prisma.DbNull } },
       {
-        AND: [
-          { cms_metadata: { not: Prisma.DbNull } },
-          {
-            NOT: {
-              cms_metadata: {
-                path: ['adminDeleted'],
-                equals: true,
-              },
-            },
-          },
-        ],
+        cms_metadata: {
+          path: ['adminDeleted'],
+          not: true,
+        },
       },
     ],
   };

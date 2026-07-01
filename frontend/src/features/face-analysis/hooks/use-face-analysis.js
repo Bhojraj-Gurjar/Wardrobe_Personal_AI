@@ -13,7 +13,7 @@ import {
   updateFaceAnalysis,
 } from '@/features/face-analysis/services';
 
-import { useAuthStore } from '@/stores/auth-store';
+import { getUserAccessToken, useUserAccessToken, useUserProfile, useAuthStore } from '@/stores/auth-store';
 
 
 
@@ -23,7 +23,7 @@ export const FACE_ANALYSIS_QUERY_KEY = ['face-analysis'];
 
 export function useFaceAnalysisQuery() {
 
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
 
 
@@ -57,10 +57,8 @@ export function useFaceAnalysisQuery() {
 
 
 
-      if (data?.is_face_registered && !data?.hasAnalysis) {
-
+      if (data?.is_face_registered && data?.faceImageUrl && !data?.hasAnalysis) {
         return 4000;
-
       }
 
 
@@ -77,7 +75,7 @@ export function useFaceAnalysisQuery() {
 
 export function useAnalyzeFaceMutation() {
 
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   const queryClient = useQueryClient();
 
@@ -146,7 +144,7 @@ export function useAnalyzeFaceMutation() {
 
 
 export function useAnalyzeCurrentFaceMutation() {
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -180,7 +178,7 @@ export function useAnalyzeCurrentFaceMutation() {
 
 export function useUpdateFaceAnalysisMutation() {
 
-  const token = useAuthStore((state) => state.accessToken);
+  const token = useUserAccessToken();
 
   const queryClient = useQueryClient();
 
