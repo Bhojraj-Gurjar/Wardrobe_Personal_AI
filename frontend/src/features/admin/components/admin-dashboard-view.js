@@ -71,8 +71,6 @@ function DashboardSkeleton() {
   );
 }
 
-import { formatCurrency } from '@/utils/currency';
-
 function RevenueTooltip({ active, payload, label }) {
   if (!active || !payload?.length) {
     return null;
