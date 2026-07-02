@@ -23,7 +23,7 @@ import {
 } from '../constants/cms-taxonomy.constants';
 import { AdminProductCmsRepository } from '../repositories/admin-product-cms.repository';
 import { ProductService } from '../../products/services/product.service';
-import { recordSeedSuppression } from '../../products/utils/product-seed-guard.util';
+import { SeedSuppressionService } from '../../products/services/seed-suppression.service';
 
 const ALLOWED_IMAGE_MIME = new Set([
   'image/jpeg',
@@ -76,11 +76,13 @@ class AdminProductCmsService {
     @Inject(StorageService) storageService,
     @Inject(StoragePathResolver) storagePathResolver,
     @Inject(ProductService) productService,
+    @Inject(SeedSuppressionService) seedSuppressionService,
   ) {
     this.cmsRepository = cmsRepository;
     this.storageService = storageService;
     this.storagePathResolver = storagePathResolver;
     this.productService = productService;
+    this.seedSuppressionService = seedSuppressionService;
   }
 
   async syncCatalogCache(productId = null) {
@@ -98,7 +100,7 @@ class AdminProductCmsService {
 
     if (deleted) {
       if (product.sku) {
-        recordSeedSuppression(product.sku);
+        await this.seedSuppressionService.recordSuppression(product.sku);
       }
 
       await this.cleanupProductStorage(product);
@@ -117,7 +119,7 @@ class AdminProductCmsService {
     const archived = await this.cmsRepository.archiveProductById(id);
 
     if (archived?.sku) {
-      recordSeedSuppression(archived.sku);
+      await this.seedSuppressionService.recordSuppression(archived.sku);
     }
 
     return archived;

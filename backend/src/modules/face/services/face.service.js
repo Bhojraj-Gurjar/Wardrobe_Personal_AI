@@ -166,6 +166,31 @@ class FaceService {
     }
   }
 
+  /**
+   * Persist a face photo for trait analysis without face-auth liveness/registration.
+   */
+  async storeFacePhotoForAnalysis(userId, dto) {
+    if (!dto.imageBuffer?.length) {
+      throw new BadRequestException('Provide a frontFace image upload.');
+    }
+
+    const existing = await this.faceRepository.findFaceRegistration(userId);
+    const faceImagePath = await this.faceImageStorageService.replaceFaceImage(
+      userId,
+      dto.imageBuffer,
+      dto.imageMimeType,
+      existing?.face_image_url,
+    );
+
+    await this.userMediaRegistryService.registerFacePhoto(userId, faceImagePath, {
+      mimeType: dto.imageMimeType,
+      fileSize: dto.imageBuffer?.length,
+      uploadSource: 'face_analysis',
+    });
+
+    return this.faceRepository.upsertFaceRegistration(userId, faceImagePath, {});
+  }
+
   formatRegistrationResponse(userId, registration) {
     const faceImagePath = registration?.face_image_url || null;
 

@@ -178,15 +178,17 @@ let AdminService = class AdminService {
         const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
         const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
         const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+        const { start: yearStart, end: yearEnd } = (0, _orderrevenueutil.getCurrentYearBounds)();
+        const { start: prevYearStart, end: prevYearEnd } = (0, _orderrevenueutil.getPreviousYearBounds)();
         const chartStart = new Date(now.getFullYear(), now.getMonth() - 5, 1);
         chartStart.setHours(0, 0, 0, 0);
-        const [totalUsers, activeUsers, ordersThisMonth, ordersPrevMonth, revenueThisMonth, revenuePrevMonth, revenueOrders, monthlyUsers, categoryOrders, productViewsThisMonth, completedOrdersThisMonth, completedOrdersPrevMonth, engagedUsersThisMonth, engagedUsersPrevMonth] = await Promise.all([
+        const [totalUsers, activeUsers, ordersThisMonth, ordersPrevMonth, revenueThisYear, revenuePrevYear, revenueOrders, monthlyUsers, categoryOrders, productViewsThisMonth, completedOrdersThisMonth, completedOrdersPrevMonth, engagedUsersThisMonth, engagedUsersPrevMonth] = await Promise.all([
             this.adminRepository.countUsers(),
             this.adminRepository.countActiveUsers(),
             this.adminRepository.countOrdersCreatedInRange(monthStart, monthEnd),
             this.adminRepository.countOrdersCreatedInRange(prevMonthStart, prevMonthEnd),
-            this.adminRepository.aggregateNetRecognizedRevenue(monthStart, monthEnd),
-            this.adminRepository.aggregateNetRecognizedRevenue(prevMonthStart, prevMonthEnd),
+            this.adminRepository.aggregateNetRecognizedRevenue(yearStart, yearEnd),
+            this.adminRepository.aggregateNetRecognizedRevenue(prevYearStart, prevYearEnd),
             this.adminRepository.getRevenueOrdersSince(chartStart),
             this.adminRepository.getMonthlyStats(6).then(([, users])=>users),
             this.adminRepository.groupOrdersByCategory({
@@ -198,8 +200,8 @@ let AdminService = class AdminService {
             this.adminRepository.countEngagedUsersInRange(monthStart, monthEnd),
             this.adminRepository.countEngagedUsersInRange(prevMonthStart, prevMonthEnd)
         ]);
-        const revenue = revenueThisMonth.net;
-        const prevRevenue = revenuePrevMonth.net;
+        const revenue = revenueThisYear.net;
+        const prevRevenue = revenuePrevYear.net;
         const conversionRate = productViewsThisMonth > 0 ? Math.round(completedOrdersThisMonth / productViewsThisMonth * 1000) / 10 : ordersThisMonth > 0 ? Math.round(completedOrdersThisMonth / ordersThisMonth * 1000) / 10 : 0;
         const prevConversion = ordersPrevMonth > 0 ? Math.round(completedOrdersPrevMonth / ordersPrevMonth * 1000) / 10 : 0;
         const revenueUsersChart = (0, _orderrevenueutil.buildMonthlyRevenueSeries)(revenueOrders, 6, MONTH_LABELS);
@@ -254,7 +256,7 @@ let AdminService = class AdminService {
                     value: Math.round(value)
                 })).sort((a, b)=>b.value - a.value).slice(0, 8)
         };
-        this.logger.log(`Dashboard query executed — users=${totalUsers} active=${activeUsers} ordersMonth=${ordersThisMonth} revenue=${revenue}`);
+        this.logger.log(`Dashboard query executed — users=${totalUsers} active=${activeUsers} ordersMonth=${ordersThisMonth} revenueYear=${revenue}`);
         return payload;
     }
     async getAnalytics(query = {}) {

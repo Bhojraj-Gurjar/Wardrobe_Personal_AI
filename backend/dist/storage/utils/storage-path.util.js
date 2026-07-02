@@ -81,6 +81,12 @@ _export(exports, {
     get isBodyPhotoPath () {
         return isBodyPhotoPath;
     },
+    get isBundledProductStoragePath () {
+        return isBundledProductStoragePath;
+    },
+    get isCmsUploadedProductStoragePath () {
+        return isCmsUploadedProductStoragePath;
+    },
     get isFacePhotoPath () {
         return isFacePhotoPath;
     },
@@ -95,6 +101,9 @@ _export(exports, {
     },
     get mimeTypeFromExtension () {
         return mimeTypeFromExtension;
+    },
+    get objectKeyFromStoragePath () {
+        return objectKeyFromStoragePath;
     },
     get parseImagePayload () {
         return parseImagePayload;
@@ -210,6 +219,17 @@ function parseImagePayload(imagePayload) {
         };
     }
     return null;
+}
+function objectKeyFromStoragePath(storagePath) {
+    return String(storagePath || '').trim().replace(/^\/uploads\//, '').replace(/^\/+/, '');
+}
+const CMS_PRODUCT_UPLOAD_PATTERN = /^products\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\//i;
+function isCmsUploadedProductStoragePath(storagePath) {
+    return CMS_PRODUCT_UPLOAD_PATTERN.test(objectKeyFromStoragePath(storagePath));
+}
+function isBundledProductStoragePath(storagePath) {
+    const objectKey = objectKeyFromStoragePath(storagePath);
+    return /^products\//i.test(objectKey) && !isCmsUploadedProductStoragePath(storagePath);
 }
 function resolvePublicAssetUrl(storagePath, publicBaseUrl) {
     if (!storagePath) {

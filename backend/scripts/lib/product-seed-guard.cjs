@@ -1,4 +1,4 @@
-const { existsSync, mkdirSync, readFileSync, writeFileSync } = require('node:fs');
+const { existsSync, readFileSync } = require('node:fs');
 const { join, resolve } = require('node:path');
 
 function getStorageRoot() {
@@ -17,15 +17,11 @@ function getInitMarkerPath() {
   return join(getSystemDir(), 'product-catalog-initialized');
 }
 
-function ensureSystemDir() {
-  mkdirSync(getSystemDir(), { recursive: true });
-}
-
 function normalizeSku(sku) {
   return String(sku || '').trim().toUpperCase();
 }
 
-function loadSuppressions() {
+function loadSuppressionsFromFile() {
   const filePath = getSuppressionFilePath();
 
   if (!existsSync(filePath)) {
@@ -41,40 +37,55 @@ function loadSuppressions() {
   }
 }
 
-function isSkuSeedSuppressed(sku) {
-  const normalized = normalizeSku(sku);
-  return normalized ? loadSuppressions().has(normalized) : false;
+async function loadSuppressedSkus(prisma) {
+  const suppressed = loadSuppressionsFromFile();
+
+  if (!prisma?.seedSuppressedSku) {
+    return suppressed;
+  }
+
+  try {
+    const rows = await prisma.seedSuppressedSku.findMany({
+      select: { sku: true },
+    });
+
+    for (const row of rows) {
+      const normalized = normalizeSku(row.sku);
+      if (normalized) {
+        suppressed.add(normalized);
+      }
+    }
+  } catch (error) {
+    console.warn('[product-seed-guard] Failed to load DB suppressions:', error.message);
+  }
+
+  return suppressed;
 }
 
-function recordSeedSuppression(sku) {
+function isSkuSeedSuppressed(sku, suppressedSkus) {
+  const normalized = normalizeSku(sku);
+  return normalized ? suppressedSkus.has(normalized) : false;
+}
+
+async function recordSeedSuppression(prisma, sku) {
   const normalized = normalizeSku(sku);
 
-  if (!normalized) {
+  if (!normalized || !prisma?.seedSuppressedSku) {
     return;
   }
 
-  const suppressions = loadSuppressions();
-
-  if (suppressions.has(normalized)) {
-    return;
+  try {
+    await prisma.seedSuppressedSku.upsert({
+      where: { sku: normalized },
+      update: {},
+      create: { sku: normalized },
+    });
+  } catch (error) {
+    console.warn(
+      `[product-seed-guard] Failed to record seed suppression for SKU ${normalized}:`,
+      error.message,
+    );
   }
-
-  suppressions.add(normalized);
-  ensureSystemDir();
-
-  writeFileSync(
-    getSuppressionFilePath(),
-    JSON.stringify(
-      {
-        version: 1,
-        suppressedSkus: [...suppressions].sort(),
-        updatedAt: new Date().toISOString(),
-      },
-      null,
-      2,
-    ),
-    'utf8',
-  );
 }
 
 function isProductCatalogInitialized() {
@@ -82,7 +93,8 @@ function isProductCatalogInitialized() {
 }
 
 function markProductCatalogInitialized() {
-  ensureSystemDir();
+  const { mkdirSync, writeFileSync } = require('node:fs');
+  mkdirSync(getSystemDir(), { recursive: true });
   writeFileSync(getInitMarkerPath(), new Date().toISOString(), 'utf8');
 }
 
@@ -113,7 +125,9 @@ module.exports = {
   getProductCount,
   isProductCatalogInitialized,
   isSkuSeedSuppressed,
+  loadSuppressedSkus,
   markProductCatalogInitialized,
+  normalizeSku,
   recordSeedSuppression,
   shouldRunProductSeeds,
 };

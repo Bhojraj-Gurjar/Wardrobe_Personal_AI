@@ -88,7 +88,7 @@ let FaceAnalysisService = class FaceAnalysisService {
         if (!this.aiService.isConfigured()) {
             throw new _common.ServiceUnavailableException('AI service unavailable.');
         }
-        await resolveFaceService(this.moduleRef).replaceFacePhoto(userId, imageDto);
+        await resolveFaceService(this.moduleRef).storeFacePhotoForAnalysis(userId, imageDto);
         return this.persistFaceTraitAnalysis(userId, imageDto, options);
     }
     async analyzeStoredFace(userId) {

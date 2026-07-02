@@ -1,10 +1,12 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import { ROUTES } from '@/constants/routes';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { FashionConfidenceScoreRing } from '@/components/shared/fashion-confidence-score-ring';
 import { cn } from '@/utils/cn';
 
 function resolveConfidenceTier(score) {
@@ -39,64 +41,6 @@ function formatRankLabel(label) {
     .join(' ');
 }
 
-function ScoreRing({ score, variant = 'desktop' }) {
-  const isMobile = variant === 'mobile';
-  const radius = isMobile ? 38 : 54;
-  const size = isMobile ? 88 : 128;
-  const stroke = isMobile ? 6 : 10;
-  const circumference = 2 * Math.PI * radius;
-  const progress = (score / 100) * circumference;
-  const center = size / 2;
-
-  return (
-    <div
-      className={cn(
-        'relative mx-auto shrink-0',
-        isMobile ? 'size-[88px]' : 'size-32',
-      )}
-      aria-hidden="true"
-    >
-      <svg className="size-full -rotate-90 overflow-visible" viewBox={`0 0 ${size} ${size}`}>
-        <circle
-          cx={center}
-          cy={center}
-          r={radius}
-          fill="none"
-          stroke="var(--dashboard-border)"
-          strokeWidth={stroke}
-        />
-        <circle
-          cx={center}
-          cy={center}
-          r={radius}
-          fill="none"
-          stroke="url(#fashion-dna-ring-gradient)"
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={circumference - progress}
-        />
-        <defs>
-          <linearGradient id="fashion-dna-ring-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#a78bfa" />
-            <stop offset="100%" stopColor="#8b5cf6" />
-          </linearGradient>
-        </defs>
-      </svg>
-      <div className="absolute inset-0 flex items-center justify-center">
-        <span
-          className={cn(
-            'font-bold leading-none text-dashboard-foreground',
-            isMobile ? 'text-[26px]' : 'text-3xl',
-          )}
-        >
-          {score}
-        </span>
-      </div>
-    </div>
-  );
-}
-
 function FashionDNAMobileSkeleton() {
   return (
     <div className="flex flex-col items-center gap-2 py-1">
@@ -111,7 +55,7 @@ function FashionDNAMobileSkeleton() {
 function FashionDNADesktopSkeleton() {
   return (
     <div className="flex flex-1 flex-col items-center gap-4 py-4">
-      <Skeleton className="size-32 rounded-full bg-dashboard-surface-elevated" />
+      <Skeleton className="size-40 rounded-full bg-dashboard-surface-elevated" />
       <div className="space-y-2 text-center">
         <Skeleton className="mx-auto h-5 w-28 rounded bg-dashboard-surface-elevated" />
         <Skeleton className="mx-auto h-4 w-36 rounded bg-dashboard-surface-elevated" />
@@ -121,13 +65,18 @@ function FashionDNADesktopSkeleton() {
   );
 }
 
-function FashionDNAMobileContent({ dna }) {
+function FashionDNAMobileContent({ dna, animatedScore }) {
   const tier = resolveConfidenceTier(dna.score);
   const rank = formatRankLabel(dna.rankLabel);
+  const score = Math.max(0, Math.round(Number(dna.score) || 0));
 
   return (
     <div className="flex w-full max-w-full flex-col items-center gap-2 px-1 text-center">
-      <ScoreRing score={dna.score} variant="mobile" />
+      <FashionConfidenceScoreRing
+        score={score}
+        animatedScore={animatedScore}
+        variant="mobile"
+      />
 
       <div className="w-full max-w-full space-y-0.5">
         <p className="text-xs leading-none text-dashboard-foreground">
@@ -147,10 +96,18 @@ function FashionDNAMobileContent({ dna }) {
   );
 }
 
-function FashionDNADesktopContent({ dna }) {
+function FashionDNADesktopContent({ dna, animatedScore }) {
+  const score = Math.max(0, Math.round(Number(dna.score) || 0));
+
   return (
     <>
-      <ScoreRing score={dna.score} variant="desktop" />
+      <div className="relative flex size-40 items-center justify-center rounded-full border border-[#8B5CF6]/30 bg-[#8B5CF6]/10">
+        <FashionConfidenceScoreRing
+          score={score}
+          animatedScore={animatedScore}
+          variant="desktop"
+        />
+      </div>
 
       <div className="mt-4 space-y-1 text-center">
         <p className="text-lg font-semibold text-dashboard-foreground">
@@ -165,6 +122,18 @@ function FashionDNADesktopContent({ dna }) {
 
 export function FashionDNACard({ dna, isLoading = false, className }) {
   const isEmpty = !isLoading && (dna?.isEmpty || dna?.score === null);
+  const score = Math.max(0, Math.round(Number(dna?.score) || 0));
+  const [animatedScore, setAnimatedScore] = useState(0);
+
+  useEffect(() => {
+    if (isLoading || isEmpty) {
+      setAnimatedScore(0);
+      return;
+    }
+
+    const timeout = setTimeout(() => setAnimatedScore(score), 120);
+    return () => clearTimeout(timeout);
+  }, [isEmpty, isLoading, score]);
 
   return (
     <section
@@ -189,7 +158,7 @@ export function FashionDNACard({ dna, isLoading = false, className }) {
             No Fashion DNA yet. Complete your profile and analysis to generate it.
           </p>
         ) : (
-          <FashionDNAMobileContent dna={dna} />
+          <FashionDNAMobileContent dna={dna} animatedScore={animatedScore} />
         )}
 
         <Button
@@ -228,7 +197,7 @@ export function FashionDNACard({ dna, isLoading = false, className }) {
           </div>
         ) : (
           <div className="flex flex-1 flex-col items-center">
-            <FashionDNADesktopContent dna={dna} />
+            <FashionDNADesktopContent dna={dna} animatedScore={animatedScore} />
           </div>
         )}
 
