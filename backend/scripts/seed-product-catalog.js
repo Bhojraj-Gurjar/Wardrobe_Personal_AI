@@ -6,7 +6,7 @@ const pg = require('pg');
 const { PRODUCT_CATALOG_SEED } = require('../src/modules/products/constants/product-catalog.seed.js');
 const { isCatalogSku } = require('./lib/product-identity.cjs');
 const { inferProductType } = require('../src/modules/products/constants/product-type.constants');
-const { isSkuSeedSuppressed } = require('./lib/product-seed-guard.cjs');
+const { isSkuSeedSuppressed, loadSuppressedSkus } = require('./lib/product-seed-guard.cjs');
 
 loadEnv({ path: resolve(__dirname, '../.env') });
 
@@ -53,8 +53,8 @@ function mapImages(product) {
   }];
 }
 
-async function upsertProduct(prisma, product) {
-  if (isSkuSeedSuppressed(product.sku)) {
+async function upsertProduct(prisma, product, suppressedSkus) {
+  if (isSkuSeedSuppressed(product.sku, suppressedSkus)) {
     return null;
   }
 
@@ -97,6 +97,7 @@ async function main() {
   const prisma = new PrismaClient({ adapter });
 
   try {
+    const suppressedSkus = await loadSuppressedSkus(prisma);
     let seeded = 0;
     let created = 0;
     let updated = 0;
@@ -111,7 +112,7 @@ async function main() {
         select: { id: true },
       });
 
-      await upsertProduct(prisma, product);
+      await upsertProduct(prisma, product, suppressedSkus);
       seeded += 1;
 
       if (before) {

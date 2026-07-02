@@ -1,6 +1,10 @@
 import { createHash } from 'crypto';
 import { File } from 'node:buffer';
 import { STORAGE_PROVIDERS } from '../storage.constants';
+import {
+  isBundledProductStoragePath,
+  objectKeyFromStoragePath,
+} from '../utils/storage-path.util';
 
 function normalizeObjectKey(objectKey) {
   return String(objectKey || '').replace(/\\/g, '/').replace(/^\/+/, '');
@@ -9,13 +13,6 @@ function normalizeObjectKey(objectKey) {
 function storagePathFromObjectKey(objectKey) {
   const normalizedKey = normalizeObjectKey(objectKey);
   return `/uploads/${normalizedKey}`.replace(/\/+/g, '/');
-}
-
-function objectKeyFromStoragePath(storagePath) {
-  return String(storagePath || '')
-    .trim()
-    .replace(/^\/uploads\//, '')
-    .replace(/^\/+/, '');
 }
 
 function extensionFromObjectKey(objectKey) {
@@ -94,6 +91,11 @@ export class CloudinaryStorageProvider {
 
     if (/^https?:\/\//i.test(storagePath)) {
       return storagePath;
+    }
+
+    // Curated catalog assets are copied to local uploads on deploy, not Cloudinary.
+    if (isBundledProductStoragePath(storagePath)) {
+      return null;
     }
 
     const objectKey = objectKeyFromStoragePath(storagePath);

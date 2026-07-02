@@ -7,7 +7,7 @@ const {
   TRYON_SKU_PREFIX,
   TRY_ON_PRODUCT_SEED,
 } = require('./lib/try-on-products.seed.cjs');
-const { isSkuSeedSuppressed } = require('./lib/product-seed-guard.cjs');
+const { isSkuSeedSuppressed, loadSuppressedSkus } = require('./lib/product-seed-guard.cjs');
 const { inferProductTypeFromMetadata } = require('../src/modules/products/constants/product-type.constants');
 
 loadEnv({ path: resolve(__dirname, '../.env') });
@@ -66,8 +66,8 @@ function mapImages(product) {
   }];
 }
 
-async function upsertProduct(prisma, product) {
-  if (isSkuSeedSuppressed(product.sku)) {
+async function upsertProduct(prisma, product, suppressedSkus) {
+  if (isSkuSeedSuppressed(product.sku, suppressedSkus)) {
     return null;
   }
 
@@ -111,6 +111,7 @@ async function main() {
 
   try {
     await ensureTryOnSchema(pool);
+    const suppressedSkus = await loadSuppressedSkus(prisma);
 
     let seeded = 0;
     let created = 0;
@@ -126,7 +127,7 @@ async function main() {
         select: { id: true },
       });
 
-      await upsertProduct(prisma, product);
+      await upsertProduct(prisma, product, suppressedSkus);
       seeded += 1;
 
       if (before) {

@@ -35,6 +35,8 @@ Frontend (Render) → Backend (Render) → This Space → Qdrant Cloud + Upstash
 4. **Root directory:** `ai-service` ← important
 5. Save → Space rebuilds automatically
 
+**Port note:** Local dev and `docker compose` use **port 8000**. The HF Space Dockerfile must use **port 7860** (`app_port` above). When syncing via the `AppData\Local\Temp\warddrobe-ai` git clone, keep the HF-specific `ENV PORT=7860` block — do not overwrite it with the monorepo Dockerfile defaults.
+
 ### 3. Add secrets (Space → Settings → Variables)
 
 | Variable | Value |

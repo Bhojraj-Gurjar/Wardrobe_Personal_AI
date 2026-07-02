@@ -4,7 +4,7 @@ const { spawnSync } = require('node:child_process');
 const { PrismaClient } = require('@prisma/client');
 const { PrismaPg } = require('@prisma/adapter-pg');
 const pg = require('pg');
-const { isSkuSeedSuppressed } = require('./product-seed-guard.cjs');
+const { isSkuSeedSuppressed, loadSuppressedSkus } = require('./product-seed-guard.cjs');
 
 function createCuratedProductSeeder({
   products,
@@ -131,8 +131,8 @@ function createCuratedProductSeeder({
     return images;
   }
 
-  async function upsertProduct(prisma, product, imageUrl, tryOnImageUrl) {
-    if (isSkuSeedSuppressed(product.sku)) {
+  async function upsertProduct(prisma, product, imageUrl, tryOnImageUrl, suppressedSkus) {
+    if (isSkuSeedSuppressed(product.sku, suppressedSkus)) {
       return null;
     }
 
@@ -187,9 +187,10 @@ function createCuratedProductSeeder({
 
     try {
       await ensureTryOnSchema(pool);
+      const suppressedSkus = await loadSuppressedSkus(prisma);
 
       for (const product of products) {
-        if (isSkuSeedSuppressed(product.sku)) {
+        if (isSkuSeedSuppressed(product.sku, suppressedSkus)) {
           summaries.push({
             sku: product.sku,
             name: product.name,
@@ -206,7 +207,7 @@ function createCuratedProductSeeder({
           select: { id: true },
         });
 
-        await upsertProduct(prisma, product, original.publicPath, tryOn.publicPath);
+        await upsertProduct(prisma, product, original.publicPath, tryOn.publicPath, suppressedSkus);
 
         summaries.push({
           sku: product.sku,

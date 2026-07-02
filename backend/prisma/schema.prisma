@@ -1047,3 +1047,11 @@ model UserMedia {
   @@index([user_id, created_at])
   @@map("user_media")
 }
+
+/// SKUs manually deleted by an admin so automated product seeds must not recreate them.
+model SeedSuppressedSku {
+  sku        String   @id @db.VarChar(128)
+  created_at DateTime @default(now()) @map("created_at")
+
+  @@map("seed_suppressed_skus")
+}

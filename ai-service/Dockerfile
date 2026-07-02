@@ -81,6 +81,8 @@ RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh \
   && useradd --system --uid 1001 --gid aiservice --home-dir /app aiservice \
   && chown -R aiservice:aiservice /app
 
+# Default port 8000 for local Docker Compose, Render, and direct uvicorn dev.
+# Hugging Face Space deploy uses a separate clone with PORT=7860 (see README).
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=300s --retries=5 \

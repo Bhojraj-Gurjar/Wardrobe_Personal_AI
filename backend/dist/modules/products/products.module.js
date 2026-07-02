@@ -14,6 +14,7 @@ const _productcontroller = require("./controllers/product.controller");
 const _productcategorycontroller = require("./controllers/product-category.controller");
 const _productservice = require("./services/product.service");
 const _productcategoryservice = require("./services/product-category.service");
+const _seedsuppressionservice = require("./services/seed-suppression.service");
 const _productrepository = require("./repositories/product.repository");
 const _productcategoryrepository = require("./repositories/product-category.repository");
 function _ts_decorate(decorators, target, key, desc) {
@@ -36,12 +37,14 @@ ProductsModule = _ts_decorate([
         providers: [
             _productservice.ProductService,
             _productcategoryservice.ProductCategoryService,
+            _seedsuppressionservice.SeedSuppressionService,
             _productrepository.ProductRepository,
             _productcategoryrepository.ProductCategoryRepository
         ],
         exports: [
             _productservice.ProductService,
             _productcategoryservice.ProductCategoryService,
+            _seedsuppressionservice.SeedSuppressionService,
             _productrepository.ProductRepository,
             _productcategoryrepository.ProductCategoryRepository
         ]

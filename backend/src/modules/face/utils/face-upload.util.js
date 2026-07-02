@@ -6,7 +6,7 @@ import { FaceEmbeddingDto } from '../dto/face-embedding.dto';
 export const FACE_UPLOAD_FIELD = 'frontFace';
 export const FACE_LIVENESS_FRAMES_FIELD = 'livenessFrames';
 export const FACE_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
-export const FACE_MIN_LIVENESS_FRAMES = 4;
+export const FACE_MIN_LIVENESS_FRAMES = 3;
 
 function readUploadedFile(file) {
   if (!file?.buffer?.length) {
