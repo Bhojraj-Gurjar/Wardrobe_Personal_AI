@@ -29,6 +29,7 @@ import { ErrorState } from '@/components/shared/error-state';
 import { Skeleton } from '@/components/ui/skeleton';
 
 import { cn } from '@/utils/cn';
+import { showToast } from '@/stores/toast-store';
 
 const OrderTrackingModal = dynamic(
   () => import('@/features/orders/components/order-tracking-modal').then((module) => module.OrderTrackingModal),
@@ -137,17 +138,28 @@ export function OrdersView() {
 
 
   function handleCancel(orderId) {
+    const confirmed = window.confirm(
+      'Cancel this order? This action cannot be undone.',
+    );
 
-    if (!window.confirm('Cancel this order?')) return;
+    if (!confirmed) {
+      return;
+    }
 
     setCancellingId(orderId);
 
     cancelOrder.mutate(orderId, {
-
+      onSuccess: () => {
+        showToast('Order cancelled successfully.');
+      },
+      onError: (mutationError) => {
+        if (process.env.NODE_ENV !== 'production') {
+          console.error('[orders] cancel failed', mutationError);
+        }
+        showToast(mutationError?.message || 'Unable to cancel this order.', 'error');
+      },
       onSettled: () => setCancellingId(null),
-
     });
-
   }
 
 

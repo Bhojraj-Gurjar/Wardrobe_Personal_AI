@@ -588,6 +588,12 @@ let AdminRepository = class AdminRepository {
         });
     }
     async countEngagedUsersInRange(start, end) {
+        const productViewWhere = {
+            viewed_at: {
+                gte: start,
+                lte: end
+            }
+        };
         const [orderUsers, viewUsers] = await Promise.all([
             this.prisma.order.findMany({
                 where: {
@@ -595,8 +601,8 @@ let AdminRepository = class AdminRepository {
                         gte: start,
                         lte: end
                     },
-                    user_id: {
-                        not: null
+                    NOT: {
+                        user_id: null
                     }
                 },
                 select: {
@@ -607,15 +613,7 @@ let AdminRepository = class AdminRepository {
                 ]
             }),
             this.prisma.productView.findMany({
-                where: {
-                    viewed_at: {
-                        gte: start,
-                        lte: end
-                    },
-                    user_id: {
-                        not: null
-                    }
-                },
+                where: productViewWhere,
                 select: {
                     user_id: true
                 },
@@ -625,8 +623,8 @@ let AdminRepository = class AdminRepository {
             })
         ]);
         return new Set([
-            ...orderUsers.map((row)=>row.user_id),
-            ...viewUsers.map((row)=>row.user_id)
+            ...orderUsers.map((row)=>row.user_id).filter(Boolean),
+            ...viewUsers.map((row)=>row.user_id).filter(Boolean)
         ]).size;
     }
     getRevenueOrdersSince(start) {

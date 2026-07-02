@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
@@ -29,6 +30,10 @@ import { generateOmsInvoiceNumber } from '../../commerce/constants/commerce.cons
 /** Hours after entering in-transit before auto-completion. */
 const IN_TRANSIT_AUTO_COMPLETE_MS = 60 * 60 * 1000;
 
+function isProductionEnvironment() {
+  return process.env.NODE_ENV === 'production';
+}
+
 export @Injectable()
 class OrderOmsService {
   constructor(
@@ -43,6 +48,7 @@ class OrderOmsService {
     this.orderPdfService = orderPdfService;
     this.orderEventService = orderEventService;
     this.notificationsService = notificationsService;
+    this.logger = new Logger(OrderOmsService.name);
   }
 
   async getOrderOrThrow(id) {
@@ -134,8 +140,73 @@ class OrderOmsService {
     return updated;
   }
 
+  resolveDocumentErrorMessage(error) {
+    return error?.message || String(error || 'Document generation failed');
+  }
+
+  logDocumentGenerationFailure(orderId, docType, error) {
+    const message = this.resolveDocumentErrorMessage(error);
+
+    if (isProductionEnvironment()) {
+      this.logger.error(
+        `OMS ${docType} generation failed | order=${orderId} | reason=${message}`,
+      );
+      return message;
+    }
+
+    this.logger.error(
+      `OMS ${docType} generation failed | order=${orderId} | reason=${message}`,
+      error?.stack,
+    );
+    return message;
+  }
+
+  async recordDocumentGenerationFailure(orderId, docType, message) {
+    const order = await this.getOrderOrThrow(orderId);
+    const errorKey = docType === 'invoice'
+      ? 'invoice_generation_error'
+      : 'label_generation_error';
+
+    await this.ordersRepository.updateOrder(orderId, {
+      oms_metadata: {
+        ...(order.oms_metadata || {}),
+        [errorKey]: message,
+      },
+    });
+  }
+
+  async tryGenerateInvoice(orderId, adminId, regenerate = false) {
+    this.logger.log(`OMS accept | order=${orderId} | invoice generation requested`);
+
+    try {
+      const order = await this.generateInvoice(orderId, adminId, regenerate);
+      this.logger.log(`OMS accept | order=${orderId} | invoice generation success`);
+      return { ok: true, order };
+    } catch (error) {
+      const message = this.logDocumentGenerationFailure(orderId, 'invoice', error);
+      await this.recordDocumentGenerationFailure(orderId, 'invoice', message);
+      return { ok: false, error: message };
+    }
+  }
+
+  async tryGenerateLabel(orderId, adminId, regenerate = false) {
+    this.logger.log(`OMS accept | order=${orderId} | label generation requested`);
+
+    try {
+      const order = await this.generateLabel(orderId, adminId, regenerate);
+      this.logger.log(`OMS accept | order=${orderId} | label generation success`);
+      return { ok: true, order };
+    } catch (error) {
+      const message = this.logDocumentGenerationFailure(orderId, 'label', error);
+      await this.recordDocumentGenerationFailure(orderId, 'label', message);
+      return { ok: false, error: message };
+    }
+  }
+
   async acceptOrder(id, adminId, notes = null) {
     const order = await this.getOrderOrThrow(id);
+    this.logger.log(`OMS accept triggered | order=${id} | status=${order.status}`);
+
     const updated = await this.transitionOrder(order, ORDER_STATUS.CONFIRMED, {
       actorId: adminId,
       notes,
@@ -155,8 +226,20 @@ class OrderOmsService {
       `Your order ${updated.order_number} has been accepted and is being prepared.`,
     );
 
-    await this.generateInvoice(id, adminId, false);
-    await this.generateLabel(id, adminId, false);
+    this.logger.log(`OMS accept | order=${id} | status updated to CONFIRMED`);
+
+    const [invoiceResult, labelResult] = await Promise.all([
+      this.tryGenerateInvoice(id, adminId, false),
+      this.tryGenerateLabel(id, adminId, false),
+    ]);
+
+    if (!invoiceResult.ok || !labelResult.ok) {
+      this.logger.warn(
+        `OMS accept | order=${id} | documents partial | invoice=${invoiceResult.ok ? 'ok' : 'failed'} | label=${labelResult.ok ? 'ok' : 'failed'}`,
+      );
+    } else {
+      this.logger.log(`OMS accept | order=${id} | invoice and label generated`);
+    }
 
     const fresh = await this.getOrderOrThrow(id);
     return this.ordersService.formatOrder(fresh);
@@ -167,20 +250,35 @@ class OrderOmsService {
       throw new BadRequestException('Select at least one order to accept.');
     }
 
+    const uniqueOrderIds = [...new Set(orderIds.filter(Boolean))];
+    this.logger.log(`OMS bulk accept triggered | count=${uniqueOrderIds.length}`);
+
+    const results = await Promise.allSettled(
+      uniqueOrderIds.map((orderId) => this.acceptOrder(orderId, adminId)),
+    );
+
     const accepted = [];
     const errors = [];
 
-    for (const orderId of orderIds) {
-      try {
-        const order = await this.acceptOrder(orderId, adminId);
-        accepted.push(order);
-      } catch (error) {
-        errors.push({
-          id: orderId,
-          message: error?.message || 'Failed to accept order',
-        });
+    results.forEach((result, index) => {
+      const orderId = uniqueOrderIds[index];
+
+      if (result.status === 'fulfilled') {
+        accepted.push(result.value);
+        return;
       }
-    }
+
+      const message = result.reason?.message || 'Failed to accept order';
+      this.logger.error(
+        `OMS bulk accept failed | order=${orderId} | reason=${message}`,
+        isProductionEnvironment() ? undefined : result.reason?.stack,
+      );
+      errors.push({ id: orderId, message });
+    });
+
+    this.logger.log(
+      `OMS bulk accept complete | accepted=${accepted.length} | failed=${errors.length}`,
+    );
 
     return {
       accepted,
@@ -229,6 +327,7 @@ class OrderOmsService {
     const omsMetadata = {
       ...(order.oms_metadata || {}),
       invoice_generated: true,
+      invoice_generation_error: null,
     };
 
     const updated = await this.ordersRepository.updateOrder(order.id, {
@@ -281,6 +380,7 @@ class OrderOmsService {
     const omsMetadata = {
       ...(order.oms_metadata || {}),
       label_generated: true,
+      label_generation_error: null,
     };
 
     const updated = await this.ordersRepository.updateOrder(order.id, {

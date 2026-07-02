@@ -17,6 +17,7 @@ import {
 import { FACE_CAPTURE_WARMUP_MS, FACE_LIVENESS_POSITION_TIMEOUT_MS } from '@/features/face/constants/face-timeouts';
 import { FaceLoginDetector } from '@/features/face/utils/face-login-detector';
 import { FaceFlowLog } from '@/features/face/utils/face-flow-log';
+import { FaceLoginPerf } from '@/features/face/utils/face-login-perf';
 import { measureFrameSharpness } from '@/features/face/utils/prepare-face-image';
 
 export { FACE_LIVENESS_PHASE };
@@ -221,6 +222,8 @@ export function useFaceLivenessChallenge({
 
       if (captureIntervalMs > 0) {
         await sleep(captureIntervalMs);
+      } else if (captured.length < targetFrames) {
+        await nextDetectionDelay(32);
       }
     }
 
@@ -245,8 +248,10 @@ export function useFaceLivenessChallenge({
       : skipPositioning;
 
     if (!shouldSkipPositioning) {
+      FaceLoginPerf.mark('positioning_start');
       setPhase(FACE_LIVENESS_PHASE.POSITIONING);
       const positioned = await waitForStableFace();
+      FaceLoginPerf.mark('positioning_complete');
       if (!positioned || isCancelled()) {
         return null;
       }
@@ -275,7 +280,9 @@ export function useFaceLivenessChallenge({
       await sleep(captureWarmupMs);
     }
 
+    FaceLoginPerf.mark('capture_start');
     const frames = await captureStableFrames();
+    FaceLoginPerf.mark('capture_complete');
 
     if (isCancelled()) {
       return null;

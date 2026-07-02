@@ -5,7 +5,11 @@ import { useSearchParams } from 'next/navigation';
 import { ProductSidebarFilters } from '@/features/products/components/product-sidebar-filters';
 import { ProductCatalogToolbar } from '@/features/products/components/product-catalog-toolbar';
 import { ProductGrid } from '@/features/products/components/product-grid';
-import { useProductsQuery } from '@/features/products/hooks';
+import { useCatalogProductsQuery } from '@/features/products/hooks';
+import {
+  PRODUCTS_CATALOG_FETCH_LIMIT,
+  PRODUCTS_PAGE_SIZE,
+} from '@/features/products/constants/catalog-pagination';
 import { useRecommendationsQuery } from '@/features/ai/hooks';
 import {
   getApiCategoryForUi,
@@ -54,20 +58,37 @@ export function ProductsView() {
     setBrand(urlBrand);
   }, [urlSearch, urlBrand]);
 
-  const apiSort = mapSortToApi(sortId);
+  useEffect(() => {
+    setPage(1);
+  }, [deferredSearch, brand, uiCategory, productType, priceRange, sortId]);
+
   const apiCategory = getApiCategoryForUi(uiCategory);
 
-  const { data, isLoading, isError, error, refetch } = useProductsQuery({
-    page: 1,
-    limit: 100,
-    search: deferredSearch || undefined,
-    brand: brand || undefined,
-    productType: productType || undefined,
-    min_price: priceRange[0] > PRICE_RANGE.min ? priceRange[0] : undefined,
-    max_price: priceRange[1] < PRICE_RANGE.max ? priceRange[1] : undefined,
-    category: apiCategory,
-    ...apiSort,
-  });
+  const catalogQueryParams = useMemo(() => {
+    const sort = mapSortToApi(sortId);
+
+    return {
+      limit: PRODUCTS_CATALOG_FETCH_LIMIT,
+      search: deferredSearch || undefined,
+      brand: brand || undefined,
+      productType: productType || undefined,
+      min_price: priceRange[0] > PRICE_RANGE.min ? priceRange[0] : undefined,
+      max_price: priceRange[1] < PRICE_RANGE.max ? priceRange[1] : undefined,
+      category: apiCategory,
+      ...sort,
+    };
+  }, [
+    deferredSearch,
+    brand,
+    productType,
+    priceRange,
+    apiCategory,
+    sortId,
+  ]);
+
+  const { data, isLoading, isError, error, refetch } = useCatalogProductsQuery(
+    catalogQueryParams,
+  );
 
   const { data: recommendations } = useRecommendationsQuery({ limit: 50 });
   const scoreByProductId = useMemo(
@@ -86,7 +107,7 @@ export function ProductsView() {
     return sorted;
   }, [data?.items, uiCategory, deferredSearch, sortId, scoreByProductId]);
 
-  const pageSize = 12;
+  const pageSize = PRODUCTS_PAGE_SIZE;
   const totalItems = processedProducts.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const currentPage = Math.min(page, totalPages);

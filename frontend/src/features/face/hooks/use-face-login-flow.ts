@@ -272,7 +272,7 @@ export function useFaceLoginFlow() {
     detectorRef,
     challenge: loginChallenge,
     positionTimeoutMs: FACE_LOGIN_POSITION_TIMEOUT_MS,
-    analyzeTimeoutMs: 250,
+    analyzeTimeoutMs: 120,
     positionStableMs: FACE_LOGIN_CAPTURE_SETTINGS.positionStableMs,
     stableFrameCount: FACE_LOGIN_CAPTURE_SETTINGS.stableFrameCount,
     maxFrames: FACE_LOGIN_CAPTURE_SETTINGS.maxFrames,
@@ -281,7 +281,7 @@ export function useFaceLoginFlow() {
     detectionIntervalMs: FACE_LOGIN_CAPTURE_SETTINGS.detectionIntervalMs,
     captureWarmupMs: FACE_LOGIN_CAPTURE_SETTINGS.captureWarmupMs,
     burstCapture: true,
-    skipPositioning: false,
+    skipPositioning: true,
     skipSharpnessSort: true,
     skipChallengePhase: true,
     instructionPauseMs: 0,
@@ -434,7 +434,7 @@ export function useFaceLoginFlow() {
 
     const video = camera.videoRef.current;
     if (video && video.videoWidth > 0) {
-      await detectorRef.current.warmUp(video, 250);
+      await detectorRef.current.warmUp(video, 100);
     }
 
     isColdStartRef.current = false;

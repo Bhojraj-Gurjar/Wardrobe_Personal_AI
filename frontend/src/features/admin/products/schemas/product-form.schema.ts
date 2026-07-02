@@ -1,15 +1,48 @@
 import { z } from 'zod';
 
+function emptyToUndefined(value: unknown) {
+  if (value === '' || value === null || value === undefined) {
+    return undefined;
+  }
+  return value;
+}
+
+function parseOptionalNumber(value: unknown) {
+  if (value === '' || value === null || value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : Number.NaN;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
+const optionalNumber = z.preprocess(
+  parseOptionalNumber,
+  z.number({ invalid_type_error: 'Enter a valid number' }).min(0, 'Value must be zero or greater').optional(),
+);
+
 const variantSchema = z.object({
+  id: z.string().optional(),
   color: z.string().min(1, 'Color is required'),
   size: z.string().min(1, 'Size is required'),
-  stock: z.coerce.number().int().min(0),
+  stock: z.preprocess(
+    parseOptionalNumber,
+    z.number({ invalid_type_error: 'Stock is required' }).int().min(0, 'Stock is required'),
+  ),
   sku: z.string().optional(),
-  priceOverride: z.coerce.number().min(0).optional().nullable(),
+  priceOverride: z.preprocess(
+    parseOptionalNumber,
+    z.number().min(0).optional().nullable(),
+  ),
   imageUrl: z.string().optional().nullable(),
 });
 
 const imageSchema = z.object({
+  id: z.string().optional(),
   url: z.string().optional(),
   sortOrder: z.number().optional(),
   isPrimary: z.boolean().optional(),
@@ -19,6 +52,15 @@ const imageSchema = z.object({
   message: 'Image asset is required',
 });
 
+export const STEP_ONE_REQUIRED_FIELDS = [
+  'sku',
+  'name',
+  'brand',
+  'category',
+  'productType',
+  'gender',
+] as const;
+
 export const productFormSchema = z.object({
   name: z.string().min(2, 'Product name is required'),
   brand: z.string().min(1, 'Brand is required'),
@@ -26,14 +68,17 @@ export const productFormSchema = z.object({
   category: z.string().min(1, 'Category is required'),
   productType: z.string().min(1, 'Product type is required'),
   gender: z.string().min(1, 'Gender is required'),
-  mrp: z.coerce.number().min(0),
-  sellingPrice: z.coerce.number().min(0),
-  discountPercent: z.coerce.number().min(0).max(100).optional(),
-  taxPercent: z.coerce.number().min(0).max(100).optional(),
-  stockQuantity: z.coerce.number().int().min(0).optional(),
-  sku: z.string().optional(),
+  mrp: optionalNumber,
+  sellingPrice: optionalNumber,
+  discountPercent: optionalNumber,
+  taxPercent: optionalNumber,
+  stockQuantity: z.preprocess(
+    parseOptionalNumber,
+    z.number().int().min(0).optional(),
+  ),
+  sku: z.string().trim().min(1, 'SKU is required'),
   barcode: z.string().optional(),
-  images: z.array(imageSchema).min(1, 'At least one product image is required'),
+  images: z.array(imageSchema),
   variants: z.array(variantSchema).optional(),
   fabric: z.string().optional(),
   fit: z.string().optional(),
@@ -45,11 +90,11 @@ export const productFormSchema = z.object({
   careInstructions: z.string().optional(),
   countryOfOrigin: z.string().optional(),
   material: z.string().optional(),
-  weight: z.coerce.number().optional(),
+  weight: optionalNumber,
   dimensions: z.object({
-    length: z.coerce.number().optional(),
-    width: z.coerce.number().optional(),
-    height: z.coerce.number().optional(),
+    length: optionalNumber,
+    width: optionalNumber,
+    height: optionalNumber,
   }).optional(),
   tags: z.array(z.string()).optional(),
   searchKeywords: z.array(z.string()).optional(),
@@ -65,12 +110,55 @@ export const productFormSchema = z.object({
   isNewArrival: z.boolean().optional(),
   isBestSeller: z.boolean().optional(),
   isLimitedEdition: z.boolean().optional(),
-}).refine((data) => {
-  const effectiveMrp = data.mrp > 0 ? data.mrp : data.sellingPrice;
-  return data.sellingPrice <= effectiveMrp;
-}, {
-  message: 'Selling price cannot exceed MRP',
-  path: ['sellingPrice'],
+}).superRefine((data, ctx) => {
+  const mrp = data.mrp ?? 0;
+  const sellingPrice = data.sellingPrice ?? 0;
+
+  if (data.sellingPrice != null && data.mrp != null && sellingPrice > mrp && mrp > 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Selling price cannot exceed MRP',
+      path: ['sellingPrice'],
+    });
+  }
+
+  if (data.visibility === 'PUBLISHED') {
+    if (!data.images.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'At least one product image is required',
+        path: ['images'],
+      });
+    }
+
+    if (data.mrp == null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'MRP is required',
+        path: ['mrp'],
+      });
+    }
+
+    if (data.sellingPrice == null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Selling price is required',
+        path: ['sellingPrice'],
+      });
+    }
+
+    if (data.variants?.length) {
+      data.variants.forEach((variant, index) => {
+        if (variant.stock == null || Number.isNaN(variant.stock)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Stock is required for each variant',
+            path: ['variants', index, 'stock'],
+          });
+        }
+      });
+    }
+  }
 });
 
 export type ProductFormValues = z.infer<typeof productFormSchema>;
@@ -79,14 +167,14 @@ export const defaultProductFormValues: ProductFormValues = {
   name: '',
   brand: '',
   description: '',
-  category: 'Clothing',
-  productType: 'T-Shirt',
-  gender: 'Men',
-  mrp: 0,
-  sellingPrice: 0,
-  discountPercent: 0,
-  taxPercent: 0,
-  stockQuantity: 0,
+  category: '',
+  productType: '',
+  gender: '',
+  mrp: undefined,
+  sellingPrice: undefined,
+  discountPercent: undefined,
+  taxPercent: undefined,
+  stockQuantity: undefined,
   sku: '',
   barcode: '',
   images: [],
@@ -106,8 +194,8 @@ export const defaultProductFormValues: ProductFormValues = {
   tags: [],
   searchKeywords: [],
   aiAttributes: {
-    style: 'Smart Casual',
-    bodyFit: 'Regular',
+    style: '',
+    bodyFit: '',
     recommendedBodyTypes: [],
     recommendedFaceShapes: [],
   },
@@ -118,3 +206,12 @@ export const defaultProductFormValues: ProductFormValues = {
   isBestSeller: false,
   isLimitedEdition: false,
 };
+
+export function computeDiscountPercent(mrp?: number, sellingPrice?: number) {
+  if (mrp == null || sellingPrice == null || mrp <= 0) {
+    return undefined;
+  }
+
+  const discount = ((mrp - sellingPrice) / mrp) * 100;
+  return Math.max(0, Math.round(discount * 100) / 100);
+}

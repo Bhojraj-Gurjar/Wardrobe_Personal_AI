@@ -1,14 +1,18 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { Plus } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import {
   CMS_VISIBILITY,
   formatAdminProductTypeLabel,
 } from '../constants/cms-taxonomy';
 import type { ProductFormValues } from '../schemas/product-form.schema';
-import type { UploadedImageItem } from './image-uploader';
+import { resolveImagePreviewSrc, type UploadedImageItem } from './image-uploader';
 import type { VariantRow } from './variant-selector';
-import { wizardLabelClass, wizardSelectClass } from './wizard-form-styles';
+import { AddProductVariantModal, type AddVariantSpec } from './add-product-variant-modal';
+import { WizardFieldLabel } from './wizard-field-label';
+import { wizardSelectClass } from './wizard-form-styles';
 import { cn } from '@/utils/cn';
 
 type ProductReviewStepProps = {
@@ -17,6 +21,8 @@ type ProductReviewStepProps = {
   variants: VariantRow[];
   onVisibilityChange: (value: ProductFormValues['visibility']) => void;
   register: ReturnType<typeof import('react-hook-form').useForm<ProductFormValues>>['register'];
+  onCreateVariant?: (spec: AddVariantSpec) => Promise<void>;
+  isCreatingVariant?: boolean;
 };
 
 function ReviewRow({ label, value }: { label: string; value?: string | number | null }) {
@@ -47,7 +53,11 @@ export function ProductReviewStep({
   variants,
   onVisibilityChange,
   register,
+  onCreateVariant,
+  isCreatingVariant,
 }: ProductReviewStepProps) {
+  const [variantModalOpen, setVariantModalOpen] = useState(false);
+
   const extraFields = [
     ['Fabric', values.fabric],
     ['Fit', values.fit],
@@ -72,6 +82,10 @@ export function ProductReviewStep({
     values.isLimitedEdition && 'Limited Edition',
   ].filter(Boolean);
 
+  const totalStock = variants.length
+    ? variants.reduce((sum, variant) => sum + (variant.stock ?? 0), 0)
+    : values.stockQuantity;
+
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-purple-500/20 bg-purple-500/5 p-4">
@@ -92,7 +106,7 @@ export function ProductReviewStep({
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={image.preview || image.url || ''}
+                  src={resolveImagePreviewSrc(image)}
                   alt=""
                   className="size-full object-cover"
                 />
@@ -108,6 +122,7 @@ export function ProductReviewStep({
       ) : null}
 
       <ReviewSection title="Basic Information">
+        <ReviewRow label="SKU" value={values.sku} />
         <ReviewRow label="Product Name" value={values.name} />
         <ReviewRow label="Brand" value={values.brand} />
         <ReviewRow label="Category" value={values.category} />
@@ -121,16 +136,15 @@ export function ProductReviewStep({
       </ReviewSection>
 
       <ReviewSection title="Pricing">
-        <ReviewRow label="MRP" value={values.mrp > 0 ? `₹${values.mrp}` : undefined} />
-        <ReviewRow label="Selling Price" value={values.sellingPrice > 0 ? `₹${values.sellingPrice}` : undefined} />
-        <ReviewRow label="Discount" value={`${values.discountPercent ?? 0}%`} />
-        <ReviewRow label="Tax" value={`${values.taxPercent ?? 0}%`} />
+        <ReviewRow label="MRP" value={values.mrp != null ? `₹${values.mrp}` : undefined} />
+        <ReviewRow label="Selling Price" value={values.sellingPrice != null ? `₹${values.sellingPrice}` : undefined} />
+        {values.discountPercent != null ? (
+          <ReviewRow label="Discount (auto)" value={`${values.discountPercent}%`} />
+        ) : null}
       </ReviewSection>
 
       <ReviewSection title="Inventory">
-        <ReviewRow label="Stock" value={values.stockQuantity} />
-        <ReviewRow label="SKU" value={values.sku || 'Auto-generated'} />
-        <ReviewRow label="Barcode" value={values.barcode} />
+        <ReviewRow label="Total Stock" value={totalStock} />
       </ReviewSection>
 
       {variants.length ? (
@@ -151,7 +165,7 @@ export function ProductReviewStep({
                   <tr key={`${variant.color}-${variant.size}-${index}`} className="border-b border-white/[0.04] last:border-0">
                     <td className="px-3 py-2 text-white">{variant.color}</td>
                     <td className="px-3 py-2 text-white">{variant.size}</td>
-                    <td className="px-3 py-2 text-white">{variant.stock}</td>
+                    <td className="px-3 py-2 text-white">{variant.stock ?? '—'}</td>
                     <td className="px-3 py-2 text-slate-400">{variant.sku || '—'}</td>
                   </tr>
                 ))}
@@ -186,7 +200,7 @@ export function ProductReviewStep({
         <h4 className="text-sm font-semibold text-purple-200">Publish Settings</h4>
 
         <div>
-          <label className={wizardLabelClass}>Status</label>
+          <WizardFieldLabel>Status</WizardFieldLabel>
           <select
             {...register('visibility')}
             onChange={(event) => onVisibilityChange(event.target.value as ProductFormValues['visibility'])}
@@ -234,6 +248,38 @@ export function ProductReviewStep({
             : 'Draft / hidden products stay in admin only until published.'}
         </div>
       </section>
+
+      {onCreateVariant ? (
+        <section className="rounded-2xl border border-dashed border-purple-500/30 bg-purple-500/5 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h4 className="text-sm font-semibold text-white">Linked Variant Products</h4>
+              <p className="mt-1 text-sm text-slate-400">
+                Create a separate draft product for another color or size that inherits these shared details.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setVariantModalOpen(true)}
+              className="gap-2 border-purple-500/30 bg-transparent text-purple-100 hover:border-purple-400/50 hover:bg-purple-500/10"
+            >
+              <Plus className="size-4" />
+              Add Variant
+            </Button>
+          </div>
+        </section>
+      ) : null}
+
+      {onCreateVariant ? (
+        <AddProductVariantModal
+          open={variantModalOpen}
+          onClose={() => setVariantModalOpen(false)}
+          productType={values.productType}
+          isSubmitting={isCreatingVariant}
+          onSubmit={onCreateVariant}
+        />
+      ) : null}
     </div>
   );
 }

@@ -38,6 +38,7 @@ import { productFormSchema } from '@/features/admin/products/schemas/product-for
 import { CMS_CATEGORIES, formatAdminProductTypeLabel } from '@/features/admin/products/constants/cms-taxonomy';
 import {
   buildProductMutationPayload,
+  buildVariantProductPayload,
   mapProductDetailToFormValues,
 } from '@/features/admin/products/utils/product-form.mapper';
 import { Button } from '@/components/ui/button';
@@ -172,6 +173,7 @@ export function AdminProductsView() {
   const [wizardInitialStep, setWizardInitialStep] = useState(0);
   const [publishingDraftId, setPublishingDraftId] = useState(null);
   const [deletingDraftId, setDeletingDraftId] = useState(null);
+  const [creatingVariant, setCreatingVariant] = useState(false);
 
   const params = useMemo(() => ({
     search: search || undefined,
@@ -259,17 +261,19 @@ export function AdminProductsView() {
       values,
       values.visibility === 'DRAFT' ? { draftWizardStep: options?.wizardStep ?? 0 } : undefined,
     );
+    const targetVisibility = payload.visibility;
+    const pendingImageUploads = imageFiles.length > 0;
 
     try {
       if (editingProduct?.id) {
-        await updateMutation.mutateAsync({ id: editingProduct.id, payload });
+        let mergedImages = payload.images;
 
-        if (imageFiles.length) {
+        if (pendingImageUploads) {
           const uploaded = await uploadImagesMutation.mutateAsync({
             productId: editingProduct.id,
             files: imageFiles,
           });
-          const mergedImages = [
+          mergedImages = [
             ...(payload.images || []),
             ...uploaded.images.map((image, index) => ({
               url: image.url,
@@ -277,11 +281,12 @@ export function AdminProductsView() {
               isPrimary: (payload.images?.length ?? 0) === 0 && index === 0,
             })),
           ];
-          await updateMutation.mutateAsync({
-            id: editingProduct.id,
-            payload: { images: mergedImages },
-          });
         }
+
+        await updateMutation.mutateAsync({
+          id: editingProduct.id,
+          payload: pendingImageUploads ? { ...payload, images: mergedImages } : payload,
+        });
 
         showToast(
           values.visibility === 'PUBLISHED'
@@ -297,28 +302,43 @@ export function AdminProductsView() {
         return;
       }
 
-      const created = await createCmsMutation.mutateAsync(payload);
+      const createPayload = pendingImageUploads && targetVisibility === 'PUBLISHED'
+        ? { ...payload, visibility: 'DRAFT' }
+        : payload;
+
+      const created = await createCmsMutation.mutateAsync(createPayload);
       const productId = created?.id;
 
       if (!productId) {
         throw new Error('Product was created but no product id was returned.');
       }
 
-      if (imageFiles.length) {
-        const uploaded = await uploadImagesMutation.mutateAsync({
-          productId,
-          files: imageFiles,
+      try {
+        if (pendingImageUploads) {
+          const uploaded = await uploadImagesMutation.mutateAsync({
+            productId,
+            files: imageFiles,
+          });
+
+          await updateMutation.mutateAsync({
+            id: productId,
+            payload: {
+              images: uploaded.images.map((image, index) => ({
+                url: image.url,
+                sortOrder: index,
+                isPrimary: index === 0,
+              })),
+              visibility: targetVisibility,
+            },
+          });
+        }
+      } catch (uploadError) {
+        await deleteMutation.mutateAsync(productId).catch((deleteError) => {
+          if (process.env.NODE_ENV !== 'production') {
+            console.error('[admin-products] rollback delete failed after upload error', deleteError);
+          }
         });
-        await updateMutation.mutateAsync({
-          id: productId,
-          payload: {
-            images: uploaded.images.map((image, index) => ({
-              url: image.url,
-              sortOrder: index,
-              isPrimary: index === 0,
-            })),
-          },
-        });
+        throw uploadError;
       }
 
       showToast(
@@ -334,7 +354,64 @@ export function AdminProductsView() {
       await queryClient.invalidateQueries({ queryKey: ['admin-product-drafts'], refetchType: 'active' });
       await refetch();
     } catch (error) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('[admin-products] save product failed', error);
+      }
       showToast(error?.message || 'Unable to save product. Please try again.', 'error');
+    }
+  };
+
+  const handleCreateVariantProduct = async (baseValues, imageFiles, spec) => {
+    setCreatingVariant(true);
+    try {
+      const payload = buildVariantProductPayload(baseValues, spec);
+      const created = await createCmsMutation.mutateAsync(payload);
+      const productId = created?.id;
+
+      if (!productId) {
+        throw new Error('Variant product was created but no product id was returned.');
+      }
+
+      const pendingImageUploads = imageFiles.length > 0;
+      const inheritedImages = payload.images?.length
+        ? payload.images
+        : undefined;
+
+      if (pendingImageUploads) {
+        const uploaded = await uploadImagesMutation.mutateAsync({
+          productId,
+          files: imageFiles,
+        });
+
+        await updateMutation.mutateAsync({
+          id: productId,
+          payload: {
+            images: uploaded.images.map((image, index) => ({
+              url: image.url,
+              sortOrder: index,
+              isPrimary: index === 0,
+            })),
+          },
+        });
+      } else if (inheritedImages?.length) {
+        await updateMutation.mutateAsync({
+          id: productId,
+          payload: { images: inheritedImages },
+        });
+      }
+
+      showToast(`Variant product "${spec.value}" saved as draft.`);
+      await queryClient.invalidateQueries({ queryKey: ['admin-products'], refetchType: 'active' });
+      await queryClient.invalidateQueries({ queryKey: ['admin-product-drafts'], refetchType: 'active' });
+      await refetch();
+    } catch (error) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('[admin-products] create variant product failed', error);
+      }
+      showToast(error?.message || 'Unable to create variant product.', 'error');
+      throw error;
+    } finally {
+      setCreatingVariant(false);
     }
   };
 
@@ -665,8 +742,10 @@ export function AdminProductsView() {
               ? mapProductDetailToFormValues(editingDetail)
               : undefined}
             isSubmitting={createCmsMutation.isPending || updateMutation.isPending || uploadImagesMutation.isPending}
+            isCreatingVariant={creatingVariant}
             onClose={() => { setWizardOpen(false); setEditingProduct(null); setWizardInitialStep(0); }}
             onSubmit={handleSaveProduct}
+            onCreateVariantProduct={handleCreateVariantProduct}
           />
         )
       ) : null}

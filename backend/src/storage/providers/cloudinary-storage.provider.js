@@ -49,6 +49,19 @@ function mimeTypeFromObjectKey(objectKey) {
   return `image/${extension}`;
 }
 
+function resourceTypeFromObjectKey(objectKey) {
+  const extension = extensionFromObjectKey(objectKey);
+  return extension === 'pdf' ? 'raw' : 'image';
+}
+
+function cloudinaryUploadEndpoint(cloudName, resourceType) {
+  return `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`;
+}
+
+function cloudinaryDestroyEndpoint(cloudName, resourceType) {
+  return `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/destroy`;
+}
+
 export class CloudinaryStorageProvider {
   constructor(config = {}) {
     this.cloudName = config.cloudName;
@@ -86,8 +99,9 @@ export class CloudinaryStorageProvider {
     const objectKey = objectKeyFromStoragePath(storagePath);
     const publicId = this.publicIdFromObjectKey(objectKey);
     const extension = extensionFromObjectKey(objectKey);
+    const resourceType = resourceTypeFromObjectKey(objectKey);
 
-    return `https://res.cloudinary.com/${this.cloudName}/image/upload/${publicId}.${extension}`;
+    return `https://res.cloudinary.com/${this.cloudName}/${resourceType}/upload/${publicId}.${extension}`;
   }
 
   signParams(params) {
@@ -104,7 +118,9 @@ export class CloudinaryStorageProvider {
     const publicId = this.publicIdFromObjectKey(normalizedKey);
     const timestamp = Math.round(Date.now() / 1000);
     const mimeType = mimeTypeFromObjectKey(normalizedKey);
+    const resourceType = resourceTypeFromObjectKey(normalizedKey);
     const params = {
+      overwrite: 'true',
       public_id: publicId,
       timestamp,
     };
@@ -122,7 +138,7 @@ export class CloudinaryStorageProvider {
     form.append('overwrite', 'true');
 
     const response = await fetch(
-      `https://api.cloudinary.com/v1_1/${this.cloudName}/image/upload`,
+      cloudinaryUploadEndpoint(this.cloudName, resourceType),
       {
         method: 'POST',
         body: form,
@@ -132,7 +148,8 @@ export class CloudinaryStorageProvider {
     const payload = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      throw new Error(payload?.error?.message || 'Cloudinary upload failed');
+      const detail = payload?.error?.message || `Cloudinary ${resourceType} upload failed`;
+      throw new Error(`${detail} (HTTP ${response.status})`);
     }
 
     const storagePath = this.toStoragePath(normalizedKey);
@@ -194,6 +211,7 @@ export class CloudinaryStorageProvider {
     }
 
     const publicId = this.publicIdFromObjectKey(objectKey);
+    const resourceType = resourceTypeFromObjectKey(objectKey);
     const timestamp = Math.round(Date.now() / 1000);
     const params = {
       public_id: publicId,
@@ -209,7 +227,7 @@ export class CloudinaryStorageProvider {
     });
 
     const response = await fetch(
-      `https://api.cloudinary.com/v1_1/${this.cloudName}/image/destroy`,
+      cloudinaryDestroyEndpoint(this.cloudName, resourceType),
       {
         method: 'POST',
         body,

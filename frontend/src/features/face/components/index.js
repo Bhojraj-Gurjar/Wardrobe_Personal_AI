@@ -7,6 +7,7 @@ export { FaceVerifyingOverlay } from './face-verifying-overlay';
 export { FaceLoginScanCard } from './face-login-scan-card';
 export { PremiumFaceScanner } from './premium-face-scanner';
 export { FaceLoginView } from './face-login-view';
+export { FaceAuthSimpleStatus } from './face-auth-simple-status';
 export { AuthenticationStatus } from './authentication-status';
 export { ErrorBanner } from './error-banner';
 export { LoadingOverlay } from './loading-overlay';

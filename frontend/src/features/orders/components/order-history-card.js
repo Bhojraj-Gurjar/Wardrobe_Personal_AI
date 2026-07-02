@@ -111,7 +111,7 @@ function handleReturnOrder(order, onReturn) {
   }
 }
 
-export function OrderHistoryCard({ order, onReturn, onTrack }) {
+export function OrderHistoryCard({ order, onReturn, onTrack, onCancel, isCancelling = false }) {
   const [expanded, setExpanded] = useState(false);
   const statusConfig = resolveOrderStatusConfig(order.status);
   const StatusIcon = STATUS_ICONS[order.status] || Clock3;
@@ -120,6 +120,7 @@ export function OrderHistoryCard({ order, onReturn, onTrack }) {
   const items = order.items ?? [];
   const isDelivered = ['DELIVERED', 'COMPLETED'].includes(order.status);
   const isWithin24Hours = isDelivered && isWithinReturnWindow(order);
+  const canCancel = Boolean(order.can_cancel);
 
   return (
     <article className="interactive-card overflow-hidden rounded-2xl border border-dashboard-border bg-dashboard-surface">
@@ -182,19 +183,37 @@ export function OrderHistoryCard({ order, onReturn, onTrack }) {
           ))}
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-dashboard-border/70 px-4 py-4 sm:px-5">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="rounded-xl border-primary/40 text-primary hover:bg-primary/10"
-              onClick={(event) => {
-                event.stopPropagation();
-                onTrack?.(order);
-              }}
-            >
-              <MapPin className="mr-2 size-4" />
-              Track Order
-            </Button>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-xl border-primary/40 text-primary hover:bg-primary/10"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onTrack?.(order);
+                }}
+              >
+                <MapPin className="mr-2 size-4" />
+                Track Order
+              </Button>
+              {canCancel ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isCancelling}
+                  className="rounded-xl border-red-500/40 text-red-400 hover:bg-red-500/10 disabled:opacity-60"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onCancel?.(order.id);
+                  }}
+                >
+                  <XCircle className="mr-2 size-4" />
+                  {isCancelling ? 'Cancelling…' : 'Cancel Order'}
+                </Button>
+              ) : null}
+            </div>
             {isDelivered ? (
               isWithin24Hours ? (
                 <Button

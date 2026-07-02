@@ -58,27 +58,34 @@ export function orderMatchesTab(order, tabId) {
   return allowed ? allowed.includes(order?.status) : false;
 }
 
-/** One table row per purchased line item; order-level fields repeat per row. */
+/** One table row per order; line items are shown in the detail drawer. */
+export function groupOrderRows(orders) {
+  return orders.map((order, orderIndex) => ({
+    key: order.id,
+    order,
+    orderIndex,
+    lineCount: order.items?.length || 0,
+    itemCount: order.item_count || order.items?.reduce((sum, item) => sum + (item.quantity ?? 1), 0) || 0,
+  }));
+}
+
+/** @deprecated Use groupOrderRows — kept for any legacy imports */
 export function flattenOrderRows(orders) {
-  const rows = [];
+  return groupOrderRows(orders);
+}
 
-  orders.forEach((order, orderIndex) => {
-    const items = order.items?.length ? order.items : [null];
+export function getOrderItemsSummary(order) {
+  const items = order.items || [];
+  if (!items.length) {
+    return 'No items';
+  }
 
-    items.forEach((item, itemIndex) => {
-      rows.push({
-        key: item?.id ? `${order.id}-${item.id}` : `${order.id}-line-${itemIndex}`,
-        order,
-        item,
-        orderIndex,
-        itemIndex,
-        rowIndex: rows.length,
-        lineCount: items.length,
-      });
-    });
-  });
+  const names = items.map((item) => getLineItemName(item)).filter(Boolean);
+  if (names.length === 1) {
+    return names[0];
+  }
 
-  return rows;
+  return names.slice(0, 2).join(', ') + (names.length > 2 ? ` +${names.length - 2} more` : '');
 }
 
 export function patchOmsSummaryCounters(queryClient, { fromTab, toTab, delta = 1 }) {
@@ -162,20 +169,13 @@ export function getSelectedOrderIds(orderRows, selectedRowKeys) {
   }
 
   const keySet = new Set(selectedRowKeys);
-  const ids = new Set();
-
-  orderRows.forEach((row) => {
-    if (keySet.has(row.key)) {
-      ids.add(row.order.id);
-    }
-  });
-
-  return [...ids];
+  return orderRows
+    .filter((row) => keySet.has(row.key))
+    .map((row) => row.order.id);
 }
 
 export function filterRowKeysForOrder(selectedRowKeys, orderId) {
-  const prefix = `${orderId}-`;
-  return selectedRowKeys.filter((key) => !key.startsWith(prefix));
+  return selectedRowKeys.filter((key) => key !== orderId);
 }
 
 export function getLineItemSku(item) {
@@ -192,6 +192,21 @@ export function getLineItemQty(item, order) {
   }
 
   return order?.item_count || 0;
+}
+
+export function getLineItemSize(item) {
+  if (!item) {
+    return '—';
+  }
+
+  return item.size
+    || item.variant_size
+    || item.product?.selected_size
+    || item.product?.size
+    || item.product?.variants?.[0]?.size
+    || item.product?.sizeOptions?.[0]
+    || item.product?.size_options?.[0]
+    || '—';
 }
 
 export function getLineItemTotal(item, order) {

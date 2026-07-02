@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { GripVertical, Star, Trash2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/utils/cn';
@@ -31,22 +31,19 @@ function revokeObjectPreview(preview?: string) {
   }
 }
 
+export function revokeAllImagePreviews(images: Pick<UploadedImageItem, 'preview'>[]) {
+  images.forEach((image) => revokeObjectPreview(image.preview));
+}
+
+export function resolveImagePreviewSrc(image: Pick<UploadedImageItem, 'preview' | 'url'>) {
+  return image.preview || image.url || '';
+}
+
 export function ImageUploader({ value, onChange, error }: ImageUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
-  const previewUrlsRef = useRef<string[]>([]);
-
-  useEffect(() => {
-    previewUrlsRef.current = value
-      .map((item) => item.preview)
-      .filter((preview): preview is string => Boolean(preview?.startsWith('blob:')));
-  }, [value]);
-
-  useEffect(() => () => {
-    previewUrlsRef.current.forEach((preview) => revokeObjectPreview(preview));
-  }, []);
 
   const processFiles = useCallback(async (files: FileList | File[]) => {
     setUploadError(null);
@@ -174,7 +171,7 @@ export function ImageUploader({ value, onChange, error }: ImageUploaderProps) {
               className="group relative overflow-hidden rounded-xl border border-dashboard-border bg-dashboard-surface"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={image.preview || image.url} alt="" className="aspect-square w-full object-cover" />
+              <img src={resolveImagePreviewSrc(image)} alt="" className="aspect-square w-full object-cover" />
               <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-black/60 px-2 py-1.5">
                 <button type="button" className="text-dashboard-muted" aria-label="Drag to reorder">
                   <GripVertical className="size-4" />

@@ -3,9 +3,9 @@
 import { useMemo } from 'react';
 import { getProductTypesForCategory } from '../constants/cms-taxonomy';
 import {
-  wizardLabelClass,
   wizardSelectClass,
 } from './wizard-form-styles';
+import { WizardFieldLabel } from './wizard-field-label';
 
 type ProductTypeSelectorProps = {
   category: string;
@@ -13,6 +13,7 @@ type ProductTypeSelectorProps = {
   onChange: (value: string) => void;
   disabled?: boolean;
   error?: string;
+  required?: boolean;
 };
 
 export function ProductTypeSelector({
@@ -21,6 +22,7 @@ export function ProductTypeSelector({
   onChange,
   disabled,
   error,
+  required,
 }: ProductTypeSelectorProps) {
   const options = useMemo(() => {
     const types = getProductTypesForCategory(category);
@@ -34,18 +36,16 @@ export function ProductTypeSelector({
 
   return (
     <div>
-      <label className={wizardLabelClass}>Product Type</label>
+      <WizardFieldLabel required={required}>Product Type</WizardFieldLabel>
       <select
         value={value}
-        disabled={disabled || !options.length}
+        disabled={disabled || !category || !options.length}
         onChange={(event) => onChange(event.target.value)}
         className={wizardSelectClass}
       >
-        {!value ? (
-          <option value="" className="bg-[#0d1224] text-white/60">
-            Select product type
-          </option>
-        ) : null}
+        <option value="" className="bg-[#0d1224] text-white/60">
+          Select product type
+        </option>
         {options.map((type) => (
           <option key={type} value={type} className="bg-[#0d1224] text-white">{type}</option>
         ))}
