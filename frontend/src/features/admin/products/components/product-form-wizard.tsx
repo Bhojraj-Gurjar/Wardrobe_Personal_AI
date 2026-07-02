@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ChevronLeft, ChevronRight, Loader2, X } from 'lucide-react';
@@ -17,19 +17,21 @@ import {
   getProductTypesForCategory,
 } from '../constants/cms-taxonomy';
 import {
+  computeDiscountPercent,
   defaultProductFormValues,
   productFormSchema,
+  STEP_ONE_REQUIRED_FIELDS,
   type ProductFormValues,
 } from '../schemas/product-form.schema';
 import { CategorySelector } from './category-selector';
 import { ProductTypeSelector } from './product-type-selector';
-import { ImageUploader, type UploadedImageItem } from './image-uploader';
+import { ImageUploader, revokeAllImagePreviews, type UploadedImageItem } from './image-uploader';
 import { VariantSelector, type VariantRow } from './variant-selector';
 import { ProductReviewStep } from './product-review-step';
+import { WizardFieldLabel } from './wizard-field-label';
+import type { AddVariantSpec } from './add-product-variant-modal';
 import {
   wizardInputClass,
-  wizardLabelClass,
-  wizardReadOnlyInputClass,
   wizardSelectClass,
   wizardTextareaClass,
 } from './wizard-form-styles';
@@ -46,6 +48,7 @@ const STEPS = [
 const REVIEW_STEP = STEPS.length - 1;
 
 const FIELD_STEP_INDEX: Partial<Record<keyof ProductFormValues, number>> = {
+  sku: 0,
   name: 0,
   brand: 0,
   category: 0,
@@ -55,9 +58,6 @@ const FIELD_STEP_INDEX: Partial<Record<keyof ProductFormValues, number>> = {
   images: 1,
   mrp: 2,
   sellingPrice: 2,
-  stockQuantity: 3,
-  sku: 3,
-  barcode: 3,
   variants: 3,
   visibility: REVIEW_STEP,
 };
@@ -87,6 +87,19 @@ function resolveErrorStep(errors: Record<string, unknown>): number | null {
   return null;
 }
 
+function emptyToUndefined(value: unknown) {
+  return value === '' || value === null ? undefined : value;
+}
+
+function parseFormNumber(value: unknown) {
+  if (value === '' || value === null || value === undefined) {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 type ProductFormWizardProps = {
   onClose: () => void;
   onSubmit: (
@@ -94,21 +107,30 @@ type ProductFormWizardProps = {
     imageFiles: File[],
     options?: { wizardStep?: number },
   ) => Promise<void>;
+  onCreateVariantProduct?: (
+    values: ProductFormValues,
+    imageFiles: File[],
+    spec: AddVariantSpec,
+  ) => Promise<void>;
   initialValues?: Partial<ProductFormValues>;
   initialStep?: number;
   isSubmitting?: boolean;
+  isCreatingVariant?: boolean;
   mode?: 'create' | 'edit';
 };
 
 export function ProductFormWizard({
   onClose,
   onSubmit,
+  onCreateVariantProduct,
   initialValues,
   initialStep = 0,
   isSubmitting,
+  isCreatingVariant,
   mode = 'create',
 }: ProductFormWizardProps) {
   const [step, setStep] = useState(initialStep);
+  const [inventoryError, setInventoryError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const form = useForm<ProductFormValues>({
@@ -137,7 +159,7 @@ export function ProductFormWizard({
   useEffect(() => {
     if (initialValues) {
       form.reset({ ...defaultProductFormValues, ...initialValues });
-      previousCategoryRef.current = String(initialValues.category ?? defaultProductFormValues.category);
+      previousCategoryRef.current = String(initialValues.category ?? '');
     }
   }, [form, initialValues]);
 
@@ -151,41 +173,33 @@ export function ProductFormWizard({
     }
 
     previousCategoryRef.current = category;
-    const types = getProductTypesForCategory(category);
-
-    if (!types.length) {
+    if (!productType) {
       return;
     }
 
-    setValue('productType', types.includes(productType) ? productType : types[0], {
-      shouldValidate: true,
-    });
+    const types = getProductTypesForCategory(category);
+    if (!types.includes(productType)) {
+      setValue('productType', '', { shouldValidate: true });
+    }
   }, [category, productType, setValue]);
 
   useEffect(() => {
-    if (sellingPrice > 0 && mrp <= 0) {
-      setValue('mrp', sellingPrice, { shouldValidate: true });
-      return;
-    }
-
-    if (mrp > 0 && sellingPrice >= 0) {
-      const discount = ((mrp - sellingPrice) / mrp) * 100;
-      setValue('discountPercent', Math.max(0, Math.round(discount * 100) / 100));
-    }
+    const discount = computeDiscountPercent(mrp, sellingPrice);
+    setValue('discountPercent', discount, { shouldValidate: false });
   }, [mrp, sellingPrice, setValue]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   }, [step]);
 
-  const stepFields: Record<number, (keyof ProductFormValues)[]> = useMemo(() => ({
-    0: ['name', 'brand', 'category', 'productType', 'gender'],
-    1: ['images'],
-    2: ['mrp', 'sellingPrice'],
-    3: ['stockQuantity'],
-    4: [],
-    5: ['visibility'],
-  }), []);
+  useEffect(() => () => {
+    revokeAllImagePreviews(getValues('images') as UploadedImageItem[]);
+  }, [getValues]);
+
+  const handleClose = useCallback(() => {
+    revokeAllImagePreviews(getValues('images') as UploadedImageItem[]);
+    onClose();
+  }, [getValues, onClose]);
 
   const handleValidationFailure = useCallback((validationErrors: Record<string, unknown>) => {
     const message = resolveFirstValidationError(validationErrors)
@@ -212,14 +226,49 @@ export function ProductFormWizard({
     handleValidationFailure,
   );
 
+  const validateInventoryStep = useCallback(() => {
+    const currentVariants = getValues('variants') || [];
+    if (!currentVariants.length) {
+      setInventoryError('Select a color and size, then enter stock.');
+      showToast('Select a color and size, then enter stock.', 'error');
+      return false;
+    }
+
+    const missingStock = currentVariants.some((variant) => variant.stock == null);
+    if (missingStock) {
+      setInventoryError('Stock is required for each selected size.');
+      showToast('Stock is required for each selected size.', 'error');
+      return false;
+    }
+
+    setInventoryError(null);
+    return true;
+  }, [getValues]);
+
   const goNext = async () => {
     if (step >= REVIEW_STEP) {
       return;
     }
 
-    const fields = stepFields[step];
-    const valid = fields.length ? await trigger(fields) : true;
-    if (!valid) {
+    if (step === 0) {
+      const valid = await trigger([...STEP_ONE_REQUIRED_FIELDS]);
+      if (!valid) {
+        return;
+      }
+    }
+
+    if (step === 2) {
+      const currentMrp = getValues('mrp');
+      const currentSelling = getValues('sellingPrice');
+      if (currentMrp != null || currentSelling != null) {
+        const valid = await trigger(['mrp', 'sellingPrice']);
+        if (!valid) {
+          return;
+        }
+      }
+    }
+
+    if (step === 3 && !validateInventoryStep()) {
       return;
     }
 
@@ -232,8 +281,8 @@ export function ProductFormWizard({
   };
 
   const handleSaveDraft = async () => {
-    setValue('visibility', 'DRAFT', { shouldValidate: true });
-    const valid = await trigger(['name', 'brand', 'category', 'productType', 'gender', 'images', 'mrp', 'sellingPrice']);
+    setValue('visibility', 'DRAFT', { shouldValidate: false });
+    const valid = await trigger([...STEP_ONE_REQUIRED_FIELDS]);
     if (!valid) {
       handleValidationFailure(errors as Record<string, unknown>);
       return;
@@ -245,8 +294,123 @@ export function ProductFormWizard({
     await submitProduct();
   };
 
+  const handleCreateVariant = async (spec: AddVariantSpec) => {
+    if (!onCreateVariantProduct) {
+      return;
+    }
+
+    const valid = await trigger([...STEP_ONE_REQUIRED_FIELDS]);
+    if (!valid) {
+      handleValidationFailure(errors as Record<string, unknown>);
+      throw new Error('Complete Step 1 required fields before adding a variant product.');
+    }
+
+    const values = getValues();
+    const files = (values.images as UploadedImageItem[])
+      .map((image) => image.file)
+      .filter((file): file is File => Boolean(file));
+
+    await onCreateVariantProduct(values, files, spec);
+  };
+
   const preventAccidentalSubmit = (event: React.FormEvent) => {
     event.preventDefault();
+  };
+
+  const numericField = (name: 'mrp' | 'sellingPrice' | 'weight') => register(name, {
+    setValueAs: parseFormNumber,
+  });
+
+  const renderFooterActions = () => {
+    if (step < REVIEW_STEP) {
+      return (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isSubmitting}
+            onClick={handleSaveDraft}
+            className="border-white/10 bg-transparent text-slate-300 hover:border-purple-500/30 hover:bg-white/5 hover:text-white"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                Saving…
+              </>
+            ) : 'Save Draft'}
+          </Button>
+          <Button
+            type="button"
+            onClick={goNext}
+            className="gap-1 rounded-xl bg-primary px-5 shadow-[0_8px_24px_rgba(139,92,246,0.35)] hover:bg-primary/90"
+          >
+            Next
+            <ChevronRight className="size-4" />
+          </Button>
+        </div>
+      );
+    }
+
+    if (mode === 'edit') {
+      return (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isSubmitting}
+            onClick={handleSaveDraft}
+            className="border-white/10 bg-transparent text-slate-300 hover:border-purple-500/30 hover:bg-white/5 hover:text-white"
+          >
+            Save Draft
+          </Button>
+          <Button
+            type="button"
+            disabled={isSubmitting}
+            onClick={handleEditSave}
+            className="gap-2 rounded-xl bg-primary px-5 shadow-[0_8px_24px_rgba(139,92,246,0.35)]"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                Saving…
+              </>
+            ) : 'Save Product'}
+          </Button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          disabled={isSubmitting}
+          onClick={handleSaveDraft}
+          className="border-white/10 bg-transparent text-slate-300 hover:border-purple-500/30 hover:bg-white/5 hover:text-white"
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              Saving…
+            </>
+          ) : 'Save Draft'}
+        </Button>
+        <Button
+          type="button"
+          disabled={isSubmitting}
+          onClick={handlePublish}
+          className="gap-2 rounded-xl bg-primary px-5 shadow-[0_8px_24px_rgba(139,92,246,0.35)]"
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              Publishing…
+            </>
+          ) : 'Publish Product'}
+        </Button>
+      </div>
+    );
   };
 
   return (
@@ -273,7 +437,7 @@ export function ProductFormWizard({
             </div>
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="rounded-xl border border-white/10 p-2 text-slate-400 transition-colors hover:border-purple-500/40 hover:bg-white/5 hover:text-white"
               aria-label="Close"
             >
@@ -306,39 +470,53 @@ export function ProductFormWizard({
             {step === 0 ? (
               <div className="grid gap-5 sm:grid-cols-2">
                 <div className="sm:col-span-2">
-                  <label className={wizardLabelClass}>Product Name</label>
-                  <Input {...register('name')} className={wizardInputClass} />
+                  <WizardFieldLabel required>SKU ID</WizardFieldLabel>
+                  <Input
+                    {...register('sku')}
+                    placeholder="e.g. PRD-BLKTEE-001"
+                    className={wizardInputClass}
+                  />
+                  {errors.sku ? <p className="mt-1 text-xs text-destructive">{errors.sku.message}</p> : null}
+                </div>
+                <div className="sm:col-span-2">
+                  <WizardFieldLabel required>Product Name</WizardFieldLabel>
+                  <Input {...register('name')} placeholder="Enter product name" className={wizardInputClass} />
                   {errors.name ? <p className="mt-1 text-xs text-destructive">{errors.name.message}</p> : null}
                 </div>
                 <div>
-                  <label className={wizardLabelClass}>Brand</label>
-                  <Input {...register('brand')} className={wizardInputClass} />
+                  <WizardFieldLabel required>Brand</WizardFieldLabel>
+                  <Input {...register('brand')} placeholder="Enter brand" className={wizardInputClass} />
                   {errors.brand ? <p className="mt-1 text-xs text-destructive">{errors.brand.message}</p> : null}
                 </div>
                 <CategorySelector
+                  required
                   value={category}
-                  onChange={(value) => setValue('category', value)}
+                  onChange={(value) => setValue('category', value, { shouldValidate: true })}
                   error={errors.category?.message}
                 />
                 <ProductTypeSelector
+                  required
                   category={category}
                   value={productType}
-                  onChange={(value) => setValue('productType', value)}
+                  onChange={(value) => setValue('productType', value, { shouldValidate: true })}
                   error={errors.productType?.message}
                 />
                 <div>
-                  <label className={wizardLabelClass}>Gender</label>
+                  <WizardFieldLabel required>Gender</WizardFieldLabel>
                   <select {...register('gender')} className={wizardSelectClass}>
+                    <option value="" className="bg-[#0d1224] text-white/60">Select gender</option>
                     {CMS_GENDERS.map((gender) => (
                       <option key={gender} value={gender} className="bg-[#0d1224] text-white">{gender}</option>
                     ))}
                   </select>
+                  {errors.gender ? <p className="mt-1 text-xs text-destructive">{errors.gender.message}</p> : null}
                 </div>
                 <div className="sm:col-span-2">
-                  <label className={wizardLabelClass}>Description</label>
+                  <WizardFieldLabel>Description</WizardFieldLabel>
                   <textarea
                     {...register('description')}
                     rows={5}
+                    placeholder="Optional product description"
                     className={wizardTextareaClass}
                   />
                 </div>
@@ -354,51 +532,31 @@ export function ProductFormWizard({
             ) : null}
 
             {step === 2 ? (
-              <div className="grid gap-5 sm:grid-cols-2">
+              <div className="grid max-w-xl gap-5 sm:grid-cols-2">
                 <div>
-                  <label className={wizardLabelClass}>MRP</label>
-                  <Input type="number" step="0.01" {...register('mrp')} className={wizardInputClass} />
+                  <WizardFieldLabel required>MRP</WizardFieldLabel>
+                  <Input type="number" step="0.01" placeholder="0" {...numericField('mrp')} className={wizardInputClass} />
                   {errors.mrp ? <p className="mt-1 text-xs text-destructive">{errors.mrp.message}</p> : null}
                 </div>
                 <div>
-                  <label className={wizardLabelClass}>Selling Price</label>
-                  <Input type="number" step="0.01" {...register('sellingPrice')} className={wizardInputClass} />
+                  <WizardFieldLabel required>Selling Price</WizardFieldLabel>
+                  <Input type="number" step="0.01" placeholder="0" {...numericField('sellingPrice')} className={wizardInputClass} />
                   {errors.sellingPrice ? <p className="mt-1 text-xs text-destructive">{errors.sellingPrice.message}</p> : null}
-                </div>
-                <div>
-                  <label className={wizardLabelClass}>Discount %</label>
-                  <Input type="number" {...register('discountPercent')} readOnly className={wizardReadOnlyInputClass} />
-                </div>
-                <div>
-                  <label className={wizardLabelClass}>Tax %</label>
-                  <Input type="number" {...register('taxPercent')} className={wizardInputClass} />
                 </div>
               </div>
             ) : null}
 
             {step === 3 ? (
-              <div className="space-y-6">
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <div>
-                    <label className={wizardLabelClass}>Stock Quantity</label>
-                    <Input type="number" {...register('stockQuantity')} className={wizardInputClass} />
-                  </div>
-                  <div>
-                    <label className={wizardLabelClass}>SKU</label>
-                    <Input {...register('sku')} placeholder="Auto-generated if empty" className={wizardInputClass} />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className={wizardLabelClass}>Barcode (optional)</label>
-                    <Input {...register('barcode')} className={wizardInputClass} />
-                  </div>
-                </div>
-                <VariantSelector
-                  productType={productType}
-                  value={variants || []}
-                  baseSku={watch('sku')}
-                  onChange={(next) => setValue('variants', next)}
-                />
-              </div>
+              <VariantSelector
+                productType={productType}
+                value={variants || []}
+                baseSku={watch('sku')}
+                stockError={inventoryError || undefined}
+                onChange={(next) => {
+                  setInventoryError(null);
+                  setValue('variants', next, { shouldValidate: true });
+                }}
+              />
             ) : null}
 
             {step === 4 ? (
@@ -406,25 +564,27 @@ export function ProductFormWizard({
                 <div className="grid gap-5 sm:grid-cols-2">
                   {['fabric', 'fit', 'pattern', 'sleeveType', 'neckType', 'occasion', 'season', 'careInstructions', 'countryOfOrigin', 'material'].map((field) => (
                     <div key={field}>
-                      <label className={cn(wizardLabelClass, 'capitalize')}>{field.replace(/([A-Z])/g, ' $1')}</label>
+                      <WizardFieldLabel className="capitalize">{field.replace(/([A-Z])/g, ' $1')}</WizardFieldLabel>
                       <Input {...register(field as keyof ProductFormValues)} className={wizardInputClass} />
                     </div>
                   ))}
                   <div>
-                    <label className={wizardLabelClass}>Weight (grams)</label>
-                    <Input type="number" {...register('weight')} className={wizardInputClass} />
+                    <WizardFieldLabel>Weight (grams)</WizardFieldLabel>
+                    <Input type="number" placeholder="0" {...numericField('weight')} className={wizardInputClass} />
                   </div>
                   <div>
-                    <label className={wizardLabelClass}>Tags (comma separated)</label>
+                    <WizardFieldLabel>Tags (comma separated)</WizardFieldLabel>
                     <Input
                       onChange={(event) => setValue('tags', event.target.value.split(',').map((tag) => tag.trim()).filter(Boolean))}
+                      placeholder="casual, cotton"
                       className={wizardInputClass}
                     />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className={wizardLabelClass}>Search Keywords (comma separated)</label>
+                    <WizardFieldLabel>Search Keywords (comma separated)</WizardFieldLabel>
                     <Input
                       onChange={(event) => setValue('searchKeywords', event.target.value.split(',').map((tag) => tag.trim()).filter(Boolean))}
+                      placeholder="summer, breathable"
                       className={wizardInputClass}
                     />
                   </div>
@@ -432,24 +592,26 @@ export function ProductFormWizard({
 
                 <div className="grid gap-5 sm:grid-cols-2">
                   <div>
-                    <label className={wizardLabelClass}>Style</label>
+                    <WizardFieldLabel>Style</WizardFieldLabel>
                     <select
                       value={watch('aiAttributes.style') || ''}
                       onChange={(event) => setValue('aiAttributes.style', event.target.value)}
                       className={wizardSelectClass}
                     >
+                      <option value="" className="bg-[#0d1224] text-white/60">Select style</option>
                       {CMS_AI_STYLES.map((style) => (
                         <option key={style} value={style} className="bg-[#0d1224] text-white">{style}</option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <label className={wizardLabelClass}>Body Fit</label>
+                    <WizardFieldLabel>Body Fit</WizardFieldLabel>
                     <select
                       value={watch('aiAttributes.bodyFit') || ''}
                       onChange={(event) => setValue('aiAttributes.bodyFit', event.target.value)}
                       className={wizardSelectClass}
                     >
+                      <option value="" className="bg-[#0d1224] text-white/60">Select body fit</option>
                       {CMS_BODY_FITS.map((fit) => (
                         <option key={fit} value={fit} className="bg-[#0d1224] text-white">{fit}</option>
                       ))}
@@ -458,7 +620,7 @@ export function ProductFormWizard({
                 </div>
 
                 <div>
-                  <label className={wizardLabelClass}>Recommended Body Types</label>
+                  <WizardFieldLabel>Recommended Body Types</WizardFieldLabel>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {CMS_BODY_TYPES.map((type) => {
                       const selected = watch('aiAttributes.recommendedBodyTypes')?.includes(type);
@@ -488,7 +650,7 @@ export function ProductFormWizard({
                 </div>
 
                 <div>
-                  <label className={wizardLabelClass}>Recommended Face Shapes</label>
+                  <WizardFieldLabel>Recommended Face Shapes</WizardFieldLabel>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {CMS_FACE_SHAPES.map((shape) => {
                       const selected = watch('aiAttributes.recommendedFaceShapes')?.includes(shape);
@@ -526,6 +688,8 @@ export function ProductFormWizard({
                 variants={variants || []}
                 register={register}
                 onVisibilityChange={(value) => setValue('visibility', value, { shouldValidate: true })}
+                onCreateVariant={mode === 'create' ? handleCreateVariant : undefined}
+                isCreatingVariant={isCreatingVariant}
               />
             ) : null}
           </div>
@@ -534,67 +698,14 @@ export function ProductFormWizard({
             <Button
               type="button"
               variant="ghost"
-              onClick={() => (step === 0 ? onClose() : setStep((s) => s - 1))}
+              onClick={() => (step === 0 ? handleClose() : setStep((s) => s - 1))}
               className="gap-1 text-slate-400 hover:bg-white/5 hover:text-white"
             >
               <ChevronLeft className="size-4" />
               {step === 0 ? 'Cancel' : 'Back'}
             </Button>
 
-            {step < REVIEW_STEP ? (
-              <Button
-                type="button"
-                onClick={goNext}
-                className="gap-1 rounded-xl bg-primary px-5 shadow-[0_8px_24px_rgba(139,92,246,0.35)] hover:bg-primary/90"
-              >
-                Next
-                <ChevronRight className="size-4" />
-              </Button>
-            ) : mode === 'edit' ? (
-              <Button
-                type="button"
-                disabled={isSubmitting}
-                onClick={handleEditSave}
-                className="gap-2 rounded-xl bg-primary px-5 shadow-[0_8px_24px_rgba(139,92,246,0.35)]"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                    Saving…
-                  </>
-                ) : 'Save Product'}
-              </Button>
-            ) : (
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  disabled={isSubmitting}
-                  onClick={handleSaveDraft}
-                  className="text-slate-300 hover:bg-white/5 hover:text-white"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                      Saving…
-                    </>
-                  ) : 'Save Draft'}
-                </Button>
-                <Button
-                  type="button"
-                  disabled={isSubmitting}
-                  onClick={handlePublish}
-                  className="gap-2 rounded-xl bg-primary px-5 shadow-[0_8px_24px_rgba(139,92,246,0.35)]"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                      Publishing…
-                    </>
-                  ) : 'Publish Product'}
-                </Button>
-              </div>
-            )}
+            {renderFooterActions()}
           </div>
         </form>
       </div>

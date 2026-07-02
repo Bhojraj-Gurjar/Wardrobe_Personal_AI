@@ -54,8 +54,8 @@ class Settings(BaseSettings):
     face_smile_delta_threshold: float = 0.04
     face_pitch_delta_threshold: float = 0.06
     face_liveness_required: bool = True
-    face_min_capture_frames: int = 4
-    face_max_capture_frames: int = 5
+    face_min_capture_frames: int = 3
+    face_max_capture_frames: int = 4
     face_hold_still_min_detection_score: float = 0.38
     face_min_area_ratio: float = 0.08
     face_max_area_ratio: float = 0.55
@@ -66,8 +66,8 @@ class Settings(BaseSettings):
     face_anti_spoof_max_moire_ratio: float = 12.0
     face_anti_spoof_enabled: bool = False
     face_min_embedding_confidence: float = 0.35
-    # Downscale oversized liveness frames before InsightFace (0 = disabled). Login frames are ~640px.
-    face_liveness_inference_max_dim: int = 640
+    # Downscale oversized liveness frames before InsightFace (0 = disabled). Login frames are ~400px.
+    face_liveness_inference_max_dim: int = 480
     face_liveness_parallel_frames: bool = True
     environment: str = "development"
     product_vector_size: int = 384

@@ -398,10 +398,11 @@ export function NotificationCenter({ isAdmin = false, className, triggerClassNam
                 'transition-all duration-200',
                 'hover:scale-105 hover:border-transparent hover:bg-white/[0.06] hover:text-dashboard-foreground',
                 'active:scale-95',
-                '[&_svg]:!size-[21px] [&_svg]:shrink-0',
+                '[&_svg]:!size-[22px] [&_svg]:shrink-0',
                 open && 'bg-white/[0.06] text-dashboard-foreground',
               )
             : cn(
+                'size-10 [&_svg]:!size-[22px] [&_svg]:shrink-0',
                 'hover:text-dashboard-foreground',
                 open && 'border-primary/40 bg-white/[0.1] text-dashboard-foreground shadow-[0_8px_28px_rgba(124,58,237,0.28)]',
               ),
@@ -412,11 +413,23 @@ export function NotificationCenter({ isAdmin = false, className, triggerClassNam
         aria-haspopup="dialog"
         onClick={() => setOpen((current) => !current)}
       >
-        <Bell className={minimalTrigger ? 'size-[21px]' : 'size-5'} strokeWidth={2} />
+        <Bell className="size-[22px]" strokeWidth={2} aria-hidden="true" />
         {unreadCount > 0 ? (
-          <span className="absolute right-1.5 top-1.5 flex min-w-[1.125rem] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-white shadow-[0_0_12px_rgba(124,58,237,0.55)]">
-            <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary/70 opacity-60" />
-            <span className="relative">
+          <span
+            className={cn(
+              'pointer-events-none absolute -right-1 -top-1 z-10 flex h-4 items-center justify-center rounded-full',
+              'border-2 border-dashboard-bg bg-primary font-bold leading-none text-white',
+              'shadow-[0_0_8px_rgba(124,58,237,0.45)]',
+              unreadCount > 99
+                ? 'min-w-[1.375rem] px-1 text-[8px]'
+                : unreadCount > 9
+                  ? 'min-w-[1.125rem] px-1 text-[9px]'
+                  : 'min-w-4 px-0 text-[10px]',
+            )}
+            aria-hidden="true"
+          >
+            <span className="absolute inset-0 animate-ping rounded-full bg-primary/70 opacity-50" />
+            <span className="relative tabular-nums">
               {unreadCount > 99 ? '99+' : unreadCount}
             </span>
           </span>

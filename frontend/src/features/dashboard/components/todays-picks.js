@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ChevronRight, Sparkles } from 'lucide-react';
 import { ROUTES } from '@/constants/routes';
 import { EmptyState } from '@/components/shared/empty-state';
-import { DashboardProductCard } from '@/features/dashboard/components/dashboard-product-card';
+import { ProductCatalogCard } from '@/features/products/components/product-catalog-card';
 import {
   getTodaysPicksRowStyle,
   TODAYS_PICKS_CARD_SLOT_CLASS,
@@ -33,16 +33,16 @@ function TodaysPicksCardSlot({ children }) {
 
 function TodaysPicksSkeletonCard() {
   return (
-    <article className="flex h-full min-w-0 flex-col overflow-hidden rounded-[18px] border border-dashboard-border bg-dashboard-surface p-4 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
-      <Skeleton className="min-h-0 flex-[0_0_62%] w-full rounded-xl bg-dashboard-surface-elevated" />
-      <div className="flex flex-1 flex-col pt-3">
-        <Skeleton className="h-2.5 w-16 rounded bg-dashboard-surface-elevated" />
-        <Skeleton className="mt-2 h-8 w-full rounded bg-dashboard-surface-elevated" />
-        <Skeleton className="mt-3 h-4 w-24 rounded bg-dashboard-surface-elevated" />
-      </div>
-      <div className="mt-auto flex gap-2 border-t border-dashboard-border/60 pt-3">
-        <Skeleton className="h-9 flex-1 rounded-xl bg-dashboard-surface-elevated" />
-        <Skeleton className="h-9 flex-1 rounded-xl bg-dashboard-surface-elevated" />
+    <article className="overflow-hidden rounded-xl border border-dashboard-border bg-dashboard-surface md:rounded-2xl">
+      <Skeleton className="aspect-[3/4] w-full rounded-none bg-dashboard-surface-elevated" />
+      <div className="space-y-2 p-3 md:p-4">
+        <Skeleton className="h-3 w-28 rounded bg-dashboard-surface-elevated" />
+        <Skeleton className="h-10 w-full rounded bg-dashboard-surface-elevated" />
+        <Skeleton className="h-3 w-20 rounded bg-dashboard-surface-elevated" />
+        <div className="flex items-center justify-between pt-1">
+          <Skeleton className="h-5 w-16 rounded bg-dashboard-surface-elevated" />
+          <Skeleton className="size-9 rounded-full bg-dashboard-surface-elevated md:size-10" />
+        </div>
       </div>
     </article>
   );
@@ -103,14 +103,12 @@ export function TodaysPicks({ picks, isLoading = false, isEmpty = false, classNa
         <TodaysPicksRow count={pickCount}>
           {picks.map((pick) => (
             <TodaysPicksCardSlot key={pick.id}>
-              <DashboardProductCard
-                variant="picks"
+              <ProductCatalogCard
                 product={pick.product}
-                name={pick.name}
-                image={pick.image}
-                matchPercent={pick.matchPercent}
-                href={pick.href}
-                isMock={pick.isMock}
+                matchScore={pick.score}
+                featureBadge={{ label: 'For You', tone: 'purple' }}
+                recommendationReason={pick.recommendationReason}
+                className="h-full"
               />
             </TodaysPicksCardSlot>
           ))}

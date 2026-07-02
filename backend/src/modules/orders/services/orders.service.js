@@ -282,7 +282,13 @@ class OrdersService {
     }
 
     if (!isOrderCancellable(order.status)) {
-      throw new BadRequestException('Order cannot be cancelled');
+      const terminalMessage = [ORDER_STATUS.DELIVERED, ORDER_STATUS.COMPLETED].includes(order.status)
+        ? 'Delivered orders cannot be cancelled.'
+        : [ORDER_STATUS.CANCELLED, ORDER_STATUS.RETURNED, ORDER_STATUS.REFUNDED].includes(order.status)
+          ? 'This order has already been cancelled or closed.'
+          : 'This order can no longer be cancelled.';
+
+      throw new BadRequestException(terminalMessage);
     }
 
     const updated = await this.ordersRepository.cancelWithStockRestore(id, order.status);
@@ -307,6 +313,25 @@ class OrdersService {
       orderId: updated.id,
       orderNumber: updated.order_number,
     });
+
+    const cancelledNotification = await this.ordersRepository.createNotification({
+      id: randomUUID(),
+      user_id: userId,
+      order_id: updated.id,
+      type: ORDER_NOTIFICATION_TYPE.CANCELLED,
+      title: 'Order cancelled',
+      message: `Your order ${updated.order_number} has been cancelled.`,
+    });
+
+    this.orderEventService.emit(ORDER_EVENTS.ORDER_NOTIFICATION_CREATED, {
+      userId,
+      orderId: updated.id,
+      orderNumber: updated.order_number,
+      notificationId: cancelledNotification.id,
+      type: ORDER_NOTIFICATION_TYPE.CANCELLED,
+    });
+
+    this.notificationsService.forwardOrderNotification(userId, cancelledNotification, updated);
 
     await Promise.all(
       [...new Set(this.ordersRepository.getLineItemsFromOrder(updated).map((item) => item.product_id))].map(

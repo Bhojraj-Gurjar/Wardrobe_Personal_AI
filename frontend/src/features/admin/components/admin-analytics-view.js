@@ -36,7 +36,7 @@ import { AdminAnalyticsChartCard } from '@/features/admin/components/admin-analy
 import { useAdminAnalyticsQuery, useAdminOrdersAnalyticsQuery } from '@/features/admin/hooks';
 import { formatCurrency } from '@/utils/currency';
 
-import { CHART_COLORS, CHART_TOOLTIP_STYLE } from '@/constants/charts';
+import { CHART_COLORS, CHART_TOOLTIP_CURSOR, CHART_TOOLTIP_STYLE } from '@/constants/charts';
 import { BRAND_PURPLE, DASHBOARD_CHART_AXIS, DASHBOARD_CHART_GRID } from '@/constants/colors';
 
 const GROWTH_PERIODS = [
@@ -305,7 +305,7 @@ export function AdminAnalyticsView() {
                 <CartesianGrid stroke={DASHBOARD_CHART_GRID} strokeDasharray="3 3" />
                 <XAxis dataKey="month" stroke={DASHBOARD_CHART_AXIS} fontSize={12} />
                 <YAxis stroke={DASHBOARD_CHART_AXIS} fontSize={12} />
-                <Tooltip content={<GrowthTooltip />} />
+                <Tooltip content={<GrowthTooltip />} cursor={CHART_TOOLTIP_CURSOR} />
                 <Area
                   type="monotone"
                   dataKey="newUsers"
@@ -390,7 +390,7 @@ export function AdminAnalyticsView() {
                 <CartesianGrid stroke={DASHBOARD_CHART_GRID} strokeDasharray="3 3" />
                 <XAxis dataKey="month" stroke={DASHBOARD_CHART_AXIS} fontSize={12} />
                 <YAxis stroke={DASHBOARD_CHART_AXIS} fontSize={12} />
-                <Tooltip content={<OrdersTooltip />} />
+                <Tooltip content={<OrdersTooltip />} cursor={CHART_TOOLTIP_CURSOR} />
                 <Bar dataKey="orders" fill={BRAND_PURPLE} radius={[6, 6, 0, 0]} />
                 <Bar dataKey="completed" fill="#6366F1" radius={[6, 6, 0, 0]} />
               </BarChart>
@@ -411,7 +411,7 @@ export function AdminAnalyticsView() {
                 <CartesianGrid stroke={DASHBOARD_CHART_GRID} strokeDasharray="3 3" />
                 <XAxis type="number" stroke={DASHBOARD_CHART_AXIS} fontSize={12} />
                 <YAxis dataKey="category" type="category" stroke={DASHBOARD_CHART_AXIS} fontSize={12} width={90} />
-                <Tooltip content={<CategoryTooltip />} />
+                <Tooltip content={<CategoryTooltip />} cursor={CHART_TOOLTIP_CURSOR} />
                 <Bar dataKey="revenue" fill="#6366F1" radius={[0, 6, 6, 0]} />
               </BarChart>
             </ResponsiveContainer>

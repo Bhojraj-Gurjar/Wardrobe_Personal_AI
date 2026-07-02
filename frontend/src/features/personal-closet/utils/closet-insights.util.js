@@ -149,7 +149,7 @@ export function deriveClosetInsights({
   };
 }
 
-export function deriveRecentActivity(outfits = [], purchasedItems = []) {
+export function deriveRecentActivity(outfits = [], purchasedItems = [], limit = 8) {
   const events = [];
 
   outfits.forEach((outfit) => {
@@ -180,9 +180,13 @@ export function deriveRecentActivity(outfits = [], purchasedItems = []) {
     });
   });
 
-  return events
-    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-    .slice(0, 8);
+  const sorted = events.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+  if (limit == null) {
+    return sorted;
+  }
+
+  return sorted.slice(0, limit);
 }
 
 export function deriveOutfitBadges(outfit) {

@@ -225,7 +225,15 @@ let OrdersService = class OrdersService {
             throw new _common.NotFoundException('Order not found');
         }
         if (!(0, _orderstatusutil.isOrderCancellable)(order.status)) {
-            throw new _common.BadRequestException('Order cannot be cancelled');
+            const terminalMessage = [
+                _orderconstants.ORDER_STATUS.DELIVERED,
+                _orderconstants.ORDER_STATUS.COMPLETED
+            ].includes(order.status) ? 'Delivered orders cannot be cancelled.' : [
+                _orderconstants.ORDER_STATUS.CANCELLED,
+                _orderconstants.ORDER_STATUS.RETURNED,
+                _orderconstants.ORDER_STATUS.REFUNDED
+            ].includes(order.status) ? 'This order has already been cancelled or closed.' : 'This order can no longer be cancelled.';
+            throw new _common.BadRequestException(terminalMessage);
         }
         const updated = await this.ordersRepository.cancelWithStockRestore(id, order.status);
         if (!updated) {
@@ -246,6 +254,22 @@ let OrdersService = class OrdersService {
             orderId: updated.id,
             orderNumber: updated.order_number
         });
+        const cancelledNotification = await this.ordersRepository.createNotification({
+            id: (0, _crypto.randomUUID)(),
+            user_id: userId,
+            order_id: updated.id,
+            type: _orderconstants.ORDER_NOTIFICATION_TYPE.CANCELLED,
+            title: 'Order cancelled',
+            message: `Your order ${updated.order_number} has been cancelled.`
+        });
+        this.orderEventService.emit(_orderconstants.ORDER_EVENTS.ORDER_NOTIFICATION_CREATED, {
+            userId,
+            orderId: updated.id,
+            orderNumber: updated.order_number,
+            notificationId: cancelledNotification.id,
+            type: _orderconstants.ORDER_NOTIFICATION_TYPE.CANCELLED
+        });
+        this.notificationsService.forwardOrderNotification(userId, cancelledNotification, updated);
         await Promise.all([
             ...new Set(this.ordersRepository.getLineItemsFromOrder(updated).map((item)=>item.product_id))
         ].map((productId)=>this.productService.invalidateCatalogCache(productId)));

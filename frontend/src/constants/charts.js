@@ -13,3 +13,6 @@ export const CHART_TOOLTIP_STYLE = {
   border: '1px solid #1f2937',
   borderRadius: '12px',
 };
+
+/** Disable Recharts' default light hover band behind bars/points on dark UI. */
+export const CHART_TOOLTIP_CURSOR = false;

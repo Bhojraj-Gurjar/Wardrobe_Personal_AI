@@ -30,7 +30,7 @@ class AdminAnalyticsRepository {
     return this.prisma.order.groupBy({
       by: ['user_id'],
       where: {
-        user_id: { not: null },
+        NOT: { user_id: null },
         status: { not: ORDER_STATUS.CANCELLED },
       },
       _count: { _all: true },
@@ -80,7 +80,7 @@ class AdminAnalyticsRepository {
       this.prisma.order.groupBy({
         by: ['product_id'],
         where: {
-          product_id: { not: null },
+          NOT: { product_id: null },
           status: { not: ORDER_STATUS.CANCELLED },
         },
         _count: { _all: true },
@@ -89,7 +89,7 @@ class AdminAnalyticsRepository {
       this.prisma.order.groupBy({
         by: ['product_id'],
         where: {
-          product_id: { not: null },
+          NOT: { product_id: null },
           status: { in: RETURN_STATUSES },
         },
         _count: { _all: true },
@@ -254,7 +254,7 @@ class AdminAnalyticsRepository {
     return this.prisma.order.groupBy({
       by: ['product_id'],
       where: {
-        product_id: { not: null },
+        NOT: { product_id: null },
         status: { in: RETURN_STATUSES },
       },
       _count: { _all: true },

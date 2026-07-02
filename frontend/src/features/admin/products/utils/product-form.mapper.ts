@@ -1,4 +1,5 @@
 import {
+  computeDiscountPercent,
   defaultProductFormValues,
   type ProductFormValues,
 } from '../schemas/product-form.schema';
@@ -6,6 +7,7 @@ import {
   getProductTypesForCategory,
   resolveCmsCategory,
 } from '../constants/cms-taxonomy';
+import { buildColorVariantSku, buildSizeVariantSku, buildVariantSku } from './sku.util';
 
 type ProductDetail = Record<string, unknown>;
 
@@ -33,12 +35,21 @@ function resolveEditableProductType(product: ProductDetail, category: string) {
     return stored;
   }
 
-  return types[0] ?? defaultProductFormValues.productType;
+  return '';
+}
+
+function readOptionalNumber(value: unknown) {
+  if (value == null || value === '') {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 export function mapProductDetailToFormValues(product: ProductDetail): ProductFormValues {
   const aiAttributes = (product.aiAttributes ?? {}) as Record<string, unknown>;
-  const category = String(product.category ?? defaultProductFormValues.category);
+  const category = String(product.category ?? '');
 
   const images = Array.isArray(product.images) && product.images.length
     ? (product.images as Array<Record<string, unknown>>).map((image, index) => ({
@@ -70,20 +81,21 @@ export function mapProductDetailToFormValues(product: ProductDetail): ProductFor
     description: String(product.description ?? ''),
     category: resolveCmsCategory(category) || category,
     productType: resolveEditableProductType(product, resolveCmsCategory(category) || category),
-    gender: String(product.gender ?? defaultProductFormValues.gender),
-    mrp: Number(product.mrp ?? 0),
-    sellingPrice: Number(product.price ?? product.sellingPrice ?? 0),
-    discountPercent: Number(product.discountPercent ?? 0),
-    taxPercent: Number(product.taxPercent ?? 0),
-    stockQuantity: Number(product.stock ?? product.stockQuantity ?? 0),
+    gender: String(product.gender ?? ''),
+    mrp: readOptionalNumber(product.mrp),
+    sellingPrice: readOptionalNumber(product.price ?? product.sellingPrice),
+    discountPercent: readOptionalNumber(product.discountPercent),
+    taxPercent: readOptionalNumber(product.taxPercent),
+    stockQuantity: readOptionalNumber(product.stock ?? product.stockQuantity),
     sku: String(product.sku ?? ''),
     barcode: String(product.barcode ?? ''),
     images,
     variants: Array.isArray(product.variants)
-      ? (product.variants as Array<Record<string, unknown>>).map((variant) => ({
+      ? (product.variants as Array<Record<string, unknown>>).map((variant, index) => ({
+          id: String(variant.id ?? `existing-variant-${index}`),
           color: String(variant.color ?? ''),
           size: String(variant.size ?? ''),
-          stock: Number(variant.stock ?? 0),
+          stock: readOptionalNumber(variant.stock),
           sku: variant.sku ? String(variant.sku) : undefined,
           priceOverride: variant.priceOverride != null ? Number(variant.priceOverride) : null,
           imageUrl: variant.imageUrl ? String(variant.imageUrl) : null,
@@ -99,15 +111,15 @@ export function mapProductDetailToFormValues(product: ProductDetail): ProductFor
     careInstructions: String(product.careInstructions ?? ''),
     countryOfOrigin: String(product.countryOfOrigin ?? ''),
     material: String(product.material ?? ''),
-    weight: product.weight != null ? Number(product.weight) : undefined,
+    weight: readOptionalNumber(product.weight),
     dimensions: product.dimensions as ProductFormValues['dimensions'],
     tags: Array.isArray(product.tags) ? product.tags.map(String) : [],
     searchKeywords: Array.isArray(product.searchKeywords)
       ? product.searchKeywords.map(String)
       : [],
     aiAttributes: {
-      style: String(aiAttributes.style ?? defaultProductFormValues.aiAttributes?.style ?? ''),
-      bodyFit: String(aiAttributes.bodyFit ?? defaultProductFormValues.aiAttributes?.bodyFit ?? ''),
+      style: String(aiAttributes.style ?? ''),
+      bodyFit: String(aiAttributes.bodyFit ?? ''),
       recommendedBodyTypes: Array.isArray(aiAttributes.recommendedBodyTypes)
         ? aiAttributes.recommendedBodyTypes.map(String)
         : [],
@@ -130,12 +142,34 @@ function resolveEffectiveMrp(values: ProductFormValues) {
   return mrp > 0 ? mrp : sellingPrice;
 }
 
+function normalizeVariantsForPayload(values: ProductFormValues) {
+  if (!values.variants?.length) {
+    return undefined;
+  }
+
+  const baseSku = values.sku?.trim() || '';
+
+  return values.variants.map((variant) => ({
+    color: variant.color,
+    size: variant.size,
+    stock: variant.stock ?? 0,
+    sku: variant.sku || buildVariantSku(baseSku, variant.color, variant.size),
+    priceOverride: variant.priceOverride,
+  }));
+}
+
 export function buildProductMutationPayload(
   values: ProductFormValues,
   options?: { draftWizardStep?: number },
 ) {
-  const mrp = resolveEffectiveMrp(values);
-  const sellingPrice = Number(values.sellingPrice) || 0;
+  const sellingPrice = values.sellingPrice ?? 0;
+  const mrp = resolveEffectiveMrp({ ...values, sellingPrice });
+  const discountPercent = computeDiscountPercent(
+    values.mrp ?? mrp,
+    values.sellingPrice ?? sellingPrice,
+  ) ?? values.discountPercent ?? 0;
+
+  const normalizedVariants = normalizeVariantsForPayload(values);
 
   return {
     name: values.name.trim(),
@@ -146,11 +180,11 @@ export function buildProductMutationPayload(
     gender: values.gender,
     mrp,
     sellingPrice,
-    discountPercent: values.discountPercent,
-    taxPercent: values.taxPercent,
-    stockQuantity: values.variants?.length
-      ? values.variants.reduce((sum, variant) => sum + (variant.stock || 0), 0)
-      : values.stockQuantity,
+    discountPercent,
+    taxPercent: values.taxPercent ?? 0,
+    stockQuantity: normalizedVariants?.length
+      ? normalizedVariants.reduce((sum, variant) => sum + (variant.stock || 0), 0)
+      : values.stockQuantity ?? 0,
     sku: values.sku?.trim() || undefined,
     barcode: values.barcode?.trim() || undefined,
     fabric: values.fabric || undefined,
@@ -174,15 +208,7 @@ export function buildProductMutationPayload(
     isNewArrival: values.isNewArrival,
     isBestSeller: values.isBestSeller,
     isLimitedEdition: values.isLimitedEdition,
-    variants: values.variants?.length
-      ? values.variants.map((variant) => ({
-          color: variant.color,
-          size: variant.size,
-          stock: variant.stock,
-          sku: variant.sku,
-          priceOverride: variant.priceOverride,
-        }))
-      : undefined,
+    variants: normalizedVariants,
     images: values.images
       ?.filter((image) => image.url && !image.file)
       .map((image, index) => ({
@@ -194,4 +220,42 @@ export function buildProductMutationPayload(
       ? { draftWizardStep: options.draftWizardStep }
       : {}),
   };
+}
+
+export function buildVariantProductPayload(
+  baseValues: ProductFormValues,
+  spec: {
+    type: 'color' | 'size';
+    value: string;
+    sellingPrice: number;
+    stock: number;
+  },
+) {
+  const baseSku = baseValues.sku.trim();
+  const baseColor = baseValues.variants?.[0]?.color || 'White';
+  const baseSize = baseValues.variants?.[0]?.size || 'M';
+  const color = spec.type === 'color' ? spec.value : baseColor;
+  const size = spec.type === 'size' ? spec.value : baseSize;
+  const variantSku = spec.type === 'color'
+    ? buildColorVariantSku(baseSku, spec.value)
+    : buildSizeVariantSku(baseSku, spec.value);
+
+  if (!variantSku) {
+    throw new Error('Base SKU is required to create a variant product.');
+  }
+
+  return buildProductMutationPayload({
+    ...baseValues,
+    sku: variantSku,
+    mrp: spec.sellingPrice,
+    sellingPrice: spec.sellingPrice,
+    stockQuantity: spec.stock,
+    variants: [{
+      color,
+      size,
+      stock: spec.stock,
+      sku: buildVariantSku(variantSku, color, size),
+    }],
+    visibility: 'DRAFT',
+  });
 }

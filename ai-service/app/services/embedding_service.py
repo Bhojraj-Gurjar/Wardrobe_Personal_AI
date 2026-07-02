@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import concurrent.futures
 import logging
+import os
 import threading
+import time
 from dataclasses import dataclass
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -13,6 +17,10 @@ from app.config import get_settings
 from app.services.face_errors import FaceValidationError
 
 logger = logging.getLogger(__name__)
+
+INSIGHTFACE_LOAD_TIMEOUT_SEC = int(os.environ.get("INSIGHTFACE_LOAD_TIMEOUT_SEC", "600"))
+INSIGHTFACE_LOAD_MAX_ATTEMPTS = int(os.environ.get("INSIGHTFACE_LOAD_MAX_ATTEMPTS", "3"))
+INSIGHTFACE_LOAD_RETRY_SEC = int(os.environ.get("INSIGHTFACE_LOAD_RETRY_SEC", "15"))
 
 _face_analysis = None
 _engine_error: str | None = None
@@ -41,6 +49,77 @@ class EmbeddingEngineStatus:
     error: str | None = None
 
 
+def _insightface_root() -> str:
+    return os.environ.get("INSIGHTFACE_HOME", "/app/models/insightface")
+
+
+def _insightface_model_dir(model_name: str) -> Path:
+    return Path(_insightface_root()) / "models" / model_name
+
+
+def _insightface_cache_ready(model_name: str) -> bool:
+    model_dir = _insightface_model_dir(model_name)
+    return model_dir.is_dir() and any(model_dir.glob("*.onnx"))
+
+
+def _create_face_analysis(model_name: str, root: str, providers: list[str]):
+    from insightface.app import FaceAnalysis
+
+    app = FaceAnalysis(name=model_name, root=root, providers=providers)
+    app.prepare(ctx_id=-1, det_size=(640, 640))
+    return app
+
+
+def _load_face_analysis_with_retry(
+    model_name: str,
+    root: str,
+    providers: list[str],
+):
+    last_error: Exception | None = None
+
+    for attempt in range(1, INSIGHTFACE_LOAD_MAX_ATTEMPTS + 1):
+        try:
+            logger.info(
+                "InsightFace load attempt %s/%s model=%s root=%s timeout_sec=%s",
+                attempt,
+                INSIGHTFACE_LOAD_MAX_ATTEMPTS,
+                model_name,
+                root,
+                INSIGHTFACE_LOAD_TIMEOUT_SEC,
+            )
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(
+                    _create_face_analysis,
+                    model_name,
+                    root,
+                    providers,
+                )
+                return future.result(timeout=INSIGHTFACE_LOAD_TIMEOUT_SEC)
+        except concurrent.futures.TimeoutError:
+            last_error = TimeoutError(
+                f"InsightFace model load timed out after {INSIGHTFACE_LOAD_TIMEOUT_SEC}s "
+                f"(attempt {attempt}/{INSIGHTFACE_LOAD_MAX_ATTEMPTS})",
+            )
+            logger.error("%s", last_error)
+        except Exception as exc:  # noqa: BLE001
+            last_error = exc
+            logger.error(
+                "InsightFace load attempt %s/%s failed: %s",
+                attempt,
+                INSIGHTFACE_LOAD_MAX_ATTEMPTS,
+                exc,
+            )
+
+        if attempt < INSIGHTFACE_LOAD_MAX_ATTEMPTS:
+            delay = INSIGHTFACE_LOAD_RETRY_SEC * attempt
+            logger.warning("Retrying InsightFace load in %ss", delay)
+            time.sleep(delay)
+
+    if last_error is None:
+        raise RuntimeError("InsightFace model failed to load for an unknown reason")
+    raise last_error
+
+
 def _resolve_providers() -> list[str]:
     try:
         import onnxruntime as ort
@@ -61,17 +140,30 @@ def initialize_embedding_engine() -> EmbeddingEngineStatus:
     model_name = settings.insightface_model
     providers = _resolve_providers()
 
+    root = _insightface_root()
+    model_dir = _insightface_model_dir(model_name)
+
     try:
-        import insightface
-        from insightface.app import FaceAnalysis
+        if _insightface_cache_ready(model_name):
+            logger.info(
+                "InsightFace model cache hit | model=%s path=%s",
+                model_name,
+                model_dir,
+            )
+        else:
+            logger.warning(
+                "InsightFace model cache miss — download required | model=%s path=%s",
+                model_name,
+                model_dir,
+            )
 
         logger.info(
-            "Loading InsightFace model=%s providers=%s",
+            "Loading InsightFace model=%s providers=%s root=%s",
             model_name,
             providers,
+            root,
         )
-        app = FaceAnalysis(name=model_name, providers=providers)
-        app.prepare(ctx_id=-1, det_size=(640, 640))
+        app = _load_face_analysis_with_retry(model_name, root, providers)
         _face_analysis = app
         _model_name = model_name
         _engine_ready = True

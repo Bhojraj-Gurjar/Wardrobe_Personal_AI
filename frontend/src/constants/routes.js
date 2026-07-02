@@ -22,6 +22,7 @@ export const ROUTES = {
   ORDERS: '/orders',
   ORDERS_BY_ID: (id) => `/orders/${id}`,
   MY_CLOSET: '/my-closet',
+  MY_CLOSET_SECTION: (section) => `/my-closet/${section}`,
   PROFILE: {
     HOME: '/profile',
     SETTINGS: '/profile/settings',

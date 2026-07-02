@@ -59,12 +59,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
-RUN mkdir -p models/insightface models/huggingface models/cache uploads app/generated/tryon \
+RUN mkdir -p models/insightface/models models/huggingface models/cache uploads app/generated/tryon \
     && python -c "import urllib.request; urllib.request.urlretrieve('https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task', 'models/face_landmarker.task')" \
     && python -c "import urllib.request; urllib.request.urlretrieve('https://storage.googleapis.com/mediapipe-models/image_segmenter/hair_segmenter/float32/latest/hair_segmenter.tflite', 'models/hair_segmenter.tflite')"
 
 COPY app ./app
+COPY scripts/bake_insightface_model.py ./scripts/bake_insightface_model.py
 COPY fashion_dna.py color_affinity.py fashion_personality.py ./
+
+# Bake InsightFace buffalo_sc at build time so runtime never depends on GitHub downloads.
+ENV INSIGHTFACE_MODEL=buffalo_sc
+RUN python scripts/bake_insightface_model.py \
+    && rm -rf /root/.cache /tmp/* \
+    && find models/insightface -name '*.zip' -delete 2>/dev/null || true
+
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh \

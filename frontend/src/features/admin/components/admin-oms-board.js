@@ -18,14 +18,12 @@ import { LoadingState } from '@/components/shared/loading-state';
 import { ErrorState } from '@/components/shared/error-state';
 import { AdminPageHeader } from '@/features/admin/components/admin-metric-card';
 import { AdminOmsSummaryCards } from '@/features/admin/components/admin-oms-summary-cards';
+import { AdminOmsOrderDetailDrawer } from '@/features/admin/components/admin-oms-order-detail-drawer';
 import {
-  flattenOrderRows,
   filterRowKeysForOrder,
-  getLineItemName,
-  getLineItemQty,
-  getLineItemSku,
-  getLineItemTotal,
+  getOrderItemsSummary,
   getSelectedOrderIds,
+  groupOrderRows,
   orderMatchesTab,
   patchOmsSummaryCounters,
   removeOrderFromCache,
@@ -203,7 +201,7 @@ function StageActionButton({ order, activeTab, pendingAction, onAction }) {
   return null;
 }
 
-const OrderItemRow = memo(function OrderItemRow({
+const OrderRow = memo(function OrderRow({
   row,
   activeTab,
   pendingAction,
@@ -211,16 +209,23 @@ const OrderItemRow = memo(function OrderItemRow({
   showCheckbox,
   onToggleSelect,
   onAction,
+  onOpenDetail,
 }) {
-  const { order, item, rowIndex } = row;
-  const productName = getLineItemName(item);
-  const sku = getLineItemSku(item);
-  const qty = getLineItemQty(item, order);
-  const lineTotal = getLineItemTotal(item, order);
-  const currency = item?.product?.currency;
+  const { order, orderIndex, lineCount, itemCount } = row;
   const paymentMethod = order.payment_method || 'COD';
   const paymentStatus = order.payment_status || 'pending';
   const shipTo = formatAddressSnippet(order.shipping_address);
+  const itemsLabel = lineCount > 1 ? `${lineCount} items` : `${itemCount || lineCount || 1} item`;
+  const itemsSummary = getOrderItemsSummary(order);
+  const currency = order.items?.[0]?.product?.currency;
+
+  const handleRowClick = () => {
+    onOpenDetail(order);
+  };
+
+  const stopRowClick = (event) => {
+    event.stopPropagation();
+  };
 
   return (
     <motion.tr
@@ -229,20 +234,22 @@ const OrderItemRow = memo(function OrderItemRow({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0, x: -12 }}
       transition={{ duration: 0.2 }}
+      onClick={handleRowClick}
       className={cn(
-        'min-h-[68px] border-b border-dashboard-border/70 transition-colors hover:bg-primary/[0.06]',
-        rowIndex % 2 === 1 && 'bg-dashboard-bg/15',
+        'min-h-[68px] cursor-pointer border-b border-dashboard-border/70 transition-colors hover:bg-primary/[0.06]',
+        orderIndex % 2 === 1 && 'bg-dashboard-bg/15',
         selected && 'bg-primary/[0.08]',
       )}
     >
       {showCheckbox ? (
-        <td className="w-10 px-3 py-3 align-middle">
+        <td className="w-10 px-3 py-3 align-middle" onClick={stopRowClick}>
           <input
             type="checkbox"
             checked={selected}
             onChange={onToggleSelect}
+            onClick={stopRowClick}
             className={formCheckboxClass}
-            aria-label={`Select ${order.order_number} · ${sku}`}
+            aria-label={`Select order ${order.order_number}`}
           />
         </td>
       ) : null}
@@ -256,23 +263,13 @@ const OrderItemRow = memo(function OrderItemRow({
         </div>
       </td>
       <td className="px-3 py-3 align-middle">
-        <span
-          className="block max-w-full break-all font-mono text-[11px] font-medium leading-tight tracking-wide text-primary/90"
-          title={sku}
-        >
-          {sku}
-        </span>
-      </td>
-      <td className="px-3 py-3 align-middle">
-        <p className="truncate text-dashboard-muted" title={productName}>
-          {productName}
+        <p className="text-xs font-medium text-primary/90">{itemsLabel}</p>
+        <p className="truncate text-dashboard-muted" title={itemsSummary}>
+          {itemsSummary}
         </p>
       </td>
-      <td className="px-3 py-3 text-center align-middle tabular-nums text-dashboard-muted">
-        {qty}
-      </td>
       <td className="whitespace-nowrap px-3 py-3 text-right align-middle font-semibold tabular-nums text-dashboard-foreground">
-        {formatProductPrice(lineTotal, currency)}
+        {formatProductPrice(order.total_amount, currency)}
       </td>
       <td className="px-3 py-3 text-center align-middle">
         <span className="block truncate text-xs text-dashboard-muted" title={paymentMethod}>
@@ -299,7 +296,7 @@ const OrderItemRow = memo(function OrderItemRow({
             : <StatusBadge status={order.status} />}
         </div>
       </td>
-      <td className="w-28 whitespace-nowrap px-3 py-3 align-middle">
+      <td className="w-28 whitespace-nowrap px-3 py-3 align-middle" onClick={stopRowClick}>
         <StageActionButton
           order={order}
           activeTab={activeTab}
@@ -322,6 +319,7 @@ export function AdminOmsBoard() {
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const [pendingAction, setPendingAction] = useState(null);
   const [bulkPending, setBulkPending] = useState(null);
+  const [detailOrder, setDetailOrder] = useState(null);
 
   useAdminOrderEvents({ enabled: Boolean(token), token });
 
@@ -346,7 +344,11 @@ export function AdminOmsBoard() {
 
   const ordersQuery = useAdminOrdersQuery(orderQueryParams);
 
-  const orderRows = useMemo(() => flattenOrderRows(ordersQuery.data?.items || []), [ordersQuery.data?.items]);
+  const orderRows = useMemo(() => groupOrderRows(ordersQuery.data?.items || []), [ordersQuery.data?.items]);
+  const totalLineItems = useMemo(
+    () => orderRows.reduce((sum, row) => sum + (row.itemCount || 0), 0),
+    [orderRows],
+  );
 
   const applyOrderTransition = useCallback((order) => {
     const stillInTab = orderMatchesTab(order, activeTab);
@@ -646,7 +648,7 @@ export function AdminOmsBoard() {
             )}
           >
             {bulkPending === 'accept' ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
-            Accept All{selectedRowKeys.length ? ` (${selectedRowKeys.length})` : ''}
+            Accept All{selectedOrderIds.length ? ` (${selectedOrderIds.length})` : ''}
           </Button>
           <Button
             variant="glass"
@@ -694,20 +696,18 @@ export function AdminOmsBoard() {
 
       <div className="overflow-hidden rounded-xl border border-dashboard-border/80 bg-dashboard-surface shadow-[0_8px_32px_rgba(0,0,0,0.18)]">
         <div className="max-h-[calc(100vh-22rem)] overflow-x-auto overflow-y-auto overscroll-contain">
-          <table className="w-full min-w-[1280px] table-fixed border-separate border-spacing-0 text-sm">
+          <table className="w-full min-w-[1100px] table-fixed border-separate border-spacing-0 text-sm">
             <colgroup>
               {activeTab === 'NEW_ORDERS' ? <col className="w-10" /> : null}
+              <col className="w-[10%]" />
+              <col className="w-[13%]" />
+              <col className="w-[18%]" />
+              <col className="w-[8%]" />
+              <col className="w-[8%]" />
+              <col className="w-[8%]" />
               <col className="w-[9%]" />
-              <col className="w-[11%]" />
+              <col className="w-[12%]" />
               <col className="w-[9%]" />
-              <col className="w-[14%]" />
-              <col className="w-[4%]" />
-              <col className="w-[7%]" />
-              <col className="w-[8%]" />
-              <col className="w-[8%]" />
-              <col className="w-[8%]" />
-              <col className="w-[11%]" />
-              <col className="w-[8%]" />
               <col className="w-28" />
             </colgroup>
             <thead className="sticky top-0 z-10 bg-dashboard-surface-elevated/95 text-left text-[11px] font-semibold uppercase tracking-wider text-dashboard-muted shadow-sm backdrop-blur-sm">
@@ -719,15 +719,13 @@ export function AdminOmsBoard() {
                       checked={allSelected}
                       onChange={toggleSelectAll}
                       className={formCheckboxClass}
-                      aria-label="Select all SKU rows"
+                      aria-label="Select all orders"
                     />
                   </th>
                 ) : null}
                 <th className="px-3 py-3">Order</th>
                 <th className="px-3 py-3">Customer</th>
-                <th className="px-3 py-3">SKU ID</th>
-                <th className="px-3 py-3">Product</th>
-                <th className="px-3 py-3 text-center">Qty</th>
+                <th className="px-3 py-3">Items</th>
                 <th className="px-3 py-3 text-right">Total</th>
                 <th className="px-3 py-3 text-center">Payment</th>
                 <th className="px-3 py-3 text-center">Pay Status</th>
@@ -740,7 +738,7 @@ export function AdminOmsBoard() {
             <tbody>
               <AnimatePresence mode="popLayout">
                 {orderRows.map((row) => (
-                  <OrderItemRow
+                  <OrderRow
                     key={row.key}
                     row={row}
                     activeTab={activeTab}
@@ -749,6 +747,7 @@ export function AdminOmsBoard() {
                     selected={selectedRowKeys.includes(row.key)}
                     onToggleSelect={() => toggleSelect(row.key)}
                     onAction={runOrderAction}
+                    onOpenDetail={setDetailOrder}
                   />
                 ))}
               </AnimatePresence>
@@ -774,7 +773,7 @@ export function AdminOmsBoard() {
           <span>
             {activeStageLabel}
             {' · '}
-            {meta.total || 0} orders · {orderRows.length} line items · Page {meta.page || page} of {meta.totalPages || 1}
+            {meta.total || 0} orders · {totalLineItems} line items · Page {meta.page || page} of {meta.totalPages || 1}
           </span>
           <div className="flex items-center gap-2">
             <Button
@@ -796,6 +795,12 @@ export function AdminOmsBoard() {
           </div>
         </div>
       </div>
+
+      <AdminOmsOrderDetailDrawer
+        order={detailOrder}
+        open={Boolean(detailOrder)}
+        onClose={() => setDetailOrder(null)}
+      />
     </div>
   );
 }

@@ -20,6 +20,21 @@ export function getDayBounds(date = new Date()) {
   return { start, end };
 }
 
+export function getYearBounds(year = new Date().getFullYear()) {
+  return {
+    start: new Date(year, 0, 1),
+    end: new Date(year, 11, 31, 23, 59, 59, 999),
+  };
+}
+
+export function getCurrentYearBounds() {
+  return getYearBounds(new Date().getFullYear());
+}
+
+export function getPreviousYearBounds() {
+  return getYearBounds(new Date().getFullYear() - 1);
+}
+
 export function buildCompletedRevenueWhereForDay(date = new Date()) {
   const { start, end } = getDayBounds(date);
 
@@ -36,6 +51,11 @@ export function buildCompletedRevenueWhereForRange(start, end) {
     OR: [
       { completed_at: { gte: start, lte: end } },
       { delivered_at: { gte: start, lte: end } },
+      {
+        completed_at: null,
+        delivered_at: null,
+        created_at: { gte: start, lte: end },
+      },
     ],
   };
 }
@@ -52,7 +72,11 @@ export function resolveOrderRecognitionDate(order) {
     return null;
   }
 
-  const raw = order.completed_at || order.delivered_at || null;
+  if (!COMPLETED_REVENUE_STATUSES.includes(order.status)) {
+    return null;
+  }
+
+  const raw = order.completed_at || order.delivered_at || order.created_at || null;
   return raw ? new Date(raw) : null;
 }
 

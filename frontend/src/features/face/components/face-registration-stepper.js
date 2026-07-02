@@ -7,7 +7,7 @@ import {
   FACE_REGISTRATION_FLOW_TIMEOUT_MS,
   FACE_VERIFY_TIMEOUT_MESSAGE,
 } from '@/features/face/constants/face-timeouts';
-import { FACE_LIVENESS_PHASE, FACE_REGISTRATION_LIVENESS_CHALLENGE } from '@/features/face/constants/face-liveness-challenges';
+import { FACE_REGISTRATION_LIVENESS_CHALLENGE } from '@/features/face/constants/face-liveness-challenges';
 import { FACE_REGISTRATION_CAPTURE_SETTINGS } from '@/features/face/constants/face-login-capture-settings';
 import { useCamera, FACE_LOGIN_VIDEO_CONSTRAINTS } from '@/features/face/hooks/use-camera';
 import { useFaceRegisterMutation } from '@/features/face/hooks/use-face-register';
@@ -18,8 +18,9 @@ import {
   FaceAuthLayout,
   FaceAuthRetryActions,
   faceAuthBackLinkClass,
-  faceAuthStatusTextClass,
 } from '@/features/face/components/face-auth-layout';
+import { FaceAuthSimpleStatus } from '@/features/face/components/face-auth-simple-status';
+import { getFaceRegisterSimpleStatus } from '@/features/face/utils/face-auth-simple-status';
 import { cn } from '@/utils/cn';
 import { ROUTES } from '@/constants/routes';
 import { useOnboardingStore } from '@/stores/onboarding-store';
@@ -144,14 +145,9 @@ export function FaceRegistrationStepper() {
     }
   }, [camera, liveness, registerMutation, router]);
 
-  const handleRetry = useCallback(() => {
-    flowStartedRef.current = false;
-    consecutiveFailuresRef.current = 0;
-    setErrorMessage(null);
-    setIsVerifying(false);
-    liveness.reset();
-    void camera.start().then(() => runRegistration());
-  }, [camera, liveness, runRegistration]);
+  const handleTryAgain = useCallback(() => {
+    window.location.reload();
+  }, []);
 
   useEffect(() => {
     if (camera.error) {
@@ -172,37 +168,14 @@ export function FaceRegistrationStepper() {
   }, [camera.error, camera.isReady, errorMessage, isVerifying, runRegistration]);
 
   const isBusy = isVerifying || registerMutation.isPending;
-  const showCapture = [
-    FACE_LIVENESS_PHASE.CAPTURING,
-    FACE_LIVENESS_PHASE.COMPLETE,
-  ].includes(liveness.phase);
+  const showCapture = isBusy;
 
-  const progressLabel = (() => {
-    if (errorMessage) {
-      return null;
-    }
-
-    if (liveness.phase === FACE_LIVENESS_PHASE.POSITIONING) {
-      const hint = liveness.guidance || '';
-      if (/move your face|multiple faces|lighting|closer|back|center|look directly/i.test(hint)) {
-        return hint;
-      }
-      return null;
-    }
-
-    if (
-      liveness.phase === FACE_LIVENESS_PHASE.CHALLENGE
-      || liveness.phase === FACE_LIVENESS_PHASE.CAPTURING
-    ) {
-      return liveness.challenge?.instruction || liveness.guidance;
-    }
-
-    if (registerMutation.isPending || (isBusy && liveness.phase === FACE_LIVENESS_PHASE.COMPLETE)) {
-      return 'Processing…';
-    }
-
-    return null;
-  })();
+  const statusMessage = getFaceRegisterSimpleStatus({
+    cameraReady: camera.isReady,
+    isVerifying: isBusy && !registerMutation.isPending,
+    isRegistering: registerMutation.isPending,
+    hasError: Boolean(errorMessage),
+  });
 
   return (
     <FaceAuthLayout
@@ -212,7 +185,6 @@ export function FaceRegistrationStepper() {
         <button
           type="button"
           onClick={() => router.push(ROUTES.AUTH.LOGIN)}
-          disabled={isBusy}
           className={cn(faceAuthBackLinkClass, 'mx-auto flex')}
         >
           <ArrowLeft className="size-4" aria-hidden="true" />
@@ -225,24 +197,22 @@ export function FaceRegistrationStepper() {
           videoRef={camera.videoRef}
           isActive
           isReady={camera.isReady}
-          isScanning={showCapture || isBusy}
+          isScanning={showCapture}
           progress={liveness.progress}
         />
-
-        {progressLabel ? (
-          <p className={faceAuthStatusTextClass} aria-live="polite" aria-atomic="true">
-            {progressLabel}
-          </p>
-        ) : null}
       </div>
 
       {errorMessage ? (
         <FaceAuthRetryActions
           message={errorMessage}
-          onRetry={handleRetry}
-          disabled={isBusy}
+          onRetry={handleTryAgain}
         />
-      ) : null}
+      ) : (
+        <FaceAuthSimpleStatus
+          message={statusMessage}
+          isLoading={isBusy}
+        />
+      )}
     </FaceAuthLayout>
   );
 }

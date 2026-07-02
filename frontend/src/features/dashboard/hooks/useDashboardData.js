@@ -5,8 +5,8 @@ import { useQuery } from '@tanstack/react-query';
 import { QUERY_STALE_TIME } from '@/constants/app';
 import { ROUTES } from '@/constants/routes';
 import { fetchDashboardSummary } from '@/features/dashboard/services/dashboard.service';
+import { resolveRecommendationReason } from '@/features/ai/utils/recommendations.util';
 import { useProfileQuery } from '@/features/profile/hooks';
-import { getProductImageUrl } from '@/features/products/utils/product-catalog.utils';
 import { useUserAccessToken } from '@/stores/auth-store';
 
 export const DASHBOARD_SUMMARY_QUERY_KEY = ['dashboard', 'summary'];
@@ -16,10 +16,6 @@ function getGreeting() {
   if (hour < 12) return 'GOOD MORNING';
   if (hour < 17) return 'GOOD AFTERNOON';
   return 'GOOD EVENING';
-}
-
-function scoreToMatchPercent(score) {
-  return Math.min(99, Math.max(70, Math.round(score)));
 }
 
 function buildWardrobeTrend(count) {
@@ -142,16 +138,14 @@ export function useDashboardData() {
         ? todaysPicks.map((item) => ({
             id: item.product?.id,
             product: item.product,
-            name: item.product?.name || 'Recommended pick',
-            image: getProductImageUrl(item.product),
-            matchPercent: scoreToMatchPercent(item.score),
-            href: item.product?.id
-              ? ROUTES.PRODUCTS.DETAIL(item.product.id)
-              : ROUTES.AI.RECOMMENDATIONS,
-            isMock: false,
+            score: item.score,
+            recommendationReason: resolveRecommendationReason(item, {
+              fashionDna,
+              mode: 'daily',
+            }),
           })).filter((pick) => pick.id)
         : [],
-    [hasRecommendations, todaysPicks],
+    [fashionDna, hasRecommendations, todaysPicks],
   );
 
   const dna = useMemo(

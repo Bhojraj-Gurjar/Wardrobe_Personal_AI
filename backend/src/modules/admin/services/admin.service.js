@@ -26,7 +26,11 @@ import {
 import { isValidCmsProductType } from '../constants/cms-taxonomy.constants';
 import { USER_ROLE } from '../../../common/constants/user-role';
 import { ORDER_STATUS } from '../../orders/validators/order.constants';
-import { buildMonthlyRevenueSeries } from '../../orders/utils/order-revenue.util';
+import {
+  buildMonthlyRevenueSeries,
+  getCurrentYearBounds,
+  getPreviousYearBounds,
+} from '../../orders/utils/order-revenue.util';
 import { normalizeDisplayStatus } from '../../orders/utils/order-status.util';
 import { AdminRepository } from '../repositories/admin.repository';
 import { AdminAnalyticsRepository } from '../repositories/admin-analytics.repository';
@@ -153,6 +157,8 @@ class AdminService {
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
     const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+    const { start: yearStart, end: yearEnd } = getCurrentYearBounds();
+    const { start: prevYearStart, end: prevYearEnd } = getPreviousYearBounds();
     const chartStart = new Date(now.getFullYear(), now.getMonth() - 5, 1);
     chartStart.setHours(0, 0, 0, 0);
 
@@ -161,8 +167,8 @@ class AdminService {
       activeUsers,
       ordersThisMonth,
       ordersPrevMonth,
-      revenueThisMonth,
-      revenuePrevMonth,
+      revenueThisYear,
+      revenuePrevYear,
       revenueOrders,
       monthlyUsers,
       categoryOrders,
@@ -176,8 +182,8 @@ class AdminService {
       this.adminRepository.countActiveUsers(),
       this.adminRepository.countOrdersCreatedInRange(monthStart, monthEnd),
       this.adminRepository.countOrdersCreatedInRange(prevMonthStart, prevMonthEnd),
-      this.adminRepository.aggregateNetRecognizedRevenue(monthStart, monthEnd),
-      this.adminRepository.aggregateNetRecognizedRevenue(prevMonthStart, prevMonthEnd),
+      this.adminRepository.aggregateNetRecognizedRevenue(yearStart, yearEnd),
+      this.adminRepository.aggregateNetRecognizedRevenue(prevYearStart, prevYearEnd),
       this.adminRepository.getRevenueOrdersSince(chartStart),
       this.adminRepository.getMonthlyStats(6).then(([, users]) => users),
       this.adminRepository.groupOrdersByCategory({ since: monthStart }),
@@ -188,8 +194,8 @@ class AdminService {
       this.adminRepository.countEngagedUsersInRange(prevMonthStart, prevMonthEnd),
     ]);
 
-    const revenue = revenueThisMonth.net;
-    const prevRevenue = revenuePrevMonth.net;
+    const revenue = revenueThisYear.net;
+    const prevRevenue = revenuePrevYear.net;
 
     const conversionRate = productViewsThisMonth > 0
       ? Math.round((completedOrdersThisMonth / productViewsThisMonth) * 1000) / 10
@@ -252,7 +258,7 @@ class AdminService {
     };
 
     this.logger.log(
-      `Dashboard query executed — users=${totalUsers} active=${activeUsers} ordersMonth=${ordersThisMonth} revenue=${revenue}`,
+      `Dashboard query executed — users=${totalUsers} active=${activeUsers} ordersMonth=${ordersThisMonth} revenueYear=${revenue}`,
     );
 
     return payload;

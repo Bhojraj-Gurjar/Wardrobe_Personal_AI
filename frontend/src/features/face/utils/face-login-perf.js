@@ -1,18 +1,19 @@
 const isDev = process.env.NODE_ENV === 'development';
+const isPerfEnabled = isDev || process.env.NEXT_PUBLIC_FACE_LOGIN_PERF === '1';
 const PREFIX = '[FaceLoginPerf]';
 
 const marks = new Map();
 
 export const FaceLoginPerf = {
   mark(label) {
-    if (!isDev || typeof performance === 'undefined') {
+    if (!isPerfEnabled || typeof performance === 'undefined') {
       return;
     }
     marks.set(label, performance.now());
   },
 
   measure(label, startLabel) {
-    if (!isDev || typeof performance === 'undefined') {
+    if (!isPerfEnabled || typeof performance === 'undefined') {
       return null;
     }
 
@@ -27,18 +28,20 @@ export const FaceLoginPerf = {
   },
 
   report() {
-    if (!isDev) {
+    if (!isPerfEnabled) {
       return;
     }
 
     const phases = [
       ['camera_startup', 'flow_start', 'camera_ready'],
-      ['face_detection', 'camera_ready', 'liveness_complete'],
-      ['liveness_capture', 'liveness_start', 'liveness_complete'],
+      ['client_positioning', 'positioning_start', 'positioning_complete'],
+      ['frame_capture', 'capture_start', 'capture_complete'],
+      ['liveness_client_total', 'liveness_start', 'liveness_complete'],
       ['api_round_trip', 'api_start', 'api_complete'],
       ['total_login', 'flow_start', 'login_complete'],
     ];
 
+    console.info(`${PREFIX} --- timing breakdown ---`);
     for (const [label, start, end] of phases) {
       const startAt = marks.get(start);
       const endAt = marks.get(end);

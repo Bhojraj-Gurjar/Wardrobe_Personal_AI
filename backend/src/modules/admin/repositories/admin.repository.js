@@ -403,28 +403,29 @@ class AdminRepository {
   }
 
   async countEngagedUsersInRange(start, end) {
+    const productViewWhere = {
+      viewed_at: { gte: start, lte: end },
+    };
+
     const [orderUsers, viewUsers] = await Promise.all([
       this.prisma.order.findMany({
         where: {
           created_at: { gte: start, lte: end },
-          user_id: { not: null },
+          NOT: { user_id: null },
         },
         select: { user_id: true },
         distinct: ['user_id'],
       }),
       this.prisma.productView.findMany({
-        where: {
-          viewed_at: { gte: start, lte: end },
-          user_id: { not: null },
-        },
+        where: productViewWhere,
         select: { user_id: true },
         distinct: ['user_id'],
       }),
     ]);
 
     return new Set([
-      ...orderUsers.map((row) => row.user_id),
-      ...viewUsers.map((row) => row.user_id),
+      ...orderUsers.map((row) => row.user_id).filter(Boolean),
+      ...viewUsers.map((row) => row.user_id).filter(Boolean),
     ]).size;
   }
 

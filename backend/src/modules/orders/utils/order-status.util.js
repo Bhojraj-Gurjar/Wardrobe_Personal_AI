@@ -1,4 +1,5 @@
 import { ORDER_STATUS } from '../validators/order.constants';
+import { canTransition } from './order-transition.util';
 
 export const TERMINAL_ORDER_STATUSES = [
   ORDER_STATUS.COMPLETED,
@@ -88,7 +89,7 @@ export function resolveStatusFilterValues(statusFilter) {
 }
 
 export function isOrderCancellable(status) {
-  return CANCELLABLE_ORDER_STATUSES.includes(status);
+  return canTransition(status, ORDER_STATUS.CANCELLED);
 }
 
 export function getTimelineSteps(status) {
